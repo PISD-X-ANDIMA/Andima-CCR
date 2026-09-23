@@ -19,7 +19,7 @@ interface Employee {
 
 const sampleEmployees: Employee[] = [
   {
-    id: "EMP-001",
+    id: "JOB-001",
     name: "Andima Pratama",
     role: "Senior Software Engineer",
     department: "Engineering",
@@ -27,7 +27,7 @@ const sampleEmployees: Employee[] = [
     statusText: "Active",
   },
   {
-    id: "EMP-002",
+    id: "JOB-002",
     name: "Siti Rahmawati",
     role: "HR Generalist",
     department: "Human Resource",
@@ -35,7 +35,7 @@ const sampleEmployees: Employee[] = [
     statusText: "Active",
   },
   {
-    id: "EMP-003",
+    id: "JOB-003",
     name: "Budi Santoso",
     role: "UI/UX Designer",
     department: "Design System",
@@ -43,7 +43,7 @@ const sampleEmployees: Employee[] = [
     statusText: "On Leave",
   },
   {
-    id: "EMP-004",
+    id: "JOB-004",
     name: "Dewi Lestari",
     role: "Finance Officer",
     department: "Finance",
@@ -51,7 +51,7 @@ const sampleEmployees: Employee[] = [
     statusText: "Suspended",
   },
   {
-    id: "EMP-005",
+    id: "JOB-005",
     name: "Reza Firmansyah",
     role: "DevOps Engineer",
     department: "Infrastructure",
@@ -68,7 +68,7 @@ export default function HomePage() {
   const columns: Column<Employee>[] = [
     {
       key: "id",
-      header: "ID Karyawan",
+      header: "Job Num",
       width: "140px",
       render: (row) => <span className="font-semibold text-slate-900">{row.id}</span>,
     },
