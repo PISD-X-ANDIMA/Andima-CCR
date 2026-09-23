@@ -28,10 +28,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-<<<<<<< HEAD
-=======
-        
->>>>>>> main
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
