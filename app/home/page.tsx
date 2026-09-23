@@ -131,7 +131,7 @@ export default function HomePage() {
 
       <div className="w-full max-w-[340px]">
         <UserInput
-          placeholder="User Input D1"
+          placeholder="User Input C1"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
         />
@@ -139,7 +139,7 @@ export default function HomePage() {
 
       <div className="w-full max-w-[340px]">
         <CustomDropdown
-          placeholder="Dropdown testing miliki D1"
+          placeholder="Dropdown testing miliki C1"
           categoryTitle="TESTING"
           categoryBadge="3 Active"
           defaultOpen={false}
