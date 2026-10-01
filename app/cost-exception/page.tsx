@@ -20,7 +20,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import Sidebar from "../dashboard/Sidebar";
 import CustomButton from "../dashboard/CustomButton";
 import StatusBadge, { type Tone } from "../dashboard/StatusBadge";
 import { supabase } from "@/lib/supabase";
@@ -348,8 +347,6 @@ export default function CostExceptionPage() {
 
   return (
     <div className="flex min-h-screen bg-[#f4f7fb]">
-      <Sidebar />
-
       <main className="flex-1 px-8 py-6">
         {/* Header Modul */}
         <div className="flex flex-wrap items-start justify-between gap-4">

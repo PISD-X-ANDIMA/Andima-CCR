@@ -16,7 +16,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import Sidebar from "../dashboard/Sidebar";
 import { supabase } from "@/lib/supabase";
 
 export type PriorityLevel = "Critical" | "High" | "Medium" | "Low";
@@ -356,8 +355,6 @@ export default function PriorityExceptionPage() {
 
   return (
     <div className="flex min-h-screen bg-[#f4f7fb]">
-      <Sidebar />
-
       <main className="flex-1 px-8 py-7">
         {/* Header */}
         <div className="flex items-center justify-between">
