@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     startDate,
     endDateExclusive: nextMonthStart(endDate),
     onlyOverdue30: true,
-  });
+  }, supabase);
   const alerts = invoices.map((invoice) => ({
     id: invoice.invoice_number,
     days: invoice.days_overdue,

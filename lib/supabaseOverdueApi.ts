@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { OverdueInvoiceItem, OverdueKpiSummary, WarningLetterParams } from '@/types/overdue';
 import { INITIAL_OVERDUE_INVOICES, INITIAL_OVERDUE_KPI } from './overdueData';
 
@@ -6,9 +6,13 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ufjbbwqaztg
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
   '';
 
 export const getSupabaseClient = () => {
+  if (!supabaseKey) {
+    throw new Error('Supabase server client is not configured. Set SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.');
+  }
   return createClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false },
   });
@@ -56,9 +60,9 @@ function inDateRange(value: string, options: OverdueQueryOptions) {
  * c1_overdue_alert is preferred; validated outstanding staging supplies the
  * invoice metadata and acts as a fallback when alert rows have not been built.
  */
-export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOptions = {}) {
+export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOptions = {}, client?: SupabaseClient) {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = client ?? getSupabaseClient();
     const { data: dbAlerts, error: alertErr } = await supabase
       .from('c1_overdue_alert')
       .select('*');
