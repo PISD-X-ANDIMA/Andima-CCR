@@ -39,18 +39,18 @@ export default function LoginPage() {
       }
 
       const { data: access, error: accessError } = await supabase
-        .from("d3_employee")
+        .from("d3_user_access")
         .select("app_role")
         .eq("auth_user_id", data.user.id)
         .maybeSingle();
 
-      if ((accessError || !access) && process.env.NODE_ENV === "production") {
+      if (accessError || !access) {
         await supabase.auth.signOut();
         setNotice({ tone: "error", text: "Akun ini belum dipetakan ke akses HRMS D3. Hubungi HR Admin." });
         return;
       }
 
-      const view = access?.app_role === "EMPLOYEE" ? "employee" : "manager";
+      const view = access.app_role === "EMPLOYEE" ? "employee" : "manager";
       setNotice({ tone: "success", text: "Login berhasil. Mengarahkan ke workspace Anda..." });
       window.setTimeout(() => {
         router.replace(`/employee-report-ticket?view=${view}`);

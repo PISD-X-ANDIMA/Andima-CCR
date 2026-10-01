@@ -74,17 +74,17 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
         if (!user || !isMounted) return;
 
         const { data: access } = await supabase
-          .from("d3_employee")
-          .select("app_role, full_name")
+          .from("d3_user_access")
+          .select("app_role, d3_employee!d3_user_access_employee_id_fkey(full_name)")
           .eq("auth_user_id", user.id)
           .maybeSingle();
 
-        const accountAccess = access as unknown as { app_role: string | null; full_name: string | null } | null;
+        const accountAccess = access as unknown as { app_role: string | null; d3_employee: { full_name: string } | null } | null;
         const metadataName = user.user_metadata?.full_name;
         const registeredName = typeof metadataName === "string" && metadataName.trim()
           ? metadataName.trim()
           : user.email?.split("@")[0] ?? "Andima User";
-        const name = accountAccess?.full_name?.trim() || registeredName;
+        const name = accountAccess?.d3_employee?.full_name?.trim() || registeredName;
         const role = accountAccess?.app_role === "HR" ? "HR" : accountAccess?.app_role === "MANAGER" ? "Manager" : accountAccess?.app_role === "EMPLOYEE" ? "Employee" : "CCR User";
         const initials = name.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "AU";
         if (isMounted) setLoadedAccount({ name, role, initials });

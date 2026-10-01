@@ -49,7 +49,7 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     try {
       const supabase = createClient();
-      const emailRedirectTo = new URL("/auth?next=/login", window.location.origin).toString();
+      const emailRedirectTo = new URL("/auth/confirm?next=/login", window.location.origin).toString();
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -92,7 +92,7 @@ export default function RegisterPage() {
 
   return (
     <main className="relative isolate min-h-dvh overflow-y-auto bg-[#07111f] text-[#172033]">
-      <Image src="/images/andima-login%26regis-warehouse.jpeg" alt="Area operasional PT Andima Transportindo" fill priority className="-z-20 object-cover object-center opacity-65" />
+      <Image src="/images/andima-register-warehouse.png" alt="Area operasional PT Andima Transportindo" fill priority className="-z-20 object-cover object-center opacity-65" />
       <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(7,17,31,0.96),rgba(7,17,31,0.81)_52%,rgba(7,17,31,0.28))]" />
 
       <section className="flex min-h-dvh w-full items-center px-5 py-10 sm:px-10 lg:px-20">

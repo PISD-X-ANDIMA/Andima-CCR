@@ -34,33 +34,37 @@ export default function HeaderAccount() {
     let isMounted = true;
 
     async function loadAccount() {
-      const supabase = createClient();
-      const { data: userData } = await supabase.auth.getUser();
-      const user = userData.user;
-      if (!user || !isMounted) return;
+      try {
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        const user = userData.user;
+        if (!user || !isMounted) return;
 
-      const { data: access } = await supabase
-        .from("d3_employee")
-        .select("app_role, full_name")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
+        const { data: access } = await supabase
+          .from("d3_employee")
+          .select("app_role, full_name")
+          .eq("auth_user_id", user.id)
+          .maybeSingle();
 
-      const accountAccess = access as unknown as AccountAccess | null;
-      const metadataName = user.user_metadata?.full_name;
-      const registeredName = typeof metadataName === "string" && metadataName.trim()
-        ? metadataName.trim()
-        : user.email?.split("@")[0] ?? fallbackAccount.name;
-      const name = accountAccess?.full_name?.trim() || registeredName;
-      const initials = name
-        .split(" ")
-        .filter(Boolean)
-        .map((part) => part[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase() || fallbackAccount.initials;
+        const accountAccess = access as unknown as AccountAccess | null;
+        const metadataName = user.user_metadata?.full_name;
+        const registeredName = typeof metadataName === "string" && metadataName.trim()
+          ? metadataName.trim()
+          : user.email?.split("@")[0] ?? fallbackAccount.name;
+        const name = accountAccess?.full_name?.trim() || registeredName;
+        const initials = name
+          .split(" ")
+          .filter(Boolean)
+          .map((part) => part[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase() || fallbackAccount.initials;
 
-      if (isMounted) {
-        setAccount({ initials, name, role: roleLabel(accountAccess?.app_role ?? null) });
+        if (isMounted) {
+          setAccount({ initials, name, role: roleLabel(accountAccess?.app_role ?? null) });
+        }
+      } catch {
+        // Keep the fallback account visible if account data cannot be loaded.
       }
     }
 

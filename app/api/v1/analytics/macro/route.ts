@@ -14,7 +14,7 @@ function jsonError(message: string, status: number, code: string) {
 }
 
 function monthStart(value: string) {
-  return /^\d{4}-\d{2}$/.test(value) ? `${value}-01` : null;
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? `${value}-01` : null;
 }
 
 function formatMonth(value: string) {
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   if (accessError) return jsonError("Unable to verify account access.", 403, "ACCESS_CHECK_FAILED");
   const role = String(access?.app_role ?? "").toUpperCase();
-  if (!["HR", "MANAGER", "ADMIN", "SUPERVISOR"].includes(role)) {
+  if (!["HR", "MANAGER"].includes(role)) {
     return jsonError("Sales Overview is limited to management and admin users.", 403, "FORBIDDEN");
   }
 

@@ -33,7 +33,7 @@ using (
     select 1
     from public.d3_user_access access
     where access.auth_user_id = auth.uid()
-      and access.app_role::text in ('HR', 'MANAGER', 'ADMIN', 'SUPERVISOR')
+      and access.app_role::text in ('HR', 'MANAGER')
   )
 );
 
