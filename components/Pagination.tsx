@@ -21,10 +21,23 @@ export const Pagination: React.FC<PaginationProps> = ({
     }
   };
 
+  const pageItems: Array<number | "ellipsis-start" | "ellipsis-end"> = [];
+  const firstPage = Math.max(2, currentPage - 1);
+  const lastPage = Math.min(totalPages - 1, currentPage + 1);
+  if (totalPages <= 5) {
+    for (let page = 1; page <= totalPages; page += 1) pageItems.push(page);
+  } else {
+    pageItems.push(1);
+    if (firstPage > 2) pageItems.push("ellipsis-start");
+    for (let page = firstPage; page <= lastPage; page += 1) pageItems.push(page);
+    if (lastPage < totalPages - 1) pageItems.push("ellipsis-end");
+    pageItems.push(totalPages);
+  }
+
   return (
     <nav
       aria-label="Pagination Navigation"
-      className={`inline-flex items-center gap-2 font-sans select-none ${className}`}
+      className={`flex max-w-full items-center justify-center gap-1.5 overflow-hidden font-sans select-none sm:gap-2 ${className}`}
     >
       {/* Previous Button */}
       <button
@@ -48,90 +61,10 @@ export const Pagination: React.FC<PaginationProps> = ({
         </svg>
       </button>
 
-      {/* Page Numbers */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Page 1 */}
-        <button
-          type="button"
-          onClick={() => handlePageClick(1)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
-            currentPage === 1
-              ? "bg-[#0F172A] text-white shadow-xs"
-              : "text-slate-700 hover:bg-slate-100 cursor-pointer"
-          }`}
-        >
-          1
-        </button>
-
-        {/* Page 2 */}
-        <button
-          type="button"
-          onClick={() => handlePageClick(2)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
-            currentPage === 2
-              ? "bg-[#0F172A] text-white shadow-xs"
-              : "text-slate-700 hover:bg-slate-100 cursor-pointer"
-          }`}
-        >
-          2
-        </button>
-
-        {/* Page 3 */}
-        <button
-          type="button"
-          onClick={() => handlePageClick(3)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
-            currentPage === 3
-              ? "bg-[#0F172A] text-white shadow-xs"
-              : "text-slate-700 hover:bg-slate-100 cursor-pointer"
-          }`}
-        >
-          3
-        </button>
-
-        {/* Page 4 */}
-        <button
-          type="button"
-          onClick={() => handlePageClick(4)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
-            currentPage === 4
-              ? "bg-[#0F172A] text-white shadow-xs"
-              : "text-slate-700 hover:bg-slate-100 cursor-pointer"
-          }`}
-        >
-          4
-        </button>
-
-        {/* Page 5 */}
-        <button
-          type="button"
-          onClick={() => handlePageClick(5)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
-            currentPage === 5
-              ? "bg-[#0F172A] text-white shadow-xs"
-              : "text-slate-700 hover:bg-slate-100 cursor-pointer"
-          }`}
-        >
-          5
-        </button>
-
-        {/* Ellipsis */}
-        <span className="w-8 h-10 flex items-center justify-center text-slate-400 font-bold tracking-wider text-sm select-none">
-          ...
-        </span>
-
-        {/* Page 24 */}
-        <button
-          type="button"
-          onClick={() => handlePageClick(24)}
-          className={`w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center transition-all ${
-            currentPage === 24
-              ? "bg-[#0F172A] text-white shadow-xs"
-              : "text-slate-700 hover:bg-slate-100 cursor-pointer"
-          }`}
-        >
-          24
-        </button>
+      <div className="flex min-w-0 items-center gap-1 sm:gap-1.5">
+        {pageItems.map((item) => (typeof item === "number" ? (
+          <button key={item} type="button" onClick={() => handlePageClick(item)} className={`h-9 w-9 shrink-0 rounded-lg text-sm font-semibold transition-all ${currentPage === item ? "bg-[#3B6FF5] text-white shadow-xs" : "text-slate-700 hover:bg-slate-100 cursor-pointer"}`} aria-current={currentPage === item ? "page" : undefined}>{item}</button>
+        ) : <span key={item} className="flex h-9 w-5 shrink-0 items-center justify-center text-sm font-bold text-slate-400" aria-hidden="true">...</span>))}
       </div>
 
       {/* Next Button */}

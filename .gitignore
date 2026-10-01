@@ -44,3 +44,29 @@ next-env.d.ts
 *.md
 *dbml
 
+*.pdf
+*.xlsx
+
+# local operating system and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+
+# local build, cache, and temporary output
+.cache/
+.turbo/
+tmp/
+temp/
+*.tmp
+*.temp
+
+# local Supabase state and generated metadata
+/supabase/.branches/
+/supabase/.temp/
+
+# additional runtime logs
+*.log
+logs/

@@ -9,6 +9,14 @@ type MacroRow = {
   total_outstanding: number | string;
 };
 
+type OutstandingRow = {
+  id: string;
+  invoice_number: string;
+  customer_name: string;
+  outstanding_amount: number | string;
+  due_date: string;
+};
+
 function jsonError(message: string, status: number, code: string) {
   return NextResponse.json({ error: { code, message } }, { status });
 }
@@ -19,6 +27,12 @@ function monthStart(value: string) {
 
 function formatMonth(value: string) {
   return value.slice(0, 7);
+}
+
+function nextMonthStart(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCMonth(date.getUTCMonth() + 1);
+  return date.toISOString().slice(0, 10);
 }
 
 export async function GET(request: NextRequest) {
@@ -80,6 +94,38 @@ export async function GET(request: NextRequest) {
   });
   const active = series.at(-1) ?? null;
 
+  const { data: outstandingRows, error: outstandingError } = await supabase
+    .from("c1_outstanding_staging_rows")
+    .select("id, invoice_number, customer_name, outstanding_amount, due_date, document_id")
+    .gte("due_date", startDate)
+    .lt("due_date", nextMonthStart(endDate))
+    .order("due_date", { ascending: true });
+
+  if (outstandingError) return jsonError("Unable to load Sales Overview outstanding data.", 500, "DATABASE_ERROR");
+
+  const documentIds = [...new Set((outstandingRows ?? []).map((row) => row.document_id).filter(Boolean))];
+  let validatedDocumentIds = new Set<string>();
+  if (documentIds.length) {
+    const { data: documents, error: documentsError } = await supabase
+      .from("c1_document_uploads")
+      .select("id")
+      .in("id", documentIds)
+      .eq("validation_status", "validated");
+    if (documentsError) return jsonError("Unable to verify outstanding data.", 500, "DATABASE_ERROR");
+    validatedDocumentIds = new Set((documents ?? []).map((document) => document.id));
+  }
+
+  const todayForAlerts = new Date();
+  const alerts = (outstandingRows as (OutstandingRow & { document_id: string })[] ?? [])
+    .filter((row) => validatedDocumentIds.has(row.document_id) && new Date(`${row.due_date}T00:00:00Z`) < todayForAlerts)
+    .map((row) => ({
+      id: row.invoice_number,
+      days: Math.max(1, Math.floor((todayForAlerts.getTime() - new Date(`${row.due_date}T00:00:00Z`).getTime()) / 86400000)),
+      client: row.customer_name,
+      due: row.due_date,
+      amount: Number(row.outstanding_amount),
+    }));
+
   return NextResponse.json({
     data: {
       period: { start_period: startPeriod, end_period: endPeriod },
@@ -87,7 +133,9 @@ export async function GET(request: NextRequest) {
         ? { revenue: active.revenue, cost: active.cost, sales_profit: active.sales_profit, total_outstanding: active.total_outstanding }
         : null,
       series,
-      meta: { source: "c1_macro_metric", validation_status: "validated" },
+      alerts,
+      branches: [],
+      meta: { source: "c1_macro_metric", validation_status: "validated", can_upload: role === "HR" },
     },
   });
 }

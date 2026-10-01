@@ -4,9 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 const MANAGEMENT_POSITIONS = new Set([
   "0ec333af-8737-413f-adab-841a3067e485",
   "48e90a83-86bd-4bd9-8b34-0fe7da11cc18",
-  "4b7c8e36-f133-4e2b-9b98-c1a1554d1545",
   "8b14d133-0c6c-4867-a807-373cf462e5fe",
-  "67a8e1ba-daa7-4230-9c82-8dfef7e8fd15",
 ]);
 
 const ADMIN_STAFF_POSITIONS = new Set([
@@ -15,6 +13,8 @@ const ADMIN_STAFF_POSITIONS = new Set([
   "a8be934a-5d25-46cc-94c7-3be79e3ba035",
   "ba43f1eb-7e99-4a85-8471-9d3e54e526b9",
   "d7d206cc-6763-459f-9a70-771f65b89937",
+  "4b7c8e36-f133-4e2b-9b98-c1a1554d1545",
+  "67a8e1ba-daa7-4230-9c82-8dfef7e8fd15",
 ]);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
