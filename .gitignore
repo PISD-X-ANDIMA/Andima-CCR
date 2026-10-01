@@ -70,3 +70,27 @@ temp/
 # additional runtime logs
 *.log
 logs/
+
+# credentials, secrets, and certificates
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.secret
+*.token
+credentials*.json
+service-account*.json
+
+# local databases and backups
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.bak
+
+# tooling state
+.eslintcache
+.history/
+.npm/
+.pnpm-store/

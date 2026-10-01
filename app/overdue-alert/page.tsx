@@ -1,5 +1,26 @@
-import HeaderAccount from "@/components/headeraccount";
+"use client";
+
+import React, { useState } from "react";
+import OverdueAlertView from "@/components/OverdueAlertView";
+import WarningLetterGenerator from "@/components/WarningLetterGenerator";
+import { OverdueInvoiceItem } from "@/types/overdue";
+import { INITIAL_OVERDUE_INVOICES } from "@/lib/overdueData";
 
 export default function OverdueAlertPage() {
-  return <main className="min-h-dvh bg-slate-50"><header className="flex h-16 items-center justify-end border-b border-slate-200 bg-white px-6"><HeaderAccount /></header></main>;
+  const [activeView, setActiveView] = useState<"dashboard" | "sp_generator">("dashboard");
+  const [selectedInvoice, setSelectedInvoice] = useState<OverdueInvoiceItem>(INITIAL_OVERDUE_INVOICES[0]);
+
+  const handleOpenWarningLetter = (inv: OverdueInvoiceItem) => {
+    setSelectedInvoice(inv);
+    setActiveView("sp_generator");
+  };
+
+  return activeView === "sp_generator" ? (
+    <WarningLetterGenerator
+      invoice={selectedInvoice}
+      onBack={() => setActiveView("dashboard")}
+    />
+  ) : (
+    <OverdueAlertView onOpenWarningLetter={handleOpenWarningLetter} />
+  );
 }
