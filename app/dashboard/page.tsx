@@ -17,7 +17,6 @@ import {
   X,
 } from "lucide-react";
 
-import Sidebar from "./Sidebar";
 import BudgetChart from "./BudgetChart";
 import CustomerBreakdown from "./CustomerBreakdown";
 import ExceptionSummary from "./ExceptionSummary";
@@ -290,8 +289,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-screen bg-[#f4f7fb]">
-      <Sidebar />
-
       <main className="flex-1 px-8 py-7">
         {/* Header Dasbor */}
         <div className="flex items-center justify-between">

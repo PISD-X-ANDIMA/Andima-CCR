@@ -22,7 +22,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import Sidebar from "../dashboard/Sidebar";
 import CustomButton from "../dashboard/CustomButton";
 import { supabase } from "@/lib/supabase";
 
@@ -329,10 +328,6 @@ export default function EvidencePage() {
   return (
     <div className="flex min-h-screen bg-[#f4f7fb] print:bg-white">
       {/* Sembunyikan sidebar saat cetak PDF */}
-      <div className="print:hidden">
-        <Sidebar />
-      </div>
-
       <main className="flex-1 px-8 py-6 print:p-0">
         {/* Header Modul */}
         <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
