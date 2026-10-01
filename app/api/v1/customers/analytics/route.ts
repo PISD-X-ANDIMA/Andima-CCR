@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { INITIAL_CUSTOMERS, INITIAL_KPI_SUMMARY } from '@/lib/customerData';
 import { CustomerAnalyticsItem } from '@/types/customer';
+import { fetchCustomerAnalyticsFromSupabase } from '@/lib/supabaseApi';
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '5', 10);
 
-    let filtered: CustomerAnalyticsItem[] = [...INITIAL_CUSTOMERS];
+    const { customers, kpi, fromDb } = await fetchCustomerAnalyticsFromSupabase();
+    let filtered: CustomerAnalyticsItem[] = [...customers];
 
     // Filter by branch
     if (branch && branch !== 'Semua Cabang' && branch !== 'all') {
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        kpiSummary: INITIAL_KPI_SUMMARY,
+        kpiSummary: kpi,
         data: paginatedData,
         pagination: {
           currentPage: page,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { STATEMENT_AURORA_BLUE, INITIAL_CUSTOMERS } from '@/lib/customerData';
+import { fetchStatementFromSupabase } from '@/lib/supabaseApi';
 
 export async function GET(
   req: NextRequest,
@@ -7,6 +8,12 @@ export async function GET(
 ) {
   try {
     const { customerId } = await params;
+
+    // Check Supabase database first
+    const dbStatement = await fetchStatementFromSupabase(customerId);
+    if (dbStatement) {
+      return NextResponse.json(dbStatement, { status: 200 });
+    }
 
     // Check if customer ID matches Aurora Blue Group or generic
     if (customerId === 'CUST-0192' || customerId === 'aurora-blue') {
@@ -16,7 +23,6 @@ export async function GET(
     const foundCust = INITIAL_CUSTOMERS.find((c) => c.id === customerId);
 
     if (foundCust) {
-      // Dynamic response structured like Image 2 for any customer entity
       return NextResponse.json(
         {
           customer_id: foundCust.id,

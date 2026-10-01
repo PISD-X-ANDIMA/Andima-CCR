@@ -59,10 +59,6 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
       {/* Top Header Breadcrumb Bar */}
       <div className="bg-white border-b border-slate-200/80 px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-          <span className="text-blue-700 font-bold uppercase tracking-wider">ANDIMA CCR: SALES &amp; COLLECTION</span>
-          <span>•</span>
-          <span className="text-slate-400">28-09-2026</span>
-          <span>•</span>
           <div className="flex items-center gap-1.5 text-slate-600">
             <span>CCR MODULE</span>
             <span>&gt;</span>

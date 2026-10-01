@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AURORA_BLUE_INVOICES } from '@/lib/customerData';
+import { fetchInvoicesFromSupabase, bulkCloseInvoicesInSupabase } from '@/lib/supabaseApi';
+import { InvoiceDetail } from '@/types/customer';
 
-// In-memory store for pending updates during session execution
+// In-memory fallback store for pending updates during session execution
 let invoicesStore = [...AURORA_BLUE_INVOICES];
 
 export async function GET(
@@ -14,34 +16,42 @@ export async function GET(
     const status = searchParams.get('status');
     const bulkCloseStatus = searchParams.get('bulk_close_status');
 
-    let result = invoicesStore.filter((inv) => inv.customer_id === customerId);
+    // Try fetching from Supabase database
+    const dbInvoices = await fetchInvoicesFromSupabase(customerId);
+    let result: InvoiceDetail[] = [];
 
-    // If generic customer id provided and no specific invoices found, default to template invoices
-    if (result.length === 0) {
-      result = [
-        {
-          invoice_id: `${customerId}-inv-1`,
-          customer_id: customerId,
-          invoice_number: `INV-2026/07-98${customerId.slice(-2)}`,
-          bl_number: `BL-JKT-26-88${customerId.slice(-2)}`,
-          description: 'Freight 40ft FCL Container Logistics',
-          due_date: '2026-08-15',
-          amount: 350000000,
-          payment_status: 'UNPAID',
-          bulk_close_status: 'PENDING',
-        },
-        {
-          invoice_id: `${customerId}-inv-2`,
-          customer_id: customerId,
-          invoice_number: `INV-2026/07-99${customerId.slice(-2)}`,
-          bl_number: `BL-JKT-26-89${customerId.slice(-2)}`,
-          description: 'Handling & Terminal Storage Fees',
-          due_date: '2026-08-20',
-          amount: 150000000,
-          payment_status: 'UNPAID',
-          bulk_close_status: 'PENDING',
-        },
-      ];
+    if (dbInvoices && dbInvoices.length > 0) {
+      result = dbInvoices;
+    } else {
+      result = invoicesStore.filter((inv) => inv.customer_id === customerId);
+
+      // Default template invoices if customer has no specific invoices
+      if (result.length === 0) {
+        result = [
+          {
+            invoice_id: `${customerId}-inv-1`,
+            customer_id: customerId,
+            invoice_number: `INV-2026/07-98${customerId.slice(-2)}`,
+            bl_number: `BL-JKT-26-88${customerId.slice(-2)}`,
+            description: 'Freight 40ft FCL Container Logistics',
+            due_date: '2026-08-15',
+            amount: 350000000,
+            payment_status: 'UNPAID',
+            bulk_close_status: 'PENDING',
+          },
+          {
+            invoice_id: `${customerId}-inv-2`,
+            customer_id: customerId,
+            invoice_number: `INV-2026/07-99${customerId.slice(-2)}`,
+            bl_number: `BL-JKT-26-89${customerId.slice(-2)}`,
+            description: 'Handling & Terminal Storage Fees',
+            due_date: '2026-08-20',
+            amount: 150000000,
+            payment_status: 'UNPAID',
+            bulk_close_status: 'PENDING',
+          },
+        ];
+      }
     }
 
     if (status) {
@@ -77,7 +87,10 @@ export async function PATCH(
     const { invoiceIds, action } = body; // action: 'BULK_CLOSE'
 
     if (action === 'BULK_CLOSE' || !action) {
-      // Update targeted invoice store
+      // Execute bulk close in Supabase database
+      const dbResult = await bulkCloseInvoicesInSupabase(customerId, invoiceIds);
+
+      // Update in-memory fallback store
       invoicesStore = invoicesStore.map((inv) => {
         if (
           inv.customer_id === customerId &&
@@ -97,6 +110,7 @@ export async function PATCH(
           message: `Bulk close operation completed successfully for customer ${customerId}.`,
           updatedCustomerId: customerId,
           closedInvoiceIds: invoiceIds || ['ALL_PENDING'],
+          supabaseUpdated: dbResult.success,
         },
         { status: 200 }
       );
