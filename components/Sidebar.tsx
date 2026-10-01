@@ -142,7 +142,6 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
                 <div className="mt-1 space-y-1">
                   <HrmsLink label="Sales Overview" href="/sales-overview" />
                   <HrmsLink label="Customer Analytics" href="/customer-analytics" />
-                  <HrmsLink label="Data Management" href="/data-management" />
                   <HrmsLink label="Overdue Alert" href="/overdue-alert" />
                 </div>
               </div>
