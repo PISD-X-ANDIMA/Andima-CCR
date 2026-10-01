@@ -9,7 +9,18 @@ import UploadForm, { UploadResult } from "@/components/UploadForm/uploadform";
 export type MacroPoint = { period_month: string; revenue: number; cost: number; sales_profit: number; total_outstanding: number };
 export type MacroSummary = { revenue: number; cost: number; sales_profit: number; total_outstanding: number } | null;
 export type BranchRow = { id: string; code: string; city: string; hub: string; pic: string; role: string; profit: string; profitTrend: string; cost: string; outstanding: string; status: string; sparkline: number[] };
-export type AlertRow = { id: string; days: number; client: string; due: string; amount: number };
+export type AlertRow = {
+  id: string;
+  days: number;
+  client: string;
+  due: string;
+  amount: number;
+  riskStatus?: string;
+  branch?: string;
+  branchCode?: string;
+  picAssigned?: string | null;
+  customerId?: string;
+};
 
 type Props = {
   summary: MacroSummary;
@@ -153,12 +164,13 @@ function ChartPanel({ series, loading, error }: { series: MacroPoint[]; loading:
 function ChartLegend({ color, label }: { color: string; label: string }) { return <span className="inline-flex items-center gap-1.5"><i className="size-2 rounded-full" style={{ backgroundColor: color }} />{label}</span>; }
 function AlertPanel({ alerts, loading }: { alerts: AlertRow[]; loading: boolean }) {
   const pageSize = 5;
-  const [page, setPage] = useState(1);
+  const alertsVersion = alerts.map((alert) => `${alert.id}:${alert.due}:${alert.amount}`).join("|");
+  const [pageState, setPageState] = useState({ version: alertsVersion, page: 1 });
   const ordered = [...alerts].sort((a, b) => a.due.localeCompare(b.due));
   const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
+  const currentPage = pageState.version === alertsVersion ? Math.min(pageState.page, totalPages) : 1;
   const visible = ordered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  return <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-lg font-bold text-slate-900">Daftar Alerts Overdue</h2><p className="mb-4 text-xs text-slate-500">Invoice tervalidasi yang melewati due date, diurutkan dari yang paling lama.</p>{loading ? <AlertSkeleton /> : ordered.length ? <><div className="space-y-3">{visible.map((alert, index) => <div key={`alert-row-${(currentPage - 1) * pageSize + index}`} className="rounded-lg bg-slate-50 p-3"><div className="flex justify-between text-xs font-bold"><span>{alert.id}</span><span className="text-red-600">{alert.days} Hari</span></div><p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p><p className="text-[10px] text-slate-500">Due: {alert.due} - {money.format(alert.amount)}</p><button type="button" disabled className="mt-2 rounded bg-slate-300 px-2 py-1 text-[10px] text-slate-500">Assign (Segera)</button></div>)}</div>{totalPages > 1 && <div className="mt-5 flex min-w-0 justify-center overflow-hidden"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setPage} /></div>}</> : <PanelEmpty text="Belum ada data overdue alert." />}</section>;
+  return <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-lg font-bold text-slate-900">Daftar Alerts Overdue</h2><p className="mb-4 text-xs text-slate-500">Invoice tervalidasi yang melewati 30 hari, diurutkan dari yang paling lama.</p>{loading ? <AlertSkeleton /> : ordered.length ? <><div className="space-y-3">{visible.map((alert, index) => <div key={`alert-row-${alert.id}-${alert.due}-${(currentPage - 1) * pageSize + index}`} className="rounded-lg bg-slate-50 p-3"><div className="flex justify-between text-xs font-bold"><span>{alert.id}</span><span className="text-red-600">{alert.days} Hari</span></div><p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p><p className="text-[10px] text-slate-500">Due: {alert.due} - {money.format(alert.amount)}</p><div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500"><span>{alert.branch || "Cabang belum tersedia"}</span>{alert.picAssigned && <span>PIC: {alert.picAssigned}</span>}{alert.riskStatus && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">{alert.riskStatus}</span>}</div><button type="button" disabled className="mt-2 rounded bg-slate-300 px-2 py-1 text-[10px] text-slate-500">Assign (Segera)</button></div>)}</div>{totalPages > 1 && <div className="mt-5 flex min-w-0 justify-center overflow-hidden"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })} /></div>}</> : <PanelEmpty text="Belum ada data overdue alert." />}</section>;
 }
 function BranchPanel({ rows }: { rows: BranchRow[] }) { return <section className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><div className="mb-4 flex items-center justify-between"><div><h2 className="text-lg font-bold text-slate-900">Performa Finansial Berdasarkan Cabang Operasional</h2><p className="text-sm text-slate-500">Belum ada sumber data cabang yang tersedia.</p></div><Info className="size-4 text-slate-400" /></div>{rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-xs"><thead className="bg-slate-50 uppercase tracking-wider text-slate-500"><tr><th className="p-3">Hub Operasional</th><th>PIC Cabang</th><th>Sales Profit</th><th>Real Cost</th><th>Outstanding</th><th>Status</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-b border-slate-100"><td className="p-3"><b>{row.hub}</b><br /><span className="text-slate-400">{row.code} - {row.city}</span></td><td>{row.pic}<br /><span className="text-slate-400">{row.role}</span></td><td>{row.profit}<br /><span className="text-teal-600">{row.profitTrend}</span></td><td>{row.cost}</td><td className="font-bold">{row.outstanding}</td><td><span className="rounded-full bg-teal-100 px-2 py-1 text-teal-700">{row.status}</span></td></tr>)}</tbody></table></div> : <PanelEmpty text="Belum ada data performa cabang." />}</section>; }
 function MetricSkeleton() { return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">{[1, 2, 3, 4].map((item) => <div key={item} className="h-32 animate-pulse rounded-xl bg-white p-5"><div className="h-3 w-32 rounded bg-slate-200" /><div className="mt-6 h-7 w-40 rounded bg-slate-200" /><div className="mt-3 h-3 w-24 rounded bg-slate-200" /></div>)}</div>; }

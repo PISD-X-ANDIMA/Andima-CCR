@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import KpiSummaryCards from "@/components/KpiSummaryCards";
 import InspectionDrawer from "@/components/InspectionDrawer";
@@ -108,11 +107,7 @@ export default function CustomerAnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans">
-      {/* Sidebar Fixed Position */}
-      <Sidebar />
-
-      {/* Main Content Area dengan Offset Margin Left untuk Sidebar Fixed (260px) */}
-      <div className="flex flex-col min-h-screen transition-all duration-300 lg:pl-[260px]">
+      <div className="flex min-h-screen flex-col">
         {/* Top Header */}
         <Header
           searchValue={searchQuery}

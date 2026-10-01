@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import SalesOverview, { AlertRow, BranchRow, MacroPoint, MacroSummary } from "@/components/Sales Overview/SalesOverview";
-import HeaderAccount from "@/components/headeraccount";
+import Header from "@/components/Header";
 
 type ResponseBody = { data: { summary: MacroSummary; series: MacroPoint[]; alerts?: AlertRow[]; branches?: BranchRow[]; meta?: { can_upload?: boolean } } };
 
@@ -60,9 +60,7 @@ export default function SalesOverviewPage() {
 
   return (
     <>
-      <header className="flex h-16 items-center justify-end border-b border-slate-200 bg-white px-6">
-        <HeaderAccount />
-      </header>
+      <Header />
       <SalesOverview summary={summary} series={series} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={setStartPeriod} onEndPeriodChange={setEndPeriod} onRefresh={() => void load()} isLoading={isLoading} error={error} alerts={alerts} branchRows={branchRows} canUpload={canUpload} />
     </>
   );

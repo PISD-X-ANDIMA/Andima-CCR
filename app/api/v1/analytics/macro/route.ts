@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { fetchOverdueAlertsFromSupabase } from "@/lib/supabaseOverdueApi";
 
 type MacroRow = {
   period_month: string;
   revenue: number | string;
   cost: number | string;
   total_outstanding: number | string;
-};
-
-type OutstandingRow = {
-  id: string;
-  invoice_number: string;
-  customer_name: string;
-  outstanding_amount: number | string;
-  due_date: string;
 };
 
 function jsonError(message: string, status: number, code: string) {
@@ -94,37 +87,23 @@ export async function GET(request: NextRequest) {
   });
   const active = series.at(-1) ?? null;
 
-  const { data: outstandingRows, error: outstandingError } = await supabase
-    .from("c1_outstanding_staging_rows")
-    .select("id, invoice_number, customer_name, outstanding_amount, due_date, document_id")
-    .gte("due_date", startDate)
-    .lt("due_date", nextMonthStart(endDate))
-    .order("due_date", { ascending: true });
-
-  if (outstandingError) return jsonError("Unable to load Sales Overview outstanding data.", 500, "DATABASE_ERROR");
-
-  const documentIds = [...new Set((outstandingRows ?? []).map((row) => row.document_id).filter(Boolean))];
-  let validatedDocumentIds = new Set<string>();
-  if (documentIds.length) {
-    const { data: documents, error: documentsError } = await supabase
-      .from("c1_document_uploads")
-      .select("id")
-      .in("id", documentIds)
-      .eq("validation_status", "validated");
-    if (documentsError) return jsonError("Unable to verify outstanding data.", 500, "DATABASE_ERROR");
-    validatedDocumentIds = new Set((documents ?? []).map((document) => document.id));
-  }
-
-  const todayForAlerts = new Date();
-  const alerts = (outstandingRows as (OutstandingRow & { document_id: string })[] ?? [])
-    .filter((row) => validatedDocumentIds.has(row.document_id) && new Date(`${row.due_date}T00:00:00Z`) < todayForAlerts)
-    .map((row) => ({
-      id: row.invoice_number,
-      days: Math.max(1, Math.floor((todayForAlerts.getTime() - new Date(`${row.due_date}T00:00:00Z`).getTime()) / 86400000)),
-      client: row.customer_name,
-      due: row.due_date,
-      amount: Number(row.outstanding_amount),
-    }));
+  const { invoices } = await fetchOverdueAlertsFromSupabase({
+    startDate,
+    endDateExclusive: nextMonthStart(endDate),
+    onlyOverdue30: true,
+  });
+  const alerts = invoices.map((invoice) => ({
+    id: invoice.invoice_number,
+    days: invoice.days_overdue,
+    client: invoice.customer_name,
+    due: invoice.due_date,
+    amount: invoice.amount_overdue,
+    riskStatus: invoice.risk_status,
+    branch: invoice.branch,
+    branchCode: invoice.branch_code,
+    picAssigned: invoice.pic_assigned ?? null,
+    customerId: invoice.customer_id,
+  }));
 
   return NextResponse.json({
     data: {
