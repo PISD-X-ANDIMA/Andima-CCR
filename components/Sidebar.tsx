@@ -179,4 +179,4 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
       </button>
     </>
   );
-}
+} 
