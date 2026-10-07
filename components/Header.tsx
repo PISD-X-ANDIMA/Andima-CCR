@@ -15,7 +15,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <header className="h-16 bg-white border-b border-slate-200/80 px-6 md:px-8 flex items-center justify-between font-sans shrink-0">
-      {/* Left Header Breadcrumb / Title */}
+      {/* Left Header Breadcrumb / Logo text (as seen in Image 2) */}
       <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
         {leftTitle ? (
           <span className="font-extrabold text-slate-800 tracking-tight">{leftTitle}</span>
@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right User Utilities & Search Input Box */}
       <div className="flex items-center gap-3 md:gap-4">
-        {/* Search Input Box */}
+        {/* Search Input Box (Moved to the Right Side per UI/UX requirement) */}
         <div className="relative w-48 sm:w-64 md:w-80">
           <svg
             className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 transform -translate-y-1/2"

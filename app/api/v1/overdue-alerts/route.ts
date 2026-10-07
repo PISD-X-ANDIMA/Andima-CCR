@@ -12,14 +12,10 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('search')?.toLowerCase() || '';
     const status = searchParams.get('status');
     const agingBucket = searchParams.get('agingBucket');
-    const onlyOverdue30 = searchParams.get('onlyOverdue30') === 'true';
+    const onlyOverdue30 = searchParams.get('onlyOverdue30') !== 'false';
 
-    const { invoices, kpi, fromDb } = await fetchOverdueAlertsFromSupabase();
+    const { invoices, kpi, fromDb } = await fetchOverdueAlertsFromSupabase({ onlyOverdue30 });
     let filtered = [...invoices];
-
-    if (onlyOverdue30) {
-      filtered = filtered.filter(inv => inv.days_overdue > 30);
-    }
 
     if (branch && branch !== 'Semua Cabang' && branch !== 'all') {
       filtered = filtered.filter(inv => inv.branch.toLowerCase() === branch.toLowerCase());

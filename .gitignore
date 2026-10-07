@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+*.env
 
 # vercel
 .vercel
@@ -39,3 +40,59 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+*.md
+*dbml
+!FRTR/backend-documentation.md
+!FRTR/release-notes.md
+
+*.pdf
+*.xlsx
+
+# local operating system and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+
+# local build, cache, and temporary output
+.cache/
+.turbo/
+tmp/
+temp/
+*.tmp
+*.temp
+
+# local Supabase state and generated metadata
+/supabase/.branches/
+/supabase/.temp/
+
+# additional runtime logs
+*.log
+logs/
+
+# credentials, secrets, and certificates
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.secret
+*.token
+credentials*.json
+service-account*.json
+
+# local databases and backups
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.bak
+
+# tooling state
+.eslintcache
+.history/
+.npm/
+.pnpm-store/

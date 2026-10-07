@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import CustomDropdown from "@/components/CustomDropdown";
 import Pagination from "@/components/Pagination";
@@ -146,10 +145,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
         </div>
       )}
 
-      <Sidebar />
-
-      {/* Main Container with Sidebar Offset */}
-      <div className="flex flex-col min-h-screen transition-all duration-300 lg:pl-[260px]">
+      <div className="flex min-h-screen flex-col">
         {/* Top Header with Search Bar on Right */}
         <Header
           searchValue={searchQuery}

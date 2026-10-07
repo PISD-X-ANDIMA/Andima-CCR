@@ -150,7 +150,7 @@ export default function CustomerAnalyticsPage() {
                   <span>Sinkronisasi Data</span>
                 </button>
 
-                <button className="flex items-center gap-2 px-4 py-2 bg-[#203d70] hover:bg-[#162a4d] text-white font-extrabold text-xs rounded-xl shadow-md transition">
+                <button className="flex items-center gap-2 px-4 py-2 bg-[#0F172A] hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md transition">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
@@ -233,10 +233,11 @@ export default function CustomerAnalyticsPage() {
                         setSelectedBranch(b.label);
                         setCurrentPage(1);
                       }}
-                      className={`px-3.5 py-1.5 rounded-full font-bold transition-all ${isSelected
-                          ? "bg-[#203d70] text-white shadow-xs"
+                      className={`px-3.5 py-1.5 rounded-full font-bold transition-all ${
+                        isSelected
+                          ? "bg-[#0F172A] text-white shadow-xs"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                        }`}
+                      }`}
                     >
                       {b.label} ({b.count})
                     </button>
@@ -264,7 +265,7 @@ export default function CustomerAnalyticsPage() {
                                 setCheckedIds([]);
                               }
                             }}
-                            className="w-4 h-4 rounded accent-[#203d70]"
+                            className="w-4 h-4 rounded accent-[#0F172A]"
                           />
                         </th>
 
@@ -340,8 +341,9 @@ export default function CustomerAnalyticsPage() {
                             <tr
                               key={c.id}
                               onClick={() => setSelectedCustomer(c)}
-                              className={`transition-colors cursor-pointer ${isSelected ? "bg-blue-50/70" : "hover:bg-slate-50/80"
-                                }`}
+                              className={`transition-colors cursor-pointer ${
+                                isSelected ? "bg-blue-50/70" : "hover:bg-slate-50/80"
+                              }`}
                             >
                               <td
                                 className="px-4 py-4 text-center"
@@ -351,7 +353,7 @@ export default function CustomerAnalyticsPage() {
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={() => handleToggleCheckRow(c.id)}
-                                  className="w-4 h-4 rounded accent-[#203d70]"
+                                  className="w-4 h-4 rounded accent-[#0F172A]"
                                 />
                               </td>
 

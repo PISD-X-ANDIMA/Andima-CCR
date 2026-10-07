@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import {
   BriefcaseBusiness,
   ChevronDown,
-  LogOut,
   Menu,
   X,
 } from "lucide-react";
@@ -53,7 +53,11 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   const router = useRouter();
   const isPublicRoute = pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const isC1Route = ["/sales-overview", "/customer-analytics", "/overdue-alert"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  const isC2Route = ["/dashboard", "/data-upload", "/cost-exception", "/priority-exception", "/customer-cost", "/evidence", "/monthly-closing", "/export-report"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const [isCcrOpen, setIsCcrOpen] = useState(true);
+  const [isC1Open, setIsC1Open] = useState(isC1Route);
+  const [isC2Open, setIsC2Open] = useState(isC2Route);
   const [isInternalSigningOut, setIsInternalSigningOut] = useState(false);
   const [loadedAccount, setLoadedAccount] = useState<Account | null>(null);
   const hasSuppliedAccount = Boolean(userName && userRole && userInitials);
@@ -139,12 +143,21 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
             </button>
             {isCcrOpen && (
               <div className="ml-5 mt-2 border-l border-[#d9e2fc]/20 pl-3">
-                <div className="mt-1 space-y-1">
+                <SidebarGroup label="C1" open={isC1Open} active={isC1Route} onToggle={() => setIsC1Open((value) => !value)}>
                   <HrmsLink label="Sales Overview" href="/sales-overview" />
                   <HrmsLink label="Customer Analytics" href="/customer-analytics" />
-                  <HrmsLink label="Data Management" href="/data-management" />
                   <HrmsLink label="Overdue Alert" href="/overdue-alert" />
-                </div>
+                </SidebarGroup>
+                <SidebarGroup label="C2" open={isC2Open} active={isC2Route} onToggle={() => setIsC2Open((value) => !value)}>
+                  <HrmsLink label="Dashboard" href="/dashboard" />
+                  <HrmsLink label="Data Upload" href="/data-upload" />
+                  <HrmsLink label="Cost Exception" href="/cost-exception" />
+                  <HrmsLink label="Priority Exception" href="/priority-exception" />
+                  <HrmsLink label="Customer Cost" href="/customer-cost" />
+                  <HrmsLink label="Evidence" href="/evidence" />
+                  <HrmsLink label="Monthly Closing" href="/monthly-closing" />
+                  <HrmsLink label="Export Report" href="/export-report" />
+                </SidebarGroup>
               </div>
             )}
           </div>
@@ -178,5 +191,17 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
         <Menu size={20} />
       </button>
     </>
+  );
+}
+
+function SidebarGroup({ label, open, active, onToggle, children }: { label: string; open: boolean; active: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <div className="mt-1">
+      <button type="button" onClick={onToggle} className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs transition-colors ${active ? "text-white" : "text-[#d9e2fc]/80 hover:bg-[#1e3765] hover:text-white"}`} aria-expanded={open}>
+        <span>{label}</span>
+        <ChevronDown size={14} className={`transition-transform ${open ? "rotate-0" : "-rotate-90"}`} />
+      </button>
+      {open && <div className="mt-1 space-y-1">{children}</div>}
+    </div>
   );
 }
