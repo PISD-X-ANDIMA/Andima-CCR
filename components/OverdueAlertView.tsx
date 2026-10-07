@@ -146,14 +146,8 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
       )}
 
       <div className="flex min-h-screen flex-col">
-        {/* Top Header with Search Bar on Right */}
-        <Header
-          searchValue={searchQuery}
-          onSearchChange={(val: string) => {
-            setSearchQuery(val);
-            setCurrentPage(1);
-          }}
-        />
+        {/* Page Header */}
+        <Header pageName="Overdue Alert" />
 
         <main className="flex-1 p-6 md:p-8 space-y-6 w-full">
           {/* Page Header & Subheader Actions */}

@@ -1,22 +1,10 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import "server-only";
+import { createAdminClient } from "@/lib/server/admin";
+import { type SupabaseClient } from '@supabase/supabase-js';
 import { OverdueInvoiceItem, OverdueKpiSummary, WarningLetterParams } from '@/types/overdue';
 import { INITIAL_OVERDUE_INVOICES, INITIAL_OVERDUE_KPI } from './overdueData';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ufjbbwqaztgkqmpdmcyv.supabase.co';
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  '';
-
-export const getSupabaseClient = () => {
-  if (!supabaseKey) {
-    throw new Error('Supabase server client is not configured. Set SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.');
-  }
-  return createClient(supabaseUrl, supabaseKey, {
-    auth: { persistSession: false },
-  });
-};
+export const getSupabaseClient = createAdminClient;
 
 /**
  * Fetch Overdue Alerts & Receivables from Supabase database with fallback

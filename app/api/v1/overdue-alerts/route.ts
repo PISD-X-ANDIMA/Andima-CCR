@@ -1,3 +1,4 @@
+import { requireSession, checkOrigin } from "@/lib/server/http";
 import { NextRequest, NextResponse } from 'next/server';
 import {
   fetchOverdueAlertsFromSupabase,
@@ -6,6 +7,7 @@ import {
 } from '@/lib/supabaseOverdueApi';
 
 export async function GET(req: NextRequest) {
+  const session = await requireSession(); if (session.error) return session.error;
   try {
     const { searchParams } = new URL(req.url);
     const branch = searchParams.get('branch');
@@ -53,21 +55,23 @@ export async function GET(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: 'Internal Server Error', message: error.message },
+      { error: 'Internal Server Error', message: 'Unable to process request.' },
       { status: 500 }
     );
   }
 }
 
 export async function POST(req: NextRequest) {
+  const session = await requireSession(); if (session.error) return session.error;
+  const originError = checkOrigin(req); if (originError) return originError;
   try {
     const body = await req.json();
-    const { action, invoiceId, assignedTo, assignedBy, notes, invoiceIds } = body;
+    const { action, invoiceId, assignedTo, notes, invoiceIds } = body;
 
     if (action === 'ASSIGN_PIC') {
-      const res = await assignPicInSupabase(invoiceId, assignedTo, assignedBy, notes);
+      const res = await assignPicInSupabase(invoiceId, assignedTo, session.user!.id, notes);
       return NextResponse.json(
         {
           success: res.success,
@@ -89,9 +93,9 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: 'Invalid action specified' }, { status: 400 });
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: 'Failed to process overdue action', message: error.message },
+      { error: 'Failed to process overdue action', message: 'Unable to process request.' },
       { status: 500 }
     );
   }

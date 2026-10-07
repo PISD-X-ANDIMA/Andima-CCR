@@ -74,7 +74,7 @@ export const WarningLetterGenerator: React.FC<WarningLetterGeneratorProps> = ({
 
       <div className="flex flex-col min-h-screen transition-all duration-300 lg:pl-[260px]">
         {/* Top Header */}
-        <Header />
+        <Header pageName="Warning Letter Generator" />
 
         <main className="flex-1 p-6 md:p-8 space-y-6 w-full max-w-7xl mx-auto">
           {/* Action Top Bar */}

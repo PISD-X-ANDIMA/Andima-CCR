@@ -1,22 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
+import "server-only";
+import { createAdminClient } from "@/lib/server/admin";
 import { CustomerAnalyticsItem, InvoiceDetail, StatementOfAccountData } from '@/types/customer';
 import { INITIAL_CUSTOMERS, INITIAL_KPI_SUMMARY, STATEMENT_AURORA_BLUE } from './customerData';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ufjbbwqaztgkqmpdmcyv.supabase.co';
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  '';
-
-export const getSupabaseClient = () => {
-  if (!supabaseKey) {
-    throw new Error('Supabase customer analytics client is not configured. Set SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.');
-  }
-  return createClient(supabaseUrl, supabaseKey, {
-    auth: { persistSession: false },
-  });
-};
+export const getSupabaseClient = createAdminClient;
 
 /**
  * Fetch customer analytics from Supabase database with fallback to seed data

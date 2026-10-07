@@ -1,8 +1,10 @@
+import { requireSession } from "@/lib/server/http";
 import { NextRequest, NextResponse } from 'next/server';
 import { CustomerAnalyticsItem } from '@/types/customer';
 import { fetchCustomerAnalyticsFromSupabase } from '@/lib/supabaseApi';
 
 export async function GET(req: NextRequest) {
+  const session = await requireSession(); if (session.error) return session.error;
   try {
     const { searchParams } = new URL(req.url);
     const branch = searchParams.get('branch');
@@ -13,7 +15,7 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '5', 10);
 
-    const { customers, kpi, fromDb } = await fetchCustomerAnalyticsFromSupabase();
+    const { customers, kpi } = await fetchCustomerAnalyticsFromSupabase();
     let filtered: CustomerAnalyticsItem[] = [...customers];
 
     // Filter by branch
@@ -44,8 +46,8 @@ export async function GET(req: NextRequest) {
 
     // Sorting
     filtered.sort((a, b) => {
-      let valA: any = a.sales_profit;
-      let valB: any = b.sales_profit;
+      let valA: string | number = a.sales_profit;
+      let valB: string | number = b.sales_profit;
 
       if (sortBy === 'cost') {
         valA = a.cost;
@@ -59,9 +61,9 @@ export async function GET(req: NextRequest) {
       }
 
       if (typeof valA === 'string') {
-        return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        return sortOrder === 'asc' ? valA.localeCompare(String(valB)) : String(valB).localeCompare(valA);
       }
-      return sortOrder === 'asc' ? valA - valB : valB - valA;
+      return sortOrder === 'asc' ? Number(valA) - Number(valB) : Number(valB) - Number(valA);
     });
 
     const totalItems = filtered.length;
@@ -87,9 +89,9 @@ export async function GET(req: NextRequest) {
         },
       }
     );
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: 'Internal Server Error', message: error.message },
+      { error: 'Internal Server Error', message: 'Unable to process request.' },
       { status: 500 }
     );
   }

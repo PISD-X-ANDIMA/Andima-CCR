@@ -1,12 +1,15 @@
+import { requireSession, checkOrigin } from "@/lib/server/http";
 import { NextRequest, NextResponse } from 'next/server';
 import { requestExportFileInSupabase } from '@/lib/supabaseOverdueApi';
 
 export async function POST(req: NextRequest) {
+  const session = await requireSession(); if (session.error) return session.error;
+  const originError = checkOrigin(req); if (originError) return originError;
   try {
     const body = await req.json();
-    const { format, requestedBy, periodFilter } = body;
+    const { format, periodFilter } = body;
 
-    const requestedUuid = requestedBy || 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a01';
+    const requestedUuid = session.user!.id;
     const exportResult = await requestExportFileInSupabase(
       format || 'XLSX',
       requestedUuid,
@@ -22,9 +25,9 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: 'Failed to create export request', message: error.message },
+      { error: 'Failed to create export request', message: 'Unable to process request.' },
       { status: 500 }
     );
   }

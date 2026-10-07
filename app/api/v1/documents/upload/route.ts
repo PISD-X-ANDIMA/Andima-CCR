@@ -1,3 +1,4 @@
+import { checkOrigin } from "@/lib/server/http";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -287,6 +288,7 @@ function validateRows(rows: unknown[][], type: DocumentType, customerMap: Map<st
 }
 
 export async function POST(request: NextRequest) {
+  const originError = checkOrigin(request); if (originError) return originError;
   const startedAt = performance.now();
   const phaseStarted = performance.now();
   const supabase = createClient(await cookies());
@@ -344,9 +346,7 @@ export async function POST(request: NextRequest) {
     const table = documentType === "COMPANY_SALES_REPORT" ? "c1_company_sales_staging_rows" : "c1_outstanding_staging_rows";
     const { error: stagingError } = await supabase.from(table).insert(result.rows.map((row) => ({ ...row, document_id: document.id })));
     if (stagingError) throw stagingError;
-    const { error: statusError } = await supabase.from("c1_document_uploads").update({ validation_status: "validated", processed_at: new Date().toISOString(), row_count: result.rows.length, valid_row_count: result.rows.length, invalid_row_count: 0 }).eq("id", document.id);
-    if (statusError) throw statusError;
-    const { error: aggregateError } = await supabase.rpc("refresh_c1_macro_metrics");
+    const { error: aggregateError } = await supabase.rpc("finalize_c1_document_upload", { p_document_id: document.id, p_row_count: result.rows.length });
     if (aggregateError) throw aggregateError;
     return withTiming(NextResponse.json({ data: { documentId: document.id, documentType, validationStatus: "validated", rowCount: result.rows.length, validRowCount: result.rows.length, invalidRowCount: 0, errors: [] } }, { status: 201 }), startedAt, { auth: authDuration, parse: performance.now() - parseStarted, persistence: 0 });
   } catch (error) {

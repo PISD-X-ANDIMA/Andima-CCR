@@ -109,13 +109,7 @@ export default function CustomerAnalyticsPage() {
     <div className="min-h-screen bg-[#F8FAFC] font-sans">
       <div className="flex min-h-screen flex-col">
         {/* Top Header */}
-        <Header
-          searchValue={searchQuery}
-          onSearchChange={(val) => {
-            setSearchQuery(val);
-            setCurrentPage(1);
-          }}
-        />
+        <Header pageName={activeView === "statement" ? "Statement of Account" : "Customer Analytics"} />
 
         {/* View Switcher: Statement of Account OR Main Customer Analytics View */}
         {activeView === "statement" ? (
