@@ -117,7 +117,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#0f2342] px-4 py-5 text-[#d9e2fc] shadow-lg transition-transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#203d70] px-4 py-5 text-[#d9e2fc] shadow-lg transition-transform lg:translate-x-0 ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -172,7 +172,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
       <button
         type="button"
         onClick={() => setIsSidebarOpen(true)}
-        className="fixed left-4 top-4 z-30 rounded-lg bg-[#0f2342] p-2 text-white lg:hidden"
+        className="fixed left-4 top-4 z-30 rounded-lg bg-[#203d70] p-2 text-white lg:hidden"
         aria-label="Buka navigasi"
       >
         <Menu size={20} />

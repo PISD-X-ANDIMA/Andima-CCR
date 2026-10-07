@@ -140,7 +140,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
     <div className="min-h-screen bg-[#F8FAFC] font-sans pb-12">
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div className="fixed top-4 right-4 z-50 bg-[#0F172A] text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 animate-bounce">
+        <div className="fixed top-4 right-4 z-50 bg-[#203d70] text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 animate-bounce">
           <span className="text-emerald-400 font-bold">✓</span>
           <span className="text-xs font-semibold">{toastMessage}</span>
         </div>
@@ -189,7 +189,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
 
               <button
                 onClick={handleExportReport}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#0F172A] hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md transition"
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#203d70] hover:bg-[#162a4d] text-white font-extrabold text-xs rounded-xl shadow-md transition"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -331,11 +331,10 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
                 {/* Badge Toggle: Hanya >30 Hari */}
                 <button
                   onClick={() => setOnlyOverdue30(!onlyOverdue30)}
-                  className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 ${
-                    onlyOverdue30
+                  className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 ${onlyOverdue30
                       ? "bg-blue-600 text-white border-blue-600 shadow-xs"
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                  }`}
+                    }`}
                 >
                   <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] ${onlyOverdue30 ? "bg-white text-blue-600" : "bg-slate-200"}`}>
                     ✓
@@ -366,11 +365,10 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
                       setSelectedBranch(b.label);
                       setCurrentPage(1);
                     }}
-                    className={`px-3.5 py-1.5 rounded-full font-bold transition-all ${
-                      isSelected
-                        ? "bg-[#0F172A] text-white shadow-xs"
+                    className={`px-3.5 py-1.5 rounded-full font-bold transition-all ${isSelected
+                        ? "bg-[#203d70] text-white shadow-xs"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
+                      }`}
                   >
                     {b.label} ({b.count})
                   </button>
@@ -380,9 +378,9 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
           </div>
 
           {/* Split Table & Right Profile Panel */}
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+          <div className="grid grid-cols-1 2xl:grid-cols-12 gap-6 items-start">
             {/* Left Table Section */}
-            <div className="xl:col-span-8 bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="2xl:col-span-8 bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
               <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between text-xs">
                 <div className="font-extrabold text-slate-900 uppercase">
                   Daftar Faktur Tertunggak <span className="text-slate-400 font-semibold">({invoices.length} Faktur Terdaftar)</span>
@@ -398,10 +396,10 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+                <table className="w-full text-left border-collapse text-xs min-w-[940px]">
                   <thead>
                     <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-extrabold text-[10px] tracking-wider uppercase">
-                      <th className="w-10 px-4 py-3.5 text-center">
+                      <th className="w-10 px-3 py-3.5 text-center">
                         <input
                           type="checkbox"
                           checked={invoices.length > 0 && invoices.every((c) => checkedIds.includes(c.id))}
@@ -412,16 +410,16 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
                               setCheckedIds([]);
                             }
                           }}
-                          className="w-4 h-4 rounded accent-[#0F172A]"
+                          className="w-4 h-4 rounded accent-[#203d70]"
                         />
                       </th>
-                      <th className="px-4 py-3.5">NO. FAKTUR &amp; JATUH TEMPO</th>
-                      <th className="px-4 py-3.5">PELANGGAN &amp; CABANG</th>
-                      <th className="px-4 py-3.5 text-right">NOMINAL OVERDUE</th>
-                      <th className="px-4 py-3.5 text-center">AGING DELAY</th>
-                      <th className="px-4 py-3.5 text-center">STATUS RESIKO</th>
-                      <th className="px-4 py-3.5">PIC PENAGIH</th>
-                      <th className="px-4 py-3.5 text-center">AKSI</th>
+                      <th className="px-3.5 py-3.5 whitespace-nowrap min-w-[150px]">NO. FAKTUR &amp; JATUH TEMPO</th>
+                      <th className="px-3.5 py-3.5 whitespace-nowrap min-w-[180px]">PELANGGAN &amp; CABANG</th>
+                      <th className="px-3.5 py-3.5 text-right whitespace-nowrap min-w-[140px]">NOMINAL OVERDUE</th>
+                      <th className="px-3.5 py-3.5 text-center whitespace-nowrap min-w-[110px]">AGING DELAY</th>
+                      <th className="px-3.5 py-3.5 text-center whitespace-nowrap min-w-[140px]">STATUS RESIKO</th>
+                      <th className="px-3.5 py-3.5 whitespace-nowrap min-w-[130px]">PIC PENAGIH</th>
+                      <th className="px-3.5 py-3.5 text-center whitespace-nowrap min-w-[90px]">AKSI</th>
                     </tr>
                   </thead>
 
@@ -447,11 +445,10 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
                           <tr
                             key={inv.id}
                             onClick={() => setSelectedInvoice(inv)}
-                            className={`transition-colors cursor-pointer ${
-                              isSelected ? "bg-blue-50/70" : "hover:bg-slate-50/80"
-                            }`}
+                            className={`transition-colors cursor-pointer ${isSelected ? "bg-blue-50/70" : "hover:bg-slate-50/80"
+                              }`}
                           >
-                            <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
                                 checked={isChecked}
@@ -462,52 +459,51 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
                                     setCheckedIds([...checkedIds, inv.id]);
                                   }
                                 }}
-                                className="w-4 h-4 rounded accent-[#0F172A]"
+                                className="w-4 h-4 rounded accent-[#203d70]"
                               />
                             </td>
 
-                            <td className="px-4 py-4">
+                            <td className="px-3.5 py-3 whitespace-nowrap">
                               <div className="font-extrabold text-blue-700">{inv.invoice_number}</div>
                               <div className="text-[11px] text-slate-500 font-medium mt-0.5">
                                 Tempo: <span className="font-bold text-slate-700">{inv.due_date}</span>
                               </div>
                             </td>
 
-                            <td className="px-4 py-4">
-                              <div className="font-extrabold text-slate-900">{inv.customer_name}</div>
-                              <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                            <td className="px-3.5 py-3 min-w-[180px]">
+                              <div className="font-extrabold text-slate-900 truncate max-w-[210px]" title={inv.customer_name}>{inv.customer_name}</div>
+                              <div className="text-[11px] text-slate-500 font-medium mt-0.5 whitespace-nowrap">
                                 {inv.branch} ({inv.branch_code})
                               </div>
                             </td>
 
-                            <td className="px-4 py-4 text-right">
+                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
                               <div className="font-extrabold text-slate-900">{formatRupiah(inv.amount_overdue)}</div>
                               {inv.payment_note && (
                                 <div className="text-[10px] font-bold text-rose-600 mt-0.5">{inv.payment_note}</div>
                               )}
                             </td>
 
-                            <td className="px-4 py-4 text-center">
+                            <td className="px-3.5 py-3 text-center whitespace-nowrap">
                               <span className="px-2.5 py-1 rounded bg-rose-600 text-white font-extrabold text-xs">
                                 {inv.days_overdue} Hari
                               </span>
                             </td>
 
-                            <td className="px-4 py-4 text-center">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
-                                inv.risk_status === "LEGAL ESCALATION"
+                            <td className="px-3.5 py-3 text-center whitespace-nowrap">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${inv.risk_status === "LEGAL ESCALATION"
                                   ? "bg-rose-100 text-rose-800 border border-rose-200"
                                   : inv.risk_status === "HIGH RISK"
-                                  ? "bg-orange-100 text-orange-800"
-                                  : inv.risk_status === "WATCHLIST"
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-emerald-100 text-emerald-800"
-                              }`}>
+                                    ? "bg-orange-100 text-orange-800"
+                                    : inv.risk_status === "WATCHLIST"
+                                      ? "bg-amber-100 text-amber-800"
+                                      : "bg-emerald-100 text-emerald-800"
+                                }`}>
                                 • {inv.risk_status}
                               </span>
                             </td>
 
-                            <td className="px-4 py-4">
+                            <td className="px-3.5 py-3 whitespace-nowrap">
                               {inv.pic_assigned ? (
                                 <div className="flex items-center gap-1.5">
                                   <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] font-extrabold flex items-center justify-center shrink-0">
@@ -522,7 +518,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
                               )}
                             </td>
 
-                            <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-3.5 py-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               {inv.action_type === "SP-2" ? (
                                 <button
                                   onClick={() => onOpenWarningLetter(inv)}
@@ -578,7 +574,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
 
             {/* Right Side Panel: Selected Overdue Inspection Panel */}
             {selectedInvoice && (
-              <div className="xl:col-span-4 space-y-4">
+              <div className="2xl:col-span-4 space-y-4">
                 {/* Aging Distribution Breakdown Box */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
                   <div className="flex items-center justify-between text-xs font-extrabold text-slate-900 mb-2">

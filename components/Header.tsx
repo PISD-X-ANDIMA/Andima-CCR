@@ -21,7 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="font-extrabold text-slate-800 tracking-tight">{leftTitle}</span>
         ) : (
           <>
-            <span className="text-[#0F2342] font-bold uppercase tracking-wider">
+            <span className="text-[#203d70] font-bold uppercase tracking-wider">
               ANDIMA CCR: <span className="text-[#1D4ED8]">SALES &amp; COLLECTION</span>
             </span>
             <span className="hidden sm:inline text-slate-300">•</span>
