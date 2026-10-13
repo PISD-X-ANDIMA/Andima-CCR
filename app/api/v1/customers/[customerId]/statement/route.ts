@@ -2,12 +2,14 @@ import { requireSession } from "@/lib/server/http";
 import { NextRequest, NextResponse } from 'next/server';
 import { STATEMENT_AURORA_BLUE, INITIAL_CUSTOMERS } from '@/lib/customerData';
 import { fetchStatementFromSupabase } from '@/lib/supabaseApi';
+import { getCcrProfile, canUseCcr } from '@/lib/server/authorization';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ customerId: string }> }
 ) {
   const session = await requireSession(); if (session.error) return session.error;
+  if (!canUseCcr(await getCcrProfile(session.client, session.user!.id))) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'CCR access is required.' } }, { status: 403 });
   try {
     const { customerId } = await params;
 

@@ -3,6 +3,64 @@ import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/server/admin";
 import { apiError, checkOrigin } from "@/lib/server/http";
 import { provisionRegistration, validateRegistration } from "@/lib/server/registration";
+
+export async function GET() {
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return apiError("Registration references are unavailable. Configure SUPABASE_SERVICE_ROLE_KEY on the server.", 503, "REGISTRATION_CONFIGURATION_MISSING");
+  }
+  try {
+    const [{ data: positions, error: positionsError }, { data: departments, error: departmentsError }] = await Promise.all([
+      admin.from("d3_positions").select("id, code, title, department_id").order("title"),
+      admin.from("d3_departments").select("id, code, name").order("name"),
+    ]);
+    if (positionsError || departmentsError) return apiError("Registration references are unavailable.", 503, "REGISTRATION_REFERENCES_UNAVAILABLE");
+    const departmentsById = new Map((departments ?? []).map((department) => [department.id, department]));
+    const canonicalDepartments = new Set(["FAT", "COM"]);
+    const canonicalTitles = new Set([
+      "director of finance, accounting & digital transformation",
+      "manager of accounting",
+      "accounting associate (billing)",
+      "cash manager",
+      "cash manager associate",
+      "tax manager",
+      "tax associate",
+      "manager of customer success",
+      "sales executive",
+      "sales administration associate",
+    ]);
+    const canonicalCandidates = (positions ?? [])
+      .filter((position) => {
+        const department = position.department_id ? departmentsById.get(position.department_id) : null;
+        const departmentCode = department?.code?.trim().toUpperCase() ?? "";
+        const positionCode = position.code.trim().toUpperCase();
+        const normalizedTitle = position.title.trim().replace(/\s+/g, " ").toLowerCase();
+        return canonicalDepartments.has(departmentCode)
+          && new RegExp(`(^|[-_])${departmentCode}([-_]|$)`).test(positionCode)
+          && canonicalTitles.has(normalizedTitle);
+      })
+      .sort((left, right) => left.title.localeCompare(right.title) || left.code.localeCompare(right.code));
+    const eligible: Array<{ id: string; code: string; title: string; department_id: string | null }> = [];
+    const seenTitles = new Set<string>();
+    for (const position of canonicalCandidates) {
+      const normalizedTitle = position.title.trim().replace(/\s+/g, " ").toLowerCase();
+      if (seenTitles.has(normalizedTitle)) continue;
+      const { data: role, error: roleError } = await admin.rpc("ccr_role_for_position", { p_position_id: position.id });
+      if (roleError) return apiError("CCR authorization migration is not applied to Supabase yet. Apply the pending migrations and retry.", 503, "CCR_AUTHORIZATION_MIGRATION_MISSING");
+      if (role === "STAFF" || role === "MANAGEMENT") {
+        eligible.push(position);
+        seenTitles.add(normalizedTitle);
+      }
+    }
+    const departmentIds = new Set(eligible.map((position) => position.department_id).filter(Boolean));
+    return NextResponse.json({ data: { positions: eligible, departments: (departments ?? []).filter((department) => departmentIds.has(department.id)) } }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return apiError("Registration references are unavailable.", 503, "REGISTRATION_REFERENCES_UNAVAILABLE");
+  }
+}
+
 export async function POST(request: NextRequest) {
   const originError = checkOrigin(request); if (originError) return originError;
   let body: unknown;

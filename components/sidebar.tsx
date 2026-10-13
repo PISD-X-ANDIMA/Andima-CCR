@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAccount, accountRole } from "@/components/account-provider";
@@ -40,7 +41,11 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   const router = useRouter();
   const isPublicRoute = pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const isC1Route = ["/sales-overview", "/customer-analytics", "/overdue-alert"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  const isC2Route = ["/dashboard", "/data-upload", "/cost-exception", "/priority-exception", "/customer-cost", "/evidence", "/monthly-closing", "/export-report"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const [isCcrOpen, setIsCcrOpen] = useState(true);
+  const [isC1Open, setIsC1Open] = useState(isC1Route);
+  const [isC2Open, setIsC2Open] = useState(isC2Route);
   const [isInternalSigningOut, setIsInternalSigningOut] = useState(false);
   const { account: loaded, clearAccount } = useAccount();
   const account = { name: userName ?? loaded?.full_name ?? "Andima User", role: userRole ?? accountRole(loaded?.app_role, "CCR User"), initials: userInitials ?? loaded?.initials ?? "AU" };
@@ -71,7 +76,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#0f2342] px-4 py-5 text-[#d9e2fc] shadow-lg transition-transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#203d70] px-4 py-5 text-[#d9e2fc] shadow-lg transition-transform lg:translate-x-0 ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -93,11 +98,21 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
             </button>
             {isCcrOpen && (
               <div className="ml-5 mt-2 border-l border-[#d9e2fc]/20 pl-3">
-                <div className="mt-1 space-y-1">
+                <SidebarGroup label="C1" open={isC1Open} active={isC1Route} onToggle={() => setIsC1Open((value) => !value)}>
                   <HrmsLink label="Sales Overview" href="/sales-overview" />
                   <HrmsLink label="Customer Analytics" href="/customer-analytics" />
                   <HrmsLink label="Overdue Alert" href="/overdue-alert" />
-                </div>
+                </SidebarGroup>
+                <SidebarGroup label="C2" open={isC2Open} active={isC2Route} onToggle={() => setIsC2Open((value) => !value)}>
+                  <HrmsLink label="Dashboard" href="/dashboard" />
+                  <HrmsLink label="Data Upload" href="/data-upload" />
+                  <HrmsLink label="Cost Exception" href="/cost-exception" />
+                  <HrmsLink label="Priority Exception" href="/priority-exception" />
+                  <HrmsLink label="Customer Cost" href="/customer-cost" />
+                  <HrmsLink label="Evidence" href="/evidence" />
+                  <HrmsLink label="Monthly Closing" href="/monthly-closing" />
+                  <HrmsLink label="Export Report" href="/export-report" />
+                </SidebarGroup>
               </div>
             )}
           </div>
@@ -127,11 +142,23 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
       <button
         type="button"
         onClick={() => setIsSidebarOpen(true)}
-        className="fixed left-4 top-4 z-30 rounded-lg bg-[#0f2342] p-2 text-white lg:hidden"
+        className="fixed left-4 top-4 z-30 rounded-lg bg-[#203d70] p-2 text-white lg:hidden"
         aria-label="Buka navigasi"
       >
         <Menu size={20} />
       </button>
     </>
+  );
+}
+
+function SidebarGroup({ label, open, active, onToggle, children }: { label: string; open: boolean; active: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <div className="mt-1">
+      <button type="button" onClick={onToggle} className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs transition-colors ${active ? "text-white" : "text-[#d9e2fc]/80 hover:bg-[#1e3765] hover:text-white"}`} aria-expanded={open}>
+        <span>{label}</span>
+        <ChevronDown size={14} className={`transition-transform ${open ? "rotate-0" : "-rotate-90"}`} />
+      </button>
+      {open && <div className="mt-1 space-y-1">{children}</div>}
+    </div>
   );
 }

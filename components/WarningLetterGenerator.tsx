@@ -64,7 +64,7 @@ export const WarningLetterGenerator: React.FC<WarningLetterGeneratorProps> = ({
     <div className="min-h-screen bg-[#F8FAFC] font-sans pb-20">
       {/* Toast Notification Banner */}
       {toastMsg && (
-        <div className="fixed top-4 right-4 z-50 bg-[#0F172A] text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 animate-bounce">
+        <div className="fixed top-4 right-4 z-50 bg-[#203d70] text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 animate-bounce">
           <span className="text-emerald-400 font-bold">✓</span>
           <span className="text-xs font-semibold">{toastMsg}</span>
         </div>
@@ -122,7 +122,7 @@ export const WarningLetterGenerator: React.FC<WarningLetterGeneratorProps> = ({
               <button
                 onClick={handleSendSp}
                 disabled={isSending}
-                className="px-5 py-2 bg-[#0F172A] hover:bg-slate-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2"
+                className="px-5 py-2 bg-[#203d70] hover:bg-[#162a4d] disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2"
               >
                 <span>✉️</span>
                 <span>{isSending ? "Mengirim SP..." : "Kirim SP Sekarang"}</span>
@@ -199,11 +199,10 @@ export const WarningLetterGenerator: React.FC<WarningLetterGeneratorProps> = ({
                           key={item.level}
                           type="button"
                           onClick={() => setParams({ ...params, escalationLevel: item.level as any })}
-                          className={`py-2.5 px-3 rounded-xl font-extrabold text-xs transition-all ${
-                            isActive
-                              ? "bg-[#0F172A] text-white shadow-md"
+                          className={`py-2.5 px-3 rounded-xl font-extrabold text-xs transition-all ${isActive
+                              ? "bg-[#203d70] text-white shadow-md"
                               : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          }`}
+                            }`}
                         >
                           {item.label}
                         </button>
@@ -315,7 +314,7 @@ export const WarningLetterGenerator: React.FC<WarningLetterGeneratorProps> = ({
                       type="checkbox"
                       checked={params.channels.email}
                       onChange={(e) => setParams({ ...params, channels: { ...params.channels, email: e.target.checked } })}
-                      className="mt-0.5 w-4 h-4 rounded accent-[#0F172A]"
+                      className="mt-0.5 w-4 h-4 rounded accent-[#203d70]"
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
@@ -334,7 +333,7 @@ export const WarningLetterGenerator: React.FC<WarningLetterGeneratorProps> = ({
                       type="checkbox"
                       checked={params.channels.whatsapp}
                       onChange={(e) => setParams({ ...params, channels: { ...params.channels, whatsapp: e.target.checked } })}
-                      className="mt-0.5 w-4 h-4 rounded accent-[#0F172A]"
+                      className="mt-0.5 w-4 h-4 rounded accent-[#203d70]"
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
@@ -352,7 +351,7 @@ export const WarningLetterGenerator: React.FC<WarningLetterGeneratorProps> = ({
                       type="checkbox"
                       checked={params.channels.courier}
                       onChange={(e) => setParams({ ...params, channels: { ...params.channels, courier: e.target.checked } })}
-                      className="mt-0.5 w-4 h-4 rounded accent-[#0F172A]"
+                      className="mt-0.5 w-4 h-4 rounded accent-[#203d70]"
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
@@ -371,7 +370,7 @@ export const WarningLetterGenerator: React.FC<WarningLetterGeneratorProps> = ({
                       type="checkbox"
                       checked={params.channels.portal}
                       onChange={(e) => setParams({ ...params, channels: { ...params.channels, portal: e.target.checked } })}
-                      className="mt-0.5 w-4 h-4 rounded accent-[#0F172A]"
+                      className="mt-0.5 w-4 h-4 rounded accent-[#203d70]"
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
@@ -610,7 +609,7 @@ export const WarningLetterGenerator: React.FC<WarningLetterGeneratorProps> = ({
             <button
               onClick={handleSendSp}
               disabled={isSending}
-              className="px-5 py-2 bg-[#0F172A] hover:bg-slate-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2"
+              className="px-5 py-2 bg-[#203d70] hover:bg-[#162a4d] disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2"
             >
               <span>Kirim &amp; Eksekusi Distribusi (SP-2)</span>
             </button>

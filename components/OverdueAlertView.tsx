@@ -1,824 +1,253 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowDownUp,
+  Check,
+  ChevronRight,
+  Download,
+  FileWarning,
+  History,
+  Phone,
+  RefreshCw,
+  Search,
+  UserRound,
+  UsersRound,
+  X,
+} from "lucide-react";
 import Header from "@/components/Header";
 import CustomDropdown from "@/components/CustomDropdown";
 import Pagination from "@/components/Pagination";
-import { OverdueInvoiceItem, OverdueKpiSummary } from "@/types/overdue";
+import { AssignmentRecord, OverdueInvoiceItem, OverdueKpiSummary } from "@/types/overdue";
 
 interface OverdueAlertViewProps {
   onOpenWarningLetter: (item: OverdueInvoiceItem) => void;
 }
 
+const EMPTY_KPI: OverdueKpiSummary = {
+  totalOverdueValue: 0,
+  totalOverdueValueGrowth: 0,
+  affectedInvoicesCount: 0,
+  criticalAgingValue: 0,
+  criticalAgingPercent: 0,
+  criticalDebtorsCount: 0,
+  avgDsoDelay: 0,
+  slaDiff: 0,
+  targetRecoveryDays: 0,
+  unassignedPicCount: 0,
+  unassignedFloatingValue: 0,
+};
+
+const PAGE_SIZE = 8;
+
+function formatDate(value: string) {
+  if (!value || value === "-") return "-";
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function initials(name?: string) {
+  if (!name) return "-";
+  const result = name.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  return result || "-";
+}
+
+function riskClasses(status: string) {
+  if (status === "LEGAL ESCALATION") return "border-red-200 bg-red-50 text-red-700";
+  if (status === "HIGH RISK") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (status === "WATCHLIST") return "border-slate-200 bg-slate-100 text-slate-700";
+  return "border-blue-200 bg-blue-50 text-blue-700";
+}
+
+function agingClasses(days: number) {
+  if (days > 60) return "bg-red-100 text-red-700";
+  if (days > 30) return "bg-orange-50 text-orange-700";
+  return "bg-blue-50 text-blue-700";
+}
+
 export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarningLetter }) => {
-  // Data states
   const [invoices, setInvoices] = useState<OverdueInvoiceItem[]>([]);
   const [kpiSummary, setKpiSummary] = useState<OverdueKpiSummary | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<OverdueInvoiceItem | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  // Filter states
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [selectedBranch, setSelectedBranch] = useState<string>("Semua Cabang");
-  const [agingBucket, setAgingBucket] = useState<string>("Semua Bucket");
-  const [selectedStatus, setSelectedStatus] = useState<string>("Semua Status");
-  const [onlyOverdue30, setOnlyOverdue30] = useState<boolean>(true);
-
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const itemsPerPage = 8;
-
-  // Selected row checkboxes
-  const [checkedIds, setCheckedIds] = useState<string[]>(["inv-8841"]);
-
-  // Assignment Modal State
+  const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const selectedBranch = "Semua Cabang";
+  const [agingBucket, setAgingBucket] = useState("Semua Bucket");
+  const [selectedStatus, setSelectedStatus] = useState("Semua Status");
+  const [onlyOverdue30, setOnlyOverdue30] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [checkedIds, setCheckedIds] = useState<string[]>([]);
   const [assignModalInvoice, setAssignModalInvoice] = useState<OverdueInvoiceItem | null>(null);
-  const [assignTargetPic, setAssignTargetPic] = useState<string>("Hendra K.");
-
-  // Notification message
+  const [assignTargetPic, setAssignTargetPic] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
+  const formatRupiah = useCallback((value: number) => new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value || 0), []);
 
-  const loadOverdueData = () => {
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    window.setTimeout(() => setToastMessage(null), 4000);
+  }, []);
+
+  const loadOverdueData = useCallback(() => {
     setLoading(true);
+    setErrorMessage(null);
     const params = new URLSearchParams({
       branch: selectedBranch,
       search: searchQuery,
       status: selectedStatus,
-      agingBucket: agingBucket,
+      agingBucket,
       onlyOverdue30: onlyOverdue30 ? "true" : "false",
     });
 
-    fetch(`/api/v1/overdue-alerts?${params.toString()}`)
-      .then((res) => res.json())
-      .then((resData) => {
-        if (resData.invoices) {
-          setInvoices(resData.invoices);
-          setKpiSummary(resData.kpiSummary);
-          if (resData.invoices.length > 0 && !selectedInvoice) {
-            setSelectedInvoice(resData.invoices[0]);
-          }
-        }
+    fetch(`/api/v1/overdue?${params.toString()}`)
+      .then(async (response) => ({ ok: response.ok, body: await response.json() }))
+      .then((result) => {
+        if (!result.ok) throw new Error(result.body?.error?.message || "Gagal memuat overdue alert.");
+        const nextInvoices = result.body.invoices ?? [];
+        setInvoices(nextInvoices);
+        setKpiSummary(result.body.kpiSummary ?? null);
+        setSelectedInvoice((current) => nextInvoices.find((invoice: OverdueInvoiceItem) => invoice.id === current?.id) ?? nextInvoices[0] ?? null);
+        setCurrentPage(1);
+        setCheckedIds((current) => current.filter((id) => nextInvoices.some((invoice: OverdueInvoiceItem) => invoice.id === id)));
       })
-      .catch((err) => console.error("Error loading overdue alerts:", err))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Gagal memuat overdue alert.";
+        setErrorMessage(message);
+        setInvoices([]);
+        setKpiSummary(null);
+        setSelectedInvoice(null);
+        showToast(message);
+      })
       .finally(() => setLoading(false));
-  };
+  }, [agingBucket, onlyOverdue30, searchQuery, selectedBranch, selectedStatus, showToast]);
 
   useEffect(() => {
     loadOverdueData();
-  }, [selectedBranch, searchQuery, selectedStatus, agingBucket, onlyOverdue30]);
+  }, [loadOverdueData]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
+  const selectedInvoiceId = selectedInvoice?.id;
+  useEffect(() => {
+    if (!selectedInvoiceId) {
+      setAssignmentHistory([]);
+      return;
+    }
+    fetch(`/api/v1/overdue/${encodeURIComponent(selectedInvoiceId)}/assign`)
+      .then(async (response) => ({ ok: response.ok, body: await response.json() }))
+      .then((result) => {
+        if (!result.ok) throw new Error("Gagal memuat riwayat assignment.");
+        setAssignmentHistory(result.body.data ?? []);
+      })
+      .catch(() => setAssignmentHistory([]));
+  }, [selectedInvoiceId]);
 
-  const handleBatchEscalation = () => {
-    fetch("/api/v1/overdue-alerts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "BATCH_MID_ESCALATION",
-        invoiceIds: checkedIds,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        showToast(data.message || "Eskalasi Otomatis Batch berhasil diproses!");
-        loadOverdueData();
+  const handleEvaluate = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/v1/overdue/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
       });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error?.message || "Gagal mengevaluasi overdue.");
+      showToast(`${body.overdue ?? 0} invoice overdue terdeteksi.`);
+      loadOverdueData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Gagal mengevaluasi overdue.");
+      setLoading(false);
+    }
   };
 
-  const handleExportReport = () => {
-    fetch("/api/v1/export", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        format: "XLSX",
-        requestedBy: "Hendra Kusuma",
-        periodFilter: { branch: selectedBranch, agingBucket },
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        showToast("Laporan Ekspor (.XLSX) berhasil dibuat & diunduh!");
+  const handleExportReport = async () => {
+    try {
+      const response = await fetch("/api/v1/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "XLSX", requestedBy: "Hendra Kusuma", periodFilter: { branch: selectedBranch, agingBucket } }),
       });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error?.message || "Export gagal.");
+      showToast("Laporan ekspor berhasil dibuat.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Export gagal.");
+    }
   };
 
-  const handleAssignPicSubmit = () => {
-    if (!assignModalInvoice) return;
-    fetch("/api/v1/overdue-alerts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "ASSIGN_PIC",
-        invoiceId: assignModalInvoice.id,
-        assignedTo: assignTargetPic,
-        assignedBy: "Hendra Kusuma",
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        showToast(data.message || `PIC ${assignTargetPic} berhasil ditugaskan!`);
-        setAssignModalInvoice(null);
-        loadOverdueData();
+  const handleAssignPicSubmit = async () => {
+    if (!assignModalInvoice || !assignTargetPic.trim()) {
+      showToast("Nama PIC wajib diisi.");
+      return;
+    }
+    try {
+      const response = await fetch(`/api/v1/overdue/${encodeURIComponent(assignModalInvoice.id)}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignedTo: assignTargetPic.trim() }),
       });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error?.message || body?.error || "Assignment gagal.");
+      showToast(`PIC ${assignTargetPic.trim()} berhasil ditugaskan.`);
+      setAssignModalInvoice(null);
+      setAssignTargetPic("");
+      loadOverdueData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Assignment gagal.");
+    }
   };
 
-  const totalPages = Math.ceil(invoices.length / itemsPerPage) || 1;
-  const paginatedInvoices = invoices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const kpi = kpiSummary ?? EMPTY_KPI;
+  const totalPages = Math.max(1, Math.ceil(invoices.length / PAGE_SIZE));
+  const paginatedInvoices = invoices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const agingBuckets = useMemo(() => [
+    { label: "1-30 hari", amount: invoices.filter((invoice) => invoice.days_overdue <= 30).reduce((sum, invoice) => sum + invoice.amount_overdue, 0), color: "bg-blue-500", text: "text-blue-600" },
+    { label: "31-60 hari", amount: invoices.filter((invoice) => invoice.days_overdue > 30 && invoice.days_overdue <= 60).reduce((sum, invoice) => sum + invoice.amount_overdue, 0), color: "bg-amber-400", text: "text-amber-600" },
+    { label: ">60 hari", amount: invoices.filter((invoice) => invoice.days_overdue > 60).reduce((sum, invoice) => sum + invoice.amount_overdue, 0), color: "bg-red-500", text: "text-red-600" },
+  ], [invoices]);
+  const agingTotal = agingBuckets.reduce((sum, bucket) => sum + bucket.amount, 0);
+  const agingPercent = (amount: number) => agingTotal ? Math.round((amount / agingTotal) * 100) : 0;
+  const allVisibleChecked = invoices.length > 0 && invoices.every((invoice) => checkedIds.includes(invoice.id));
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans pb-12">
-      {/* Toast Notification Banner */}
-      {toastMessage && (
-        <div className="fixed top-4 right-4 z-50 bg-[#0F172A] text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 animate-bounce">
-          <span className="text-emerald-400 font-bold">✓</span>
-          <span className="text-xs font-semibold">{toastMessage}</span>
-        </div>
-      )}
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+      {toastMessage && <div role="status" className="fixed right-4 top-20 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>{toastMessage}</span></div>}
+      <Header pageName="Overdue Alert" />
+      <main className="mx-auto w-full max-w-[1800px] space-y-5 p-4 sm:p-6 lg:p-7">
+        <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
+          <div><p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-600">Cash Collection &amp; Recovery</p><h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">CCR: Overdue Alerts &amp; Receivables Monitoring</h1><p className="mt-1 max-w-2xl text-xs text-slate-500">Pantau invoice melewati SLA 30 hari, prioritaskan risiko, dan tindak lanjuti assignment PIC.</p></div>
+          <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={handleEvaluate} disabled={loading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-wait disabled:opacity-60"><RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />Sinkronisasi Billing</button><button type="button" onClick={handleExportReport} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-600"><Download className="h-3.5 w-3.5" />Ekspor Laporan</button></div>
+        </section>
 
-      <div className="flex min-h-screen flex-col">
-        {/* Page Header */}
-        <Header pageName="Overdue Alert" />
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500"><span>Total overdue value</span><span className="rounded bg-red-100 px-2 py-1 text-red-700">Urgent</span></div><p className="mt-3 text-xl font-bold text-slate-950">{formatRupiah(kpi.totalOverdueValue)}</p><p className="mt-1 text-[11px] font-semibold text-red-600">{kpi.totalOverdueValueGrowth > 0 ? `+${kpi.totalOverdueValueGrowth}%` : "-"} vs bulan lalu</p><div className="mt-3 flex justify-between border-t border-slate-100 pt-3 text-[11px]"><span className="text-slate-400">Faktur terdampak</span><strong>{kpi.affectedInvoicesCount}</strong></div></div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500"><span>Aging kritis (&gt;60 hari)</span><AlertTriangle className="h-4 w-4 text-red-500" /></div><p className="mt-3 text-xl font-bold text-red-600">{formatRupiah(kpi.criticalAgingValue)}</p><p className="mt-1 text-[11px] font-semibold text-red-600">{kpi.criticalAgingPercent.toFixed(1)}% dari portofolio</p><div className="mt-3 flex justify-between border-t border-slate-100 pt-3 text-[11px]"><span className="text-slate-400">Debitur kritis</span><strong>{kpi.criticalDebtorsCount}</strong></div></div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500"><span>Rata-rata DSO delay</span><History className="h-4 w-4 text-slate-400" /></div><p className="mt-3 text-xl font-bold text-slate-950">{kpi.avgDsoDelay} hari</p><p className="mt-1 text-[11px] font-semibold text-amber-600">+{kpi.slaDiff} hari di atas SLA 30 hari</p><div className="mt-3 flex justify-between border-t border-slate-100 pt-3 text-[11px]"><span className="text-slate-400">Target recovery</span><strong className="text-emerald-600">≤ {kpi.targetRecoveryDays} hari</strong></div></div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500"><span>Unassigned PIC</span><span className="h-2 w-2 rounded-full bg-red-500" /></div><p className="mt-3 text-xl font-bold text-blue-700">{kpi.unassignedPicCount} faktur</p><p className="mt-1 text-[11px] font-semibold text-red-600">Tindakan diperlukan</p><div className="mt-3 flex justify-between border-t border-slate-100 pt-3 text-[11px]"><span className="text-slate-400">Nilai mengambang</span><strong>{formatRupiah(kpi.unassignedFloatingValue)}</strong></div></div>
+        </section>
 
-        <main className="flex-1 p-6 md:p-8 space-y-6 w-full">
-          {/* Page Header & Subheader Actions */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                CCR: OVERDUE ALERTS &amp; RECEIVABLES MONITORING
-              </h1>
-            </div>
+        <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4"><div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"><label className="relative block min-w-0 flex-1 xl:max-w-md"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Cari nomor faktur, pelanggan, atau NPWP..." className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" /></label><div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end"><div className="w-full sm:w-44"><CustomDropdown placeholder={agingBucket} categoryTitle="AGING BUCKET" items={[{ id: "all", label: "Semua Bucket" }, { id: "b1", label: "1 - 30 Hari" }, { id: "b2", label: "31 - 60 Hari" }, { id: "b3", label: "> 60 Hari" }]} value={agingBucket} onChange={(item) => setAgingBucket(item.label)} /></div><div className="w-full sm:w-44"><CustomDropdown placeholder={selectedStatus} categoryTitle="STATUS RISIKO" items={[{ id: "all", label: "Semua Status" }, { id: "legal", label: "LEGAL ESCALATION" }, { id: "high", label: "HIGH RISK" }, { id: "watch", label: "WATCHLIST" }, { id: "nego", label: "NEGOSIASI" }]} value={selectedStatus} onChange={(item) => setSelectedStatus(item.label)} /></div><button type="button" onClick={() => setOnlyOverdue30((current) => !current)} className={`inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${onlyOverdue30 ? "border-[#3B6FF5] bg-[#3B6FF5] text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}><span className={`flex h-4 w-4 items-center justify-center rounded-sm ${onlyOverdue30 ? "bg-white text-[#3B6FF5]" : "bg-slate-100 text-transparent"}`}><Check className="h-3 w-3" /></span>Hanya &gt;30 hari</button></div></div></section>
 
-            {/* Top Action Buttons */}
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <button
-                onClick={loadOverdueData}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition"
-              >
-                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>⚡ Sinkronisasi Billing</span>
-              </button>
+        <section className="overdue-grid grid min-w-0 grid-cols-1 items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"><div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-bold text-slate-900">Daftar faktur tertunggak</h2><p className="mt-0.5 text-[11px] text-slate-500">{invoices.length} faktur dari data tervalidasi</p></div><button type="button" disabled className="inline-flex items-center gap-1.5 self-start rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 sm:self-auto"><ArrowDownUp className="h-3.5 w-3.5" />Urutkan</button></div><div className="max-h-[590px] overflow-auto"><table className="w-full min-w-[940px] border-collapse text-left text-xs"><thead className="sticky top-0 z-10 bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-500"><tr className="border-b border-slate-200"><th className="w-10 px-3 py-3 text-center"><input type="checkbox" aria-label="Pilih semua invoice" checked={allVisibleChecked} onChange={(event) => setCheckedIds(event.target.checked ? invoices.map((invoice) => invoice.id) : [])} className="h-3.5 w-3.5 accent-blue-600" /></th><th className="px-3 py-3">Invoice</th><th className="px-3 py-3">Pelanggan</th><th className="px-3 py-3 text-right">Outstanding</th><th className="px-3 py-3 text-center">Aging</th><th className="px-3 py-3 text-center">Status risiko</th><th className="px-3 py-3 text-center">PIC / aksi</th></tr></thead><tbody className="divide-y divide-slate-100">{loading ? Array.from({ length: 5 }).map((_, index) => <tr key={`loading-${index}`}><td colSpan={7} className="px-4 py-4"><div className="h-8 animate-pulse rounded bg-slate-100" /></td></tr>) : errorMessage ? <tr><td colSpan={7} className="px-4 py-14 text-center"><AlertCircle className="mx-auto mb-2 h-5 w-5 text-red-500" /><p className="text-xs font-semibold text-red-700">{errorMessage}</p><button type="button" onClick={loadOverdueData} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline"><RefreshCw className="h-3.5 w-3.5" />Coba lagi</button></td></tr> : paginatedInvoices.length === 0 ? <tr><td colSpan={7} className="px-4 py-14 text-center"><FileWarning className="mx-auto mb-2 h-5 w-5 text-slate-300" /><p className="text-xs font-semibold text-slate-500">Belum ada invoice yang sesuai filter.</p></td></tr> : paginatedInvoices.map((invoice) => { const selected = invoice.id === selectedInvoice?.id; const assigned = Boolean(invoice.pic_assigned); return <tr key={invoice.id} onClick={() => setSelectedInvoice(invoice)} className={`cursor-pointer transition hover:bg-blue-50/40 ${selected ? "bg-blue-50/70" : "bg-white"}`}><td className="px-3 py-3 text-center" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Pilih ${invoice.invoice_number}`} checked={checkedIds.includes(invoice.id)} onChange={(event) => setCheckedIds((current) => event.target.checked ? [...new Set([...current, invoice.id])] : current.filter((id) => id !== invoice.id))} className="h-3.5 w-3.5 accent-blue-600" /></td><td className="px-3 py-3"><p className="font-semibold text-blue-700">{invoice.invoice_number}</p><p className="mt-0.5 text-[11px] text-slate-500">{formatDate(invoice.due_date)}</p></td><td className="px-3 py-3"><p className="font-semibold text-slate-900">{invoice.customer_name}</p><p className="mt-0.5 text-[11px] text-slate-500">{invoice.branch || "Cabang belum tersedia"}{invoice.branch_code ? ` (${invoice.branch_code})` : ""}</p></td><td className="px-3 py-3 text-right"><p className="font-semibold text-slate-900">{formatRupiah(invoice.amount_overdue)}</p><p className="mt-0.5 text-[10px] text-slate-500">{invoice.payment_note || "Belum ada pembayaran"}</p></td><td className="px-3 py-3 text-center"><span className={`inline-flex rounded px-2 py-1 text-[11px] font-bold ${agingClasses(invoice.days_overdue)}`}>{invoice.days_overdue} hari</span></td><td className="px-3 py-3 text-center"><span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-semibold ${riskClasses(invoice.risk_status)}`}>{invoice.risk_status}</span></td><td className="px-3 py-3 text-center"><div className="flex min-w-[126px] items-center justify-center gap-2">{assigned ? <><span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">{invoice.pic_initials || initials(invoice.pic_assigned)}</span><span className="max-w-[70px] truncate text-[11px] font-medium text-slate-700">{invoice.pic_assigned}</span></> : <button type="button" onClick={(event) => { event.stopPropagation(); setAssignModalInvoice(invoice); }} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-bold text-blue-700 hover:bg-blue-100">Assign PIC</button>}</div></td></tr>; })}</tbody></table></div><div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between"><span>Menampilkan {invoices.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0}-{Math.min(currentPage * PAGE_SIZE, invoices.length)} dari {invoices.length} faktur</span><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} /></div></div>
 
-              <button
-                onClick={handleBatchEscalation}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-extrabold text-xs rounded-xl shadow-xs transition"
-              >
-                <span>⚡ Eskalasi Otomatis (Batch)</span>
-              </button>
+          <aside className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:sticky xl:top-5 xl:max-h-[calc(100vh-7rem)]"><div className="max-h-[inherit] space-y-6 overflow-y-auto p-4 sm:p-5"><div><div className="mb-3 flex items-center justify-between"><h2 className="text-xs font-bold uppercase tracking-wider text-slate-900">Aging breakdown</h2><span className="text-[11px] font-semibold text-slate-500">{invoices.length} faktur</span></div><div className="mb-2 flex h-2.5 overflow-hidden rounded-full bg-slate-100">{agingBuckets.map((bucket) => <span key={bucket.label} className={bucket.color} style={{ width: `${agingPercent(bucket.amount)}%` }} />)}</div><div className="grid grid-cols-3 gap-2 text-[10px] font-medium text-slate-500">{agingBuckets.map((bucket) => <div key={bucket.label}><span className="block">{bucket.label}</span><strong className={`block text-sm ${bucket.text}`}>{agingPercent(bucket.amount)}%</strong><span className="block truncate">{formatRupiah(bucket.amount)}</span></div>)}</div></div>
 
-              <button
-                onClick={handleExportReport}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#0F172A] hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md transition"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span>Ekspor Laporan (.XLSX / .PDF)</span>
-              </button>
-            </div>
-          </div>
+            <div className="border-t border-slate-100 pt-5">{selectedInvoice ? <><div className="mb-4 flex items-start justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-red-600"><AlertTriangle className="h-4 w-4" />Target eskalasi</span><span className="shrink-0 rounded bg-red-100 px-2 py-1 text-[10px] font-bold text-red-700">AGING: {selectedInvoice.days_overdue} HARI</span></div><h2 className="text-lg font-bold text-slate-950">{selectedInvoice.customer_name}</h2><p className="mt-1 text-xs text-slate-500">NPWP: {selectedInvoice.npwp || "-"}</p><div className="mt-4 flex items-end justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 p-3"><span className="text-xs font-medium text-slate-500">Total tagihan macet</span><strong className="text-base text-red-600">{formatRupiah(selectedInvoice.amount_overdue)}</strong></div><div className="mt-4 flex items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">{initials(selectedInvoice.contact_person.name)}</div><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{selectedInvoice.contact_person.name || "Kontak belum tersedia"}</p><p className="truncate text-[11px] text-slate-500">{selectedInvoice.contact_person.role || "-"} · {selectedInvoice.contact_person.phone || "-"}</p></div></div><div className="mt-4 rounded-r-md border-l-4 border-amber-400 bg-amber-50 p-3"><div className="mb-1 flex justify-between gap-3 text-[10px] font-bold uppercase text-amber-800"><span>Catatan penagihan terakhir</span><span className="shrink-0 font-medium normal-case text-amber-600">{selectedInvoice.last_log.date} {selectedInvoice.last_log.time}</span></div><p className="text-xs italic leading-relaxed text-amber-950">&quot;{selectedInvoice.last_log.text || "Belum ada log penagihan."}&quot;</p></div><div className="mt-4 space-y-2"><button type="button" onClick={() => onOpenWarningLetter(selectedInvoice)} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-red-600 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700"><FileWarning className="h-4 w-4" />Kirim Surat Peringatan ({selectedInvoice.action_type})</button><div className="grid grid-cols-2 gap-2"><button type="button" disabled={!selectedInvoice.contact_person.phone || selectedInvoice.contact_person.phone === "-"} onClick={() => { if (selectedInvoice.contact_person.phone && selectedInvoice.contact_person.phone !== "-") window.location.href = `tel:${selectedInvoice.contact_person.phone}`; }} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"><Phone className="h-3.5 w-3.5" />Hubungi</button><button type="button" onClick={() => setAssignModalInvoice(selectedInvoice)} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><UsersRound className="h-3.5 w-3.5" />Ganti PIC</button></div></div></> : <div className="py-8 text-center"><UserRound className="mx-auto mb-2 h-6 w-6 text-slate-300" /><p className="text-xs font-semibold text-slate-500">Pilih invoice untuk melihat detail.</p></div>}</div>
 
-          {/* 4 KPI Summary Cards Row */}
-          {kpiSummary && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Card 1: Total Overdue Value */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">TOTAL OVERDUE VALUE</span>
-                  <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-extrabold uppercase">
-                    🚨 URGENT
-                  </span>
-                </div>
-                <div className="text-xl font-extrabold text-slate-900">
-                  {formatRupiah(kpiSummary.totalOverdueValue)}
-                </div>
-                <div className="mt-1 flex items-center justify-between text-[11px]">
-                  <span className="text-rose-600 font-extrabold">↑ +{kpiSummary.totalOverdueValueGrowth}% vs bulan lalu</span>
-                </div>
-                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-semibold">Faktur Terdampak</span>
-                  <span className="font-extrabold text-slate-800">{kpiSummary.affectedInvoicesCount} Faktur Terbuka</span>
-                </div>
-              </div>
+            {selectedInvoice && <div className="border-t border-slate-100 pt-5"><div className="mb-4 flex items-center justify-between"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Log aktivitas hari ini</h3><History className="h-4 w-4 text-slate-400" /></div><div className="relative ml-2 space-y-4 border-l border-slate-200 pb-1">{assignmentHistory.map((assignment) => <div key={assignment.assignment_id} className="relative pl-4"><span className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-blue-500 ring-4 ring-white" /><div className="flex items-start justify-between gap-2"><p className="text-[11px] font-bold text-slate-900">PIC ditugaskan: {assignment.assigned_to}</p><span className="shrink-0 text-[10px] text-slate-400">{new Date(assignment.assigned_at).toLocaleDateString("id-ID")}</span></div><p className="mt-0.5 text-[11px] text-slate-500">Status follow-up: {assignment.follow_up_status}</p></div>)}<div className="relative pl-4"><span className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-slate-300 ring-4 ring-white" /><div className="flex items-start justify-between gap-2"><p className="text-[11px] font-bold text-slate-900">{selectedInvoice.last_log.logged_by || "Sistem"}</p><span className="shrink-0 text-[10px] text-slate-400">{selectedInvoice.last_log.time}</span></div><p className="mt-0.5 text-[11px] text-slate-500">{selectedInvoice.last_log.text || "Belum ada log penagihan."}</p></div></div><button type="button" disabled className="mt-3 inline-flex w-full items-center justify-center gap-1 text-[11px] font-semibold text-blue-600 disabled:cursor-not-allowed disabled:opacity-70">Lihat riwayat lengkap<ChevronRight className="h-3.5 w-3.5" /></button></div>}
+          </div></aside>
+        </section>
+      </main>
 
-              {/* Card 2: Aging Kritis */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">AGING KRITIS (&gt;60 HARI)</span>
-                  <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xs">!</span>
-                </div>
-                <div className="text-xl font-extrabold text-rose-600">
-                  {formatRupiah(kpiSummary.criticalAgingValue)}
-                </div>
-                <div className="mt-1 flex items-center justify-between text-[11px]">
-                  <span className="text-rose-600 font-extrabold">{kpiSummary.criticalAgingPercent}% dari portofolio macet</span>
-                </div>
-                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-semibold">Akun Terisolasi</span>
-                  <span className="font-extrabold text-slate-800">{kpiSummary.criticalDebtorsCount} Debitur Macet</span>
-                </div>
-              </div>
-
-              {/* Card 3: Rata-Rata DSO Delay */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">RATA-RATA DSO DELAY</span>
-                  <span className="p-1 text-slate-400">⏱️</span>
-                </div>
-                <div className="text-xl font-extrabold text-slate-900">
-                  {kpiSummary.avgDsoDelay} Hari
-                </div>
-                <div className="mt-1 flex items-center justify-between text-[11px]">
-                  <span className="text-amber-600 font-bold">+{kpiSummary.slaDiff} Hari di atas batas SLA (30d)</span>
-                </div>
-                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-semibold">Target Recovery</span>
-                  <span className="font-extrabold text-emerald-600">≤ {kpiSummary.targetRecoveryDays} Hari Operasional</span>
-                </div>
-              </div>
-
-              {/* Card 4: Unassigned PIC Penagih */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">UNASSIGNED PIC PENAGIH</span>
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping"></span>
-                </div>
-                <div className="text-xl font-extrabold text-blue-700">
-                  {kpiSummary.unassignedPicCount} Faktur
-                </div>
-                <div className="mt-1 text-[11px] font-bold text-rose-600">
-                  Tindakan Diperlukan Segera
-                </div>
-                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-semibold">Nilai Mengambang</span>
-                  <span className="font-extrabold text-slate-900">{formatRupiah(kpiSummary.unassignedFloatingValue)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Search & Filter Controls Bar */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-4">
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-              {/* Search Box */}
-              <div className="w-full lg:w-96 relative">
-                <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari No. Faktur, Nama Pelanggan, atau NPWP..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-
-              {/* Filter Controls */}
-              <div className="flex items-center gap-3 w-full lg:w-auto flex-wrap justify-end">
-                <div className="w-48">
-                  <CustomDropdown
-                    placeholder={agingBucket}
-                    categoryTitle="AGING BUCKET"
-                    items={[
-                      { id: "all", label: "Semua Bucket" },
-                      { id: "b1", label: "1 - 30 Hari" },
-                      { id: "b2", label: "31 - 60 Hari" },
-                      { id: "b3", label: "> 60 Hari" },
-                    ]}
-                    value={agingBucket}
-                    onChange={(item) => setAgingBucket(item.label)}
-                  />
-                </div>
-
-                <div className="w-48">
-                  <CustomDropdown
-                    placeholder={selectedStatus}
-                    categoryTitle="STATUS RESIKO"
-                    items={[
-                      { id: "all", label: "Semua Status" },
-                      { id: "legal", label: "LEGAL ESCALATION" },
-                      { id: "high", label: "HIGH RISK" },
-                      { id: "watch", label: "WATCHLIST" },
-                      { id: "nego", label: "NEGOSIASI" },
-                    ]}
-                    value={selectedStatus}
-                    onChange={(item) => setSelectedStatus(item.label)}
-                  />
-                </div>
-
-                {/* Badge Toggle: Hanya >30 Hari */}
-                <button
-                  onClick={() => setOnlyOverdue30(!onlyOverdue30)}
-                  className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 ${
-                    onlyOverdue30
-                      ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] ${onlyOverdue30 ? "bg-white text-blue-600" : "bg-slate-200"}`}>
-                    ✓
-                  </span>
-                  <span>Hanya &gt;30 Hari</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Branch Filter Tabs */}
-            <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap text-xs">
-              <span className="font-extrabold text-slate-400 uppercase tracking-wider mr-2 text-[10px]">
-                CABANG:
-              </span>
-              {[
-                { label: "Semua Cabang", count: 48 },
-                { label: "Jakarta", count: 18 },
-                { label: "Surabaya", count: 14 },
-                { label: "Semarang", count: 7 },
-                { label: "Balikpapan", count: 5 },
-                { label: "Belawan", count: 4 },
-              ].map((b) => {
-                const isSelected = selectedBranch === b.label;
-                return (
-                  <button
-                    key={b.label}
-                    onClick={() => {
-                      setSelectedBranch(b.label);
-                      setCurrentPage(1);
-                    }}
-                    className={`px-3.5 py-1.5 rounded-full font-bold transition-all ${
-                      isSelected
-                        ? "bg-[#0F172A] text-white shadow-xs"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    {b.label} ({b.count})
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Split Table & Right Profile Panel */}
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-            {/* Left Table Section */}
-            <div className="xl:col-span-8 bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-              <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between text-xs">
-                <div className="font-extrabold text-slate-900 uppercase">
-                  Daftar Faktur Tertunggak <span className="text-slate-400 font-semibold">({invoices.length} Faktur Terdaftar)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="px-3 py-1 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-slate-50">
-                    ⚙️ Kolom
-                  </button>
-                  <button className="px-3 py-1 bg-white border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-slate-50">
-                    ⇅ Urutkan
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs min-w-[700px]">
-                  <thead>
-                    <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-extrabold text-[10px] tracking-wider uppercase">
-                      <th className="w-10 px-4 py-3.5 text-center">
-                        <input
-                          type="checkbox"
-                          checked={invoices.length > 0 && invoices.every((c) => checkedIds.includes(c.id))}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setCheckedIds(invoices.map((c) => c.id));
-                            } else {
-                              setCheckedIds([]);
-                            }
-                          }}
-                          className="w-4 h-4 rounded accent-[#0F172A]"
-                        />
-                      </th>
-                      <th className="px-4 py-3.5">NO. FAKTUR &amp; JATUH TEMPO</th>
-                      <th className="px-4 py-3.5">PELANGGAN &amp; CABANG</th>
-                      <th className="px-4 py-3.5 text-right">NOMINAL OVERDUE</th>
-                      <th className="px-4 py-3.5 text-center">AGING DELAY</th>
-                      <th className="px-4 py-3.5 text-center">STATUS RESIKO</th>
-                      <th className="px-4 py-3.5">PIC PENAGIH</th>
-                      <th className="px-4 py-3.5 text-center">AKSI</th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-slate-100">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-medium">
-                          Memuat data faktur tertunggak...
-                        </td>
-                      </tr>
-                    ) : paginatedInvoices.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-medium">
-                          Tidak ada faktur tertunggak ditemukan.
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedInvoices.map((inv) => {
-                        const isSelected = selectedInvoice?.id === inv.id;
-                        const isChecked = checkedIds.includes(inv.id);
-
-                        return (
-                          <tr
-                            key={inv.id}
-                            onClick={() => setSelectedInvoice(inv)}
-                            className={`transition-colors cursor-pointer ${
-                              isSelected ? "bg-blue-50/70" : "hover:bg-slate-50/80"
-                            }`}
-                          >
-                            <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => {
-                                  if (isChecked) {
-                                    setCheckedIds(checkedIds.filter((i) => i !== inv.id));
-                                  } else {
-                                    setCheckedIds([...checkedIds, inv.id]);
-                                  }
-                                }}
-                                className="w-4 h-4 rounded accent-[#0F172A]"
-                              />
-                            </td>
-
-                            <td className="px-4 py-4">
-                              <div className="font-extrabold text-blue-700">{inv.invoice_number}</div>
-                              <div className="text-[11px] text-slate-500 font-medium mt-0.5">
-                                Tempo: <span className="font-bold text-slate-700">{inv.due_date}</span>
-                              </div>
-                            </td>
-
-                            <td className="px-4 py-4">
-                              <div className="font-extrabold text-slate-900">{inv.customer_name}</div>
-                              <div className="text-[11px] text-slate-500 font-medium mt-0.5">
-                                {inv.branch} ({inv.branch_code})
-                              </div>
-                            </td>
-
-                            <td className="px-4 py-4 text-right">
-                              <div className="font-extrabold text-slate-900">{formatRupiah(inv.amount_overdue)}</div>
-                              {inv.payment_note && (
-                                <div className="text-[10px] font-bold text-rose-600 mt-0.5">{inv.payment_note}</div>
-                              )}
-                            </td>
-
-                            <td className="px-4 py-4 text-center">
-                              <span className="px-2.5 py-1 rounded bg-rose-600 text-white font-extrabold text-xs">
-                                {inv.days_overdue} Hari
-                              </span>
-                            </td>
-
-                            <td className="px-4 py-4 text-center">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
-                                inv.risk_status === "LEGAL ESCALATION"
-                                  ? "bg-rose-100 text-rose-800 border border-rose-200"
-                                  : inv.risk_status === "HIGH RISK"
-                                  ? "bg-orange-100 text-orange-800"
-                                  : inv.risk_status === "WATCHLIST"
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-emerald-100 text-emerald-800"
-                              }`}>
-                                • {inv.risk_status}
-                              </span>
-                            </td>
-
-                            <td className="px-4 py-4">
-                              {inv.pic_assigned ? (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] font-extrabold flex items-center justify-center shrink-0">
-                                    {inv.pic_initials || "PIC"}
-                                  </span>
-                                  <span className="font-bold text-slate-800 text-[11px]">{inv.pic_assigned}</span>
-                                </div>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-600 font-bold text-[10px]">
-                                  Unassigned
-                                </span>
-                              )}
-                            </td>
-
-                            <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
-                              {inv.action_type === "SP-2" ? (
-                                <button
-                                  onClick={() => onOpenWarningLetter(inv)}
-                                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-lg shadow-xs transition"
-                                >
-                                  SP-2
-                                </button>
-                              ) : inv.action_type === "SP-1" ? (
-                                <button
-                                  onClick={() => onOpenWarningLetter(inv)}
-                                  className="px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-xs rounded-lg shadow-xs transition"
-                                >
-                                  SP-1
-                                </button>
-                              ) : inv.action_type === "TUGASKAN" ? (
-                                <button
-                                  onClick={() => setAssignModalInvoice(inv)}
-                                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-lg shadow-xs transition"
-                                >
-                                  TUGASKAN
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => onOpenWarningLetter(inv)}
-                                  className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition"
-                                >
-                                  {inv.action_type}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Table Footer with Pagination */}
-              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-xs text-slate-500 font-medium">
-                  Menampilkan <span className="font-bold text-slate-800">1 - {paginatedInvoices.length}</span> dari{" "}
-                  <span className="font-bold text-slate-800">{invoices.length}</span> faktur tertunggak
-                </div>
-
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={(p) => setCurrentPage(p)}
-                />
-              </div>
-            </div>
-
-            {/* Right Side Panel: Selected Overdue Inspection Panel */}
-            {selectedInvoice && (
-              <div className="xl:col-span-4 space-y-4">
-                {/* Aging Distribution Breakdown Box */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-                  <div className="flex items-center justify-between text-xs font-extrabold text-slate-900 mb-2">
-                    <span>AGING DISTRIBUTION BREAKDOWN</span>
-                    <span className="text-blue-700 font-bold">100% Portofolio Overdue</span>
-                  </div>
-
-                  {/* Multi-colored Progress bar */}
-                  <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex mb-3">
-                    <div className="bg-blue-600 h-full" style={{ width: "35%" }} title="1 - 30d"></div>
-                    <div className="bg-amber-500 h-full" style={{ width: "40%" }} title="31 - 60d"></div>
-                    <div className="bg-rose-600 h-full" style={{ width: "25%" }} title="> 60d"></div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
-                    <div>
-                      <span className="block font-bold text-slate-400">1 - 30d</span>
-                      <span className="block font-extrabold text-blue-600">35%</span>
-                      <span className="text-slate-500">Rp 2.94M</span>
-                    </div>
-                    <div>
-                      <span className="block font-bold text-slate-400">31 - 60d</span>
-                      <span className="block font-extrabold text-amber-600">40%</span>
-                      <span className="text-slate-500">Rp 3.36M</span>
-                    </div>
-                    <div>
-                      <span className="block font-bold text-slate-400">&gt; 60d</span>
-                      <span className="block font-extrabold text-rose-600">25%</span>
-                      <span className="text-slate-500">Rp 2.12M</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Main Selected Escalation Box */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <div className="flex items-center gap-1.5 text-xs font-extrabold text-rose-600">
-                      <span>⚠️ ESKALASI TERPILIH (#1 PRIORITAS)</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-extrabold text-[10px]">
-                      AGING: {selectedInvoice.days_overdue} HARI
-                    </span>
-                  </div>
-
-                  <div>
-                    <h2 className="text-base font-extrabold text-slate-900">{selectedInvoice.customer_name}</h2>
-                    <div className="text-xs text-slate-500 font-semibold mt-0.5">
-                      NPWP: {selectedInvoice.npwp}
-                    </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-400">Total Tagihan Macet:</span>
-                      <span className="text-base font-extrabold text-rose-600">{formatRupiah(selectedInvoice.amount_overdue)}</span>
-                    </div>
-                  </div>
-
-                  {/* Contact Executive Card */}
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-extrabold text-sm">
-                      BW
-                    </div>
-                    <div className="text-xs">
-                      <div className="font-extrabold text-slate-900">{selectedInvoice.contact_person.name}</div>
-                      <div className="text-[11px] text-slate-500 font-medium">
-                        {selectedInvoice.contact_person.role} • {selectedInvoice.contact_person.phone}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Catatan Log Penagihan Terakhir */}
-                  <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-1">
-                    <div className="flex items-center justify-between font-extrabold text-amber-900 text-[11px]">
-                      <span>CATATAN LOG PENAGIHAN TERAKHIR:</span>
-                      <span>{selectedInvoice.last_log.date}, {selectedInvoice.last_log.time}</span>
-                    </div>
-                    <p className="text-slate-700 text-[11px] leading-relaxed italic">
-                      "{selectedInvoice.last_log.text}"
-                    </p>
-                    <div className="text-[10px] text-amber-700 font-bold">
-                      Logged by PIC: {selectedInvoice.last_log.logged_by}
-                    </div>
-                  </div>
-
-                  {/* Primary Action Buttons */}
-                  <div className="space-y-2 pt-2">
-                    <button
-                      onClick={() => onOpenWarningLetter(selectedInvoice)}
-                      className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2"
-                    >
-                      <span>✉️</span>
-                      <span>KIRIM SURAT PERINGATAN (SP-2)</span>
-                    </button>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <button className="py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5">
-                        <span>📞</span>
-                        <span>HUBUNGI DEBITUR</span>
-                      </button>
-
-                      <button
-                        onClick={() => setAssignModalInvoice(selectedInvoice)}
-                        className="py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
-                      >
-                        <span>👥</span>
-                        <span>GANTI PIC</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Log Aktivitas Penagihan Hari Ini Timeline */}
-                  <div className="pt-3 border-t border-slate-100 space-y-3">
-                    <div className="flex items-center justify-between text-[11px] font-extrabold text-slate-900">
-                      <span>LOG AKTIVITAS PENAGIHAN HARI INI</span>
-                      <span className="text-slate-400 font-mono">28-09-2026</span>
-                    </div>
-
-                    <div className="space-y-2.5 text-xs">
-                      <div className="flex items-start gap-2.5">
-                        <span className="w-2 h-2 rounded-full bg-blue-600 mt-1.5 shrink-0"></span>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between font-bold text-slate-900 text-[11px]">
-                            <span>Kunjungan Kantor (Surabaya)</span>
-                            <span className="text-slate-400 font-mono text-[10px]">10:45 WIB</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 font-medium">
-                            PIC Agus W. mendatangi kantor PT Tirta Mas Multimodal. Konfirmasi cek mundur tgl 05 Oktober.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2.5">
-                        <span className="w-2 h-2 rounded-full bg-blue-600 mt-1.5 shrink-0"></span>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between font-bold text-slate-900 text-[11px]">
-                            <span>Surat Peringatan 1 Terkirim</span>
-                            <span className="text-slate-400 font-mono text-[10px]">09:15 WIB</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 font-medium">
-                            SP-1 dikirimkan secara otomatis via e-faktur tercatat kepada CV Bintang Borneo Abadi.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0"></span>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between font-bold text-slate-900 text-[11px]">
-                            <span>Validasi Rekonsiliasi Bank</span>
-                            <span className="text-slate-400 font-mono text-[10px]">08:30 WIB</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 font-medium">
-                            Kasir pusat memvalidasi pembayaran parsial Rp 150,000,000 dari PT Samudera Biru Jaya.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button className="w-full text-center text-xs font-extrabold text-blue-600 hover:underline pt-1">
-                      Lihat Riwayat Lengkap Audit Trail →
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom Vessel Hold Policy Banner */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="space-y-2 max-w-2xl">
-              <span className="px-3 py-1 rounded bg-slate-100 text-slate-700 font-extrabold text-[10px] uppercase tracking-wider">
-                MULTIMODAL VESSEL HOLD POLICY
-              </span>
-              <h3 className="text-lg font-extrabold text-slate-900">
-                Blokir Otomatis Bill of Lading (B/L) untuk Piutang Kritis
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                Debitur dengan saldo jatuh tempo melebihi 60 hari secara sistematis akan ditahan izin pelepasan kargonya di pelabuhan muat (Tanjung Priok, Tanjung Perak, Belawan) sampai bilyet giro divalidasi.
-              </p>
-            </div>
-
-            <div className="w-full md:w-80 h-32 rounded-xl overflow-hidden bg-slate-900 relative shrink-0">
-              <div
-                className="absolute inset-0 bg-cover bg-center opacity-80"
-                style={{
-                  backgroundImage: `url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=600&q=80')`,
-                }}
-              ></div>
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/40 to-transparent flex items-end p-3 text-white text-[10px] font-bold">
-                🚢 Terminal Pelabuhan Multimoda ANDIMA
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
-
-      {/* Assignment Modal */}
-      {assignModalInvoice && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-extrabold text-base text-slate-900">Penugasan PIC Penagih</h3>
-              <button onClick={() => setAssignModalInvoice(null)} className="text-slate-400 hover:text-slate-600 font-bold">
-                ✕
-              </button>
-            </div>
-
-            <div className="text-xs space-y-2 text-slate-600">
-              <div>
-                <span className="font-semibold text-slate-400 block">Faktur:</span>
-                <span className="font-extrabold text-slate-900">{assignModalInvoice.invoice_number}</span>
-              </div>
-              <div>
-                <span className="font-semibold text-slate-400 block">Pelanggan:</span>
-                <span className="font-extrabold text-slate-900">{assignModalInvoice.customer_name}</span>
-              </div>
-              <div>
-                <span className="font-semibold text-slate-400 block">Nominal Overdue:</span>
-                <span className="font-extrabold text-rose-600">{formatRupiah(assignModalInvoice.amount_overdue)}</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 block">Pilih PIC Penagih:</label>
-              <select
-                value={assignTargetPic}
-                onChange={(e) => setAssignTargetPic(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
-              >
-                <option value="Hendra K.">Hendra Kusuma (Wilayah Jawa &amp; Kaltim)</option>
-                <option value="Deni S.">Deni Setiawan (Wilayah JKT &amp; BPN)</option>
-                <option value="Agus W.">Agus Wijaya (Wilayah SUB &amp; BLW)</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-3 pt-3">
-              <button
-                onClick={() => setAssignModalInvoice(null)}
-                className="w-1/2 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleAssignPicSubmit}
-                className="w-1/2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md transition"
-              >
-                Simpan Penugasan
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {assignModalInvoice && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4"><div role="dialog" aria-modal="true" className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-2xl"><div className="flex items-center justify-between border-b border-slate-100 pb-3"><h2 className="text-sm font-bold text-slate-900">Penugasan PIC penagih</h2><button type="button" aria-label="Tutup" onClick={() => setAssignModalInvoice(null)} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4" /></button></div><dl className="mt-4 space-y-2 text-xs"><div className="flex justify-between gap-3"><dt className="text-slate-500">Invoice</dt><dd className="font-bold text-slate-900">{assignModalInvoice.invoice_number}</dd></div><div className="flex justify-between gap-3"><dt className="text-slate-500">Pelanggan</dt><dd className="max-w-[65%] text-right font-bold text-slate-900">{assignModalInvoice.customer_name}</dd></div><div className="flex justify-between gap-3"><dt className="text-slate-500">Nominal overdue</dt><dd className="font-bold text-red-600">{formatRupiah(assignModalInvoice.amount_overdue)}</dd></div></dl><label className="mt-5 block text-xs font-bold text-slate-700">Nama PIC penagihan<input autoFocus type="text" value={assignTargetPic} onChange={(event) => setAssignTargetPic(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void handleAssignPicSubmit(); }} placeholder="Contoh: Hendra Kusuma" className="mt-2 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-medium outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" /></label><div className="mt-5 flex gap-2"><button type="button" onClick={() => setAssignModalInvoice(null)} className="flex-1 rounded-md border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Batal</button><button type="button" onClick={() => void handleAssignPicSubmit()} className="flex-1 rounded-md bg-blue-600 py-2.5 text-xs font-bold text-white hover:bg-blue-700">Simpan penugasan</button></div></div></div>}
     </div>
   );
 };

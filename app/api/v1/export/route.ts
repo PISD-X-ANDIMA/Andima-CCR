@@ -1,10 +1,14 @@
 import { requireSession, checkOrigin } from "@/lib/server/http";
 import { NextRequest, NextResponse } from 'next/server';
 import { requestExportFileInSupabase } from '@/lib/supabaseOverdueApi';
+import { getCcrProfile, canManage } from '@/lib/server/authorization';
 
 export async function POST(req: NextRequest) {
   const session = await requireSession(); if (session.error) return session.error;
   const originError = checkOrigin(req); if (originError) return originError;
+  if (!canManage(await getCcrProfile(session.client, session.user!.id))) {
+    return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Only management users can export reports.' } }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const { format, periodFilter } = body;

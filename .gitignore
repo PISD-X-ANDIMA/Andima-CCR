@@ -48,6 +48,7 @@ next-env.d.ts
 !FRTR
 !FRTR/backend-documentation.md
 !FRTR/release-notes.md
+!FRTR/chartnew.tsx
 
 *.pdf
 *.xlsx

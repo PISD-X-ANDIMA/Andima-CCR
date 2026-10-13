@@ -4,8 +4,6 @@ import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-const DEMO_ACCOUNT_EMAILS = ['demo.staff@andima.test', 'demo.manager@andima.test'];
-
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState<string>('');
@@ -18,20 +16,19 @@ export default function LoginPage() {
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [isPermanentlyBlocked, setIsPermanentlyBlocked] = useState<boolean>(false);
   const [countdown, setCountdown] = useState<number>(0);
-  const [greeting, setGreeting] = useState<string>('Good Morning');
-
-  useEffect(() => {
+  const [greeting] = useState<string>(() => {
     const hour = new Date().getHours();
-    const timer = window.setTimeout(() => setGreeting(hour >= 3 && hour < 12 ? 'Good Morning' : hour >= 12 && hour < 17 ? 'Good Afternoon' : 'Good Evening'), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    return hour >= 3 && hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  });
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | undefined;
     if (isLocked && countdown > 0) {
       timer = setInterval(() => setCountdown((prev) => prev - 1), 1000);
     } else if (countdown === 0 && isLocked && !isPermanentlyBlocked) {
-      timer = setTimeout(() => { setIsLocked(false); setErrorMessage(''); }, 0);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsLocked(false);
+      setErrorMessage('');
     }
     return () => {
       if (timer) clearInterval(timer);
@@ -41,16 +38,6 @@ export default function LoginPage() {
   const validateEmailFormat = (emailVal: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(emailVal);
-  };
-
-  const validatePasswordStrength = (passVal: string, isDemoAccount = false): boolean => {
-    if (passVal.length < 8) return false;
-    if (isDemoAccount) return true;
-
-    const hasLetter = /[a-zA-Z]/.test(passVal);
-    const hasDigit = /\d/.test(passVal);
-    const hasSpecial = /[^a-zA-Z0-9]/.test(passVal);
-    return hasLetter && hasDigit && hasSpecial;
   };
 
   const handleFailedAttempt = (customMessage: string) => {
@@ -88,33 +75,40 @@ export default function LoginPage() {
       return;
     }
 
-    if (!validateEmailFormat(email)) {
-      setErrorMessage('Invalid email format (example: name@andima.co.id).');
-      return;
-    }
+    const normalizedEmail = email.trim().toLowerCase();
 
-    const isDemoAccount = DEMO_ACCOUNT_EMAILS.includes(email.trim().toLowerCase());
-    if (!validatePasswordStrength(password, isDemoAccount)) {
-      setErrorMessage(
-        isDemoAccount
-          ? 'Password must be at least 8 characters long.'
-          : 'Password must be at least 8 characters long and contain a mix of letters, numbers, and special characters.'
-      );
+    if (!validateEmailFormat(normalizedEmail)) {
+      setErrorMessage('Invalid email format (example: name@andima.co.id).');
       return;
     }
 
     setIsSigningIn(true);
     try {
-      const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-      const body = await response.json();
-      if (!response.ok) { handleFailedAttempt(body.error?.message ?? 'Login gagal.'); return; }
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail, password }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        if (response.status === 403) {
+          setErrorMessage(body?.error?.message || 'Akun belum memiliki akses CCR.');
+        } else {
+          handleFailedAttempt(body?.error?.message || 'Email atau password salah.');
+        }
+        return;
+      }
       setLoginAttempts(0);
-      setSuccessMessage('Login berhasil! Mengalihkan ke dashboard...');
-      router.replace('/sales-overview');
-      router.refresh();
-    } catch { setErrorMessage('Tidak dapat menghubungi server login. Silakan coba lagi.'); }
-    finally { setIsSigningIn(false); }
-
+      setSuccessMessage('Login berhasil. Mengarahkan ke halaman utama...');
+      window.setTimeout(() => {
+        router.replace(body?.data?.redirect_to || '/sales-overview');
+        router.refresh();
+      }, 700);
+    } catch {
+      setErrorMessage('Koneksi login belum siap. Periksa .env.local lalu coba kembali.');
+    } finally {
+      setIsSigningIn(false);
+    }
   };
 
   return (
@@ -137,10 +131,12 @@ export default function LoginPage() {
 
       {/* 2. BRAND TEXT (TITLE) MENGGUNAKAN FONT SYNE */}
       <div className="hidden md:flex absolute top-1/2 -translate-y-1/2 right-8 lg:right-16 xl:right-24 z-20 pointer-events-none flex-col items-end text-right max-w-lg">
-        <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl flex items-center justify-center text-white font-bold shadow-xl shadow-[#3B6FF5]/30 bg-[#3B6FF5] shrink-0 mb-4">
-          <svg className="w-8 h-8 lg:w-9 lg:h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457-.39-2.823-1.07-4" />
-          </svg>
+        <div className="w-14 h-14 lg:w-16 lg:h-16 flex items-center justify-center shrink-0 mb-4">
+          <img
+            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Logo-ANDIMA-wzx4gpZx20EFE5IYcH3jqabixELIo3.png"
+            alt="Logo Andima"
+            className="h-full w-full object-contain drop-shadow-[0_3px_10px_rgba(0,0,0,0.55)]"
+          />
         </div>
         <h1 className="font-[family-name:var(--font-syne)] text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-wider text-white drop-shadow-[0_4px_20px_rgba(0,0,0,0.9)] leading-tight">
           PT. ANDIMA<br />
@@ -176,7 +172,7 @@ export default function LoginPage() {
                 </label>
                 <input
                   type="email"
-                  placeholder="username"
+                  placeholder="manajemen@andima.co.id"
                   value={email}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                   disabled={isLocked || isPermanentlyBlocked}
@@ -191,7 +187,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="password"
+                    placeholder="••••••••••••"
                     value={password}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                     disabled={isLocked || isPermanentlyBlocked}
@@ -251,7 +247,7 @@ export default function LoginPage() {
                   ? 'ACCOUNT BLOCKED'
                   : isLocked
                   ? `Please wait ${countdown}s`
-                  : isSigningIn ? 'SIGNING INâ€¦' : 'LOGIN'}
+                  : isSigningIn ? 'SIGNING IN…' : 'LOGIN'}
               </button>
             </form>
 
@@ -259,13 +255,11 @@ export default function LoginPage() {
               Not login ?{' '}
               <Link href="/register" className="font-bold text-[#3B6FF5] hover:underline">Register</Link>
             </p>
-
-            {/* Info Demo Credentials */}
+            {/* Info Demo Credentials
             <div className="mt-7 p-4 rounded-xl bg-white/60 backdrop-blur-md border border-white/80 text-xs text-[#334155] space-y-1 font-[family-name:var(--font-montserrat)] shadow-sm relative z-10">
               <p className="font-bold text-[#3B6FF5]">Demo Credentials:</p>
-              <p>Staff: <span className="text-[#0D1B2A] font-semibold">demo.staff@andima.test</span> | Pass: <span className="text-[#0D1B2A] font-semibold">12345678</span></p>
-              <p>Manager: <span className="text-[#0D1B2A] font-semibold">demo.manager@andima.test</span> | Pass: <span className="text-[#0D1B2A] font-semibold">12345678</span></p>
-            </div>
+              <p>Login menggunakan akun HRMS yang sudah dipetakan oleh HR Admin.</p>
+            </div> */}
           </div>
 
         </div>

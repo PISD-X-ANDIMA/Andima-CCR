@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AURORA_BLUE_INVOICES } from '@/lib/customerData';
 import { fetchInvoicesFromSupabase, bulkCloseInvoicesInSupabase } from '@/lib/supabaseApi';
 import { InvoiceDetail } from '@/types/customer';
+import { getCcrProfile, canUseCcr } from '@/lib/server/authorization';
 
 // In-memory fallback store for pending updates during session execution
 let invoicesStore = [...AURORA_BLUE_INVOICES];
@@ -12,6 +13,7 @@ export async function GET(
   { params }: { params: Promise<{ customerId: string }> }
 ) {
   const session = await requireSession(); if (session.error) return session.error;
+  if (!canUseCcr(await getCcrProfile(session.client, session.user!.id))) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'CCR access is required.' } }, { status: 403 });
   try {
     const { customerId } = await params;
     const { searchParams } = new URL(req.url);
@@ -84,6 +86,7 @@ export async function PATCH(
   { params }: { params: Promise<{ customerId: string }> }
 ) {
   const session = await requireSession(); if (session.error) return session.error;
+  if (!canUseCcr(await getCcrProfile(session.client, session.user!.id))) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'CCR access is required.' } }, { status: 403 });
   const originError = checkOrigin(req); if (originError) return originError;
   try {
     const { customerId } = await params;

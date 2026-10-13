@@ -10,6 +10,7 @@ Apply these migrations, in order, after the existing migrations:
 
 1. `supabase/migrations/20261006000000_api_registration.sql`
 2. `supabase/migrations/20261006010000_finalize_document_upload.sql`
+3. `supabase/migrations/20261013070000_b2_first_ccr_authorization.sql`
 
 The registration migration retires auth triggers calling the legacy `handle_new_user_to_b2_register` function, closes anonymous registration-table access, and installs service-only profile provisioning/rollback functions. It preserves existing accounts and data. ID allocation and profile inserts happen inside one database transaction. The upload migration atomically finalizes the uploaded document and rebuilds macro metrics; a failed aggregation rolls back the validated status.
 
@@ -23,7 +24,7 @@ Configure Supabase Auth redirect allowlists to include the application's `/auth`
 - `GET /api/v1/account/me`: current session's name, role, and initials; not cached.
 - `GET /api/v1/analytics/macro`: one response for all four charts and metric cards, filtered by `start_period` and `end_period`.
 
-Mutating endpoints check request Origin. Business endpoints require a valid session; Sales Overview requires HR/Manager, upload requires HR. Authentication uses HttpOnly cookies, SameSite=Lax, and Secure in production; proxy refreshes sessions server-side.
+Mutating endpoints check request Origin. Business endpoints require a valid session; Sales Overview and Customer Analytics require provisioned `STAFF` or `MANAGEMENT`, upload requires `STAFF`, and export/MID actions require `MANAGEMENT`. Authentication uses HttpOnly cookies, SameSite=Lax, and Secure in production; proxy refreshes sessions server-side.
 
 ## Uploaded chart data
 

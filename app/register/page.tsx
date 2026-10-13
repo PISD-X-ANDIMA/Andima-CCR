@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, FormEvent, ChangeEvent } from 'react';
+import React, { useState, useRef, useEffect, FormEvent, ChangeEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -14,6 +14,9 @@ interface FieldErrors {
   departementId?: string;
 }
 
+type RegistrationPosition = { id: string; title: string; department_id: string | null };
+type RegistrationDepartment = { id: string; name: string };
+
 export default function RegisterPage() {
   const router = useRouter();
   const [fullName, setFullName] = useState<string>('');
@@ -24,7 +27,6 @@ export default function RegisterPage() {
   const [employmentStatus, setEmploymentStatus] = useState<string>('');
   const [positionId, setPositionId] = useState<string>('');
   const [departementId, setDepartementId] = useState<string>('');
-
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const submitting = useRef(false);
@@ -33,14 +35,21 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [generalError, setGeneralError] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
+  const [positions, setPositions] = useState<RegistrationPosition[]>([]);
+  const [departments, setDepartments] = useState<RegistrationDepartment[]>([]);
 
-  const VALID_POSITION_DEPARTMENTS: Record<string, string> = {
-    '40a8e1f1-0713-4e5d-a7af-061b6e5f495c': 'd38c1ed7-abd4-4a57-ab9d-0ba1d396fbfc', // Freight Forwarding Specialist -> Logistics
-    '96c66ea1-44b6-474f-9410-ad992dd14b93': '72cd470d-216c-48b6-abd9-0cd05a4d8974', // HR Administrator -> Human Resources
-    '265c9357-105c-437c-a244-6897122f17c1': '8113ab6f-d5cc-4c94-bbf6-e08047931fab', // Information Technology -> IT
-    '10da1bac-a6a8-472e-a171-e4984ab768d9': '1653db5f-2b64-418f-b28b-68cb7b9dae8e', // Accounting Associate -> Finance, Accounting & Tax
-    '58706b7f-950b-4e71-b066-792fbd91424d': '97ac5d35-5da2-4f5d-9d36-78500f403cc7', // Sales Executive -> Commercial
-  };
+  useEffect(() => {
+    fetch('/api/auth/register', { cache: 'no-store' })
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error?.message || 'Referensi registrasi tidak tersedia.');
+        setPositions(body.data?.positions ?? []);
+        setDepartments(body.data?.departments ?? []);
+      })
+      .catch((error: unknown) => setGeneralError(error instanceof Error ? error.message : 'Referensi registrasi tidak tersedia.'));
+  }, []);
+
+  const availablePositions = positions.filter((position) => !departementId || position.department_id === departementId);
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
@@ -52,78 +61,31 @@ export default function RegisterPage() {
       setSuccessMessage('');
 
       const errors: FieldErrors = {};
-
-      // Validasi Full Name
       const nameRegex = /^[a-zA-Z\s]+$/;
-      if (!fullName.trim()) {
-        errors.fullName = 'Full name is required.';
-      } else if (!nameRegex.test(fullName.trim())) {
-        errors.fullName = 'Full name must contain letters and spaces only.';
-      }
-
-      // Validasi Email
       const emailLower = email.trim().toLowerCase();
-      if (!email.trim()) {
-        errors.email = 'Email address is required.';
-      } else if (!/^[^\s@]+@andima\.co\.id$/.test(emailLower)) {
-        errors.email = 'Email address must use the domain @andima.co.id';
-      }
 
-      // Validasi Password
+      if (!fullName.trim()) errors.fullName = 'Full name is required.';
+      else if (!nameRegex.test(fullName.trim())) errors.fullName = 'Full name must contain letters and spaces only.';
+
+      if (!emailLower) errors.email = 'Email address is required.';
+      else if (!/^[^\s@]+@andima\.co\.id$/.test(emailLower)) errors.email = 'Email address must use the domain @andima.co.id';
+
       const hasLetter = /[a-zA-Z]/.test(password);
       const hasNumber = /[0-9]/.test(password);
-      const hasSpecialChar =
-        /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
-
-      if (!password) {
-        errors.password = 'Password is required.';
-      } else if (password.length < 10) {
-        errors.password = 'Password must be at least 10 characters long.';
-      } else if (!hasLetter || !hasNumber || !hasSpecialChar) {
-        errors.password =
-          'Password must include letters, numbers, and special characters.';
+      const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+      if (!password) errors.password = 'Password is required.';
+      else if (password.length < 10 || !hasLetter || !hasNumber || !hasSpecialChar) {
+        errors.password = 'Password must include at least 10 characters, letters, numbers, and special characters.';
       }
 
-      // Validasi Phone
-      const phoneDigitsOnly = /^\d+$/;
-      if (!phone.trim()) {
-        errors.phone = 'Phone number is required.';
-      } else if (!phoneDigitsOnly.test(phone.trim())) {
-        errors.phone = 'Phone number must contain numbers only.';
-      } else if (phone.trim().length > 12) {
-        errors.phone = 'Phone number cannot exceed 12 digits.';
-      }
+      if (!/^\d+$/.test(phone.trim())) errors.phone = 'Phone number must contain numbers only.';
+      else if (phone.trim().length > 12) errors.phone = 'Phone number cannot exceed 12 digits.';
+      if (!employmentStatus) errors.employmentStatus = 'Please select employment status.';
+      if (!positionId) errors.positionId = 'Please select a position.';
+      if (!departementId) errors.departementId = 'Please select a department.';
 
-      // Validasi Employment Status
-      if (!employmentStatus) {
-        errors.employmentStatus = 'Please select employment status.';
-      }
-
-      // Validasi Position
-      if (!positionId) {
-        errors.positionId = 'Please select a position.';
-      }
-
-      // Validasi Department
-      if (!departementId) {
-        errors.departementId = 'Please select a department.';
-      }
-
-      // --- VALIDASI RELEVANSI POSISI & DEPARTEMEN ---
-      const DIRECTOR_POSITION_ID = '0ec333af-8737-413f-adab-841a3067e485';
-
-      if (positionId && departementId && positionId !== DIRECTOR_POSITION_ID) {
-        const expectedDepartmentId = VALID_POSITION_DEPARTMENTS[positionId];
-        if (expectedDepartmentId && expectedDepartmentId !== departementId) {
-          errors.positionId = 'Selected position does not match the department.';
-          errors.departementId = 'Selected department does not match the position.';
-        }
-      }
-
-      // Kalau validasi gagal
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
-        setGeneralError('Please fix the errors below before submitting.');
         return;
       }
 
@@ -132,23 +94,16 @@ export default function RegisterPage() {
 
       try {
         const response = await fetch('/api/auth/register', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ full_name: fullName, email: emailLower, password, phone, employment_status: employmentStatus, position_id: positionId, department_id: departementId }),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ full_name: fullName.trim(), email: emailLower, password, phone: phone.trim(), employment_status: employmentStatus, position_id: positionId, department_id: departementId }),
         });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error?.message ?? 'Registration failed.');
-        setSuccessMessage(`Registration successful! Your ID is ${body.data.employee_id}.${body.data.confirmation_required ? ' Silakan konfirmasi email sebelum login.' : ''} Redirecting to login page...`);
-
-        setTimeout(() => {
-          router.replace('/login');
-        }, 1500);
-
-      } catch (err: unknown) {
-        setGeneralError(
-          err instanceof Error
-            ? err.message
-            : 'Terjadi kesalahan saat menyimpan. Silakan coba lagi.'
-        );
+        const body = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(body?.error?.message || 'Registrasi gagal diproses.');
+        setSuccessMessage(`Registration successful! Your ID is ${body?.data?.employee_id ?? 'tersimpan'}. Redirecting to login page...`);
+        window.setTimeout(() => router.replace('/login'), 1500);
+      } catch (error: unknown) {
+        setGeneralError(error instanceof Error ? error.message : 'Terjadi kesalahan saat registrasi.');
       } finally {
         submitting.current = false;
         setIsLoading(false);
@@ -316,13 +271,7 @@ export default function RegisterPage() {
                   }`}
                 >
                   <option value="">Select Position</option>
-                  {/* GANTI DENGAN UUID ASLI DARI TABEL POSISI KAMU */}
-                  <option value="40a8e1f1-0713-4e5d-a7af-061b6e5f495c">Freight Forwarding Specialist</option>
-                  <option value="96c66ea1-44b6-474f-9410-ad992dd14b93">HR Administrator</option>
-                  <option value="265c9357-105c-437c-a244-6897122f17c1">Information Technology</option>
-                  <option value="0ec333af-8737-413f-adab-841a3067e485">Director</option>
-                  <option value="10da1bac-a6a8-472e-a171-e4984ab768d9">Accounting Associate</option>
-                  <option value="58706b7f-950b-4e71-b066-792fbd91424d">Sales Executive </option>
+                  {availablePositions.map((position) => <option key={position.id} value={position.id}>{position.title}</option>)}
                 </select>
                 {fieldErrors.positionId && <p className="text-red-600 text-xs font-semibold mt-1 ml-1">{fieldErrors.positionId}</p>}
               </div>
@@ -335,7 +284,12 @@ export default function RegisterPage() {
                 <select
                   value={departementId}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-                    setDepartementId(e.target.value);
+                    const nextDepartmentId = e.target.value;
+                    setDepartementId(nextDepartmentId);
+                    setPositionId((currentPositionId) => {
+                      const stillAvailable = positions.some((position) => position.id === currentPositionId && (!nextDepartmentId || position.department_id === nextDepartmentId));
+                      return stillAvailable ? currentPositionId : '';
+                    });
                     if (fieldErrors.departementId) setFieldErrors((prev) => ({ ...prev, departementId: undefined }));
                   }}
                   className={`w-full px-4 py-3 rounded-2xl bg-white/90 text-[#172033] text-sm focus:outline-none border shadow-sm transition-all ${
@@ -343,12 +297,7 @@ export default function RegisterPage() {
                   }`}
                 >
                   <option value="">Select Department</option>
-                  {/* GANTI DENGAN UUID ASLI DARI TABEL DEPARTEMEN KAMU */}
-                  <option value="72cd470d-216c-48b6-abd9-0cd05a4d8974">Human Resources</option>
-                  <option value="d38c1ed7-abd4-4a57-ab9d-0ba1d396fbfc">Logistics & Shipment Operations</option>
-                  <option value="8113ab6f-d5cc-4c94-bbf6-e08047931fab">Information Technology</option>
-                  <option value="1653db5f-2b64-418f-b28b-68cb7b9dae8e">Finance, Accounting & Tax</option>
-                  <option value="97ac5d35-5da2-4f5d-9d36-78500f403cc7">Commercial & Customer Success</option>
+                  {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
                 </select>
                 {fieldErrors.departementId && <p className="text-red-600 text-xs font-semibold mt-1 ml-1">{fieldErrors.departementId}</p>}
               </div>

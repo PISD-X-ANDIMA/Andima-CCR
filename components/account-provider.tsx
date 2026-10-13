@@ -20,5 +20,5 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 }
 export const useAccount = () => useContext(Context);
 export function accountRole(role: string | null | undefined, fallback: string) {
-  return role === "HR" ? "HR" : role === "MANAGER" ? "Manager" : role === "EMPLOYEE" ? "Employee" : fallback;
+  return role === "STAFF" ? "Staff" : role === "MANAGEMENT" ? "Management" : fallback;
 }

@@ -93,7 +93,7 @@ export function CustomTable<T extends Record<string, any>>({
                     type="checkbox"
                     checked={isAllSelected}
                     onChange={handleSelectAll}
-                    className="w-4 h-4 rounded text-[#0F172A] accent-[#0F172A] cursor-pointer"
+                    className="w-4 h-4 rounded text-[#203d70] accent-[#203d70] cursor-pointer"
                   />
                 </th>
               )}
@@ -101,13 +101,12 @@ export function CustomTable<T extends Record<string, any>>({
                 <th
                   key={col.key}
                   style={{ width: col.width }}
-                  className={`px-5 py-3.5 text-xs font-bold text-slate-600 uppercase tracking-wider ${
-                    col.align === "center"
+                  className={`px-5 py-3.5 text-xs font-bold text-slate-600 uppercase tracking-wider ${col.align === "center"
                       ? "text-center"
                       : col.align === "right"
-                      ? "text-right"
-                      : "text-left"
-                  }`}
+                        ? "text-right"
+                        : "text-left"
+                    }`}
                 >
                   {col.header}
                 </th>
@@ -134,9 +133,8 @@ export function CustomTable<T extends Record<string, any>>({
                 return (
                   <tr
                     key={id}
-                    className={`transition-colors duration-100 hover:bg-slate-50/90 ${
-                      isSelected ? "bg-slate-50/70" : "bg-white"
-                    }`}
+                    className={`transition-colors duration-100 hover:bg-slate-50/90 ${isSelected ? "bg-slate-50/70" : "bg-white"
+                      }`}
                   >
                     {selectable && (
                       <td className="px-4 py-3.5 text-center">
@@ -144,20 +142,19 @@ export function CustomTable<T extends Record<string, any>>({
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleSelectRow(id)}
-                          className="w-4 h-4 rounded text-[#0F172A] accent-[#0F172A] cursor-pointer"
+                          className="w-4 h-4 rounded text-[#203d70] accent-[#203d70] cursor-pointer"
                         />
                       </td>
                     )}
                     {columns.map((col) => (
                       <td
                         key={col.key}
-                        className={`px-5 py-3.5 text-slate-800 ${
-                          col.align === "center"
+                        className={`px-5 py-3.5 text-slate-800 ${col.align === "center"
                             ? "text-center"
                             : col.align === "right"
-                            ? "text-right"
-                            : "text-left"
-                        }`}
+                              ? "text-right"
+                              : "text-left"
+                          }`}
                       >
                         {col.render
                           ? col.render(row, idx)
