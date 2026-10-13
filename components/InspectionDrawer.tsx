@@ -245,7 +245,7 @@ export const InspectionDrawer: React.FC<InspectionDrawerProps> = ({
         <div className="space-y-2.5">
           <button
             onClick={() => onOpenStatement?.(customer.id)}
-            className="w-full py-3 bg-[#0F172A] hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-2"
+            className="w-full py-3 bg-[#203d70] hover:bg-[#162a4d] text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -359,11 +359,10 @@ export const InspectionDrawer: React.FC<InspectionDrawerProps> = ({
                       <div
                         key={inv.invoice_id}
                         onClick={() => handleToggleInvoice(inv.invoice_id)}
-                        className={`p-4 rounded-xl border transition cursor-pointer flex items-center justify-between ${
-                          isSelected
+                        className={`p-4 rounded-xl border transition cursor-pointer flex items-center justify-between ${isSelected
                             ? "border-[#3B6FF5] bg-blue-50/50 shadow-xs"
                             : "border-slate-200 bg-white hover:border-slate-300"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-start gap-3">
                           <input

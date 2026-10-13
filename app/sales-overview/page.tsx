@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import SalesOverview, { AlertRow, BranchRow, MacroPoint, MacroSummary } from "@/components/Sales Overview/SalesOverview";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import SalesOverview, { AlertRow, MacroPoint, MacroSummary } from "@/components/Sales Overview/SalesOverview";
 import Header from "@/components/Header";
 
-type ResponseBody = { data: { summary: MacroSummary; series: MacroPoint[]; alerts?: AlertRow[]; branches?: BranchRow[]; meta?: { can_upload?: boolean } } };
+type ResponseBody = { data: { summary: MacroSummary; series: MacroPoint[]; alerts?: AlertRow[]; meta?: { can_upload?: boolean } } };
 
 function currentMonth() {
   const date = new Date();
@@ -27,29 +27,30 @@ export default function SalesOverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [canUpload, setCanUpload] = useState(false);
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
-  const [branchRows, setBranchRows] = useState<BranchRow[]>([]);
 
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setIsLoading(true);
     setError(null);
     try {
       const response = await fetch(`/api/v1/analytics/macro?start_period=${startPeriod}&end_period=${endPeriod}`, { cache: "no-store" });
       const body = await response.json() as ResponseBody & { error?: { message?: string } };
+      if (version !== requestVersion.current) return;
       if (!response.ok) throw new Error(body.error?.message ?? "Data Sales Overview gagal dimuat.");
       setSummary(body.data.summary);
       setSeries(body.data.series);
       setAlerts(body.data.alerts ?? []);
-      setBranchRows(body.data.branches ?? []);
       setCanUpload(Boolean(body.data.meta?.can_upload));
     } catch (reason) {
+      if (version !== requestVersion.current) return;
       setSummary(null);
       setSeries([]);
       setAlerts([]);
-      setBranchRows([]);
       setCanUpload(false);
       setError(reason instanceof Error ? reason.message : "Data Sales Overview gagal dimuat.");
     } finally {
-      setIsLoading(false);
+      if (version === requestVersion.current) setIsLoading(false);
     }
   }, [endPeriod, startPeriod]);
 
@@ -60,8 +61,8 @@ export default function SalesOverviewPage() {
 
   return (
     <>
-      <Header />
-      <SalesOverview summary={summary} series={series} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={setStartPeriod} onEndPeriodChange={setEndPeriod} onRefresh={() => void load()} isLoading={isLoading} error={error} alerts={alerts} branchRows={branchRows} canUpload={canUpload} />
+      <Header pageName="Sales Overview" />
+      <SalesOverview summary={summary} series={series} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={setStartPeriod} onEndPeriodChange={setEndPeriod} onRefresh={() => void load()} isLoading={isLoading} error={error} alerts={alerts} canUpload={canUpload} />
     </>
   );
 }

@@ -109,13 +109,7 @@ export default function CustomerAnalyticsPage() {
     <div className="min-h-screen bg-[#F8FAFC] font-sans">
       <div className="flex min-h-screen flex-col">
         {/* Top Header */}
-        <Header
-          searchValue={searchQuery}
-          onSearchChange={(val) => {
-            setSearchQuery(val);
-            setCurrentPage(1);
-          }}
-        />
+        <Header pageName={activeView === "statement" ? "Statement of Account" : "Customer Analytics"} />
 
         {/* View Switcher: Statement of Account OR Main Customer Analytics View */}
         {activeView === "statement" ? (
@@ -142,15 +136,15 @@ export default function CustomerAnalyticsPage() {
 
                 <button
                   onClick={loadAnalyticsData}
-                  className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition"
+                  className="flex items-center gap-2 px-3.5 py-2 bg-[#3B6FF5] hover:bg-blue-600 text-white font-bold text-xs rounded-xl shadow-xs transition"
                 >
-                  <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                   <span>Sinkronisasi Data</span>
                 </button>
 
-                <button className="flex items-center gap-2 px-4 py-2 bg-[#0F172A] hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md transition">
+                <button className="flex items-center gap-2 px-4 py-2 bg-[#3B6FF5] hover:bg-blue-600 text-white font-extrabold text-xs rounded-xl shadow-md transition">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
@@ -235,7 +229,7 @@ export default function CustomerAnalyticsPage() {
                       }}
                       className={`px-3.5 py-1.5 rounded-full font-bold transition-all ${
                         isSelected
-                          ? "bg-[#0F172A] text-white shadow-xs"
+                          ? "bg-[#3B6FF5] text-white shadow-xs"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
                     >
@@ -265,7 +259,7 @@ export default function CustomerAnalyticsPage() {
                                 setCheckedIds([]);
                               }
                             }}
-                            className="w-4 h-4 rounded accent-[#0F172A]"
+                            className="w-4 h-4 rounded accent-[#203d70]"
                           />
                         </th>
 
@@ -353,7 +347,7 @@ export default function CustomerAnalyticsPage() {
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={() => handleToggleCheckRow(c.id)}
-                                  className="w-4 h-4 rounded accent-[#0F172A]"
+                                  className="w-4 h-4 rounded accent-[#203d70]"
                                 />
                               </td>
 

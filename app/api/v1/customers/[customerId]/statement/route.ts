@@ -1,11 +1,15 @@
+import { requireSession } from "@/lib/server/http";
 import { NextRequest, NextResponse } from 'next/server';
 import { STATEMENT_AURORA_BLUE, INITIAL_CUSTOMERS } from '@/lib/customerData';
 import { fetchStatementFromSupabase } from '@/lib/supabaseApi';
+import { getCcrProfile, canUseCcr } from '@/lib/server/authorization';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ customerId: string }> }
 ) {
+  const session = await requireSession(); if (session.error) return session.error;
+  if (!canUseCcr(await getCcrProfile(session.client, session.user!.id))) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'CCR access is required.' } }, { status: 403 });
   try {
     const { customerId } = await params;
 
@@ -76,7 +80,7 @@ export async function GET(
             {
               bank_name: 'Bank Mandiri Escrow Direct',
               account_no: 'TRF #559102',
-              reference_no: '15 Juli 2026 • Verified ERP Module',
+              reference_no: '15 Juli 2026 â€¢ Verified ERP Module',
               date: '15-07-2026',
               amount: foundCust.sales_profit,
               matched_invoice: `Matched INV-2026/07-9500`,
@@ -88,9 +92,9 @@ export async function GET(
     }
 
     return NextResponse.json(STATEMENT_AURORA_BLUE, { status: 200 });
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: 'Internal Server Error', message: error.message },
+      { error: 'Internal Server Error', message: 'Unable to process request.' },
       { status: 500 }
     );
   }

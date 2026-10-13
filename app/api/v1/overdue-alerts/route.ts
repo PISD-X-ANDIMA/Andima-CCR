@@ -1,98 +1,94 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+import { apiError, checkOrigin, requireSession } from "@/lib/server/http";
 import {
-  fetchOverdueAlertsFromSupabase,
   assignPicInSupabase,
+  calculateOverdueKpi,
+  evaluateOverdueAlertsInSupabase,
+  fetchOverdueAlertsFromSupabase,
   triggerBatchMidFeedEscalationInSupabase,
-} from '@/lib/supabaseOverdueApi';
+} from "@/lib/supabaseOverdueApi";
+import { getCcrProfile, canManage, canUseCcr } from "@/lib/server/authorization";
+
+function matches(value: string | null, expected: string) {
+  return !value || value === "all" || value === expected;
+}
+
+async function canManageOverdue(session: Awaited<ReturnType<typeof requireSession>>) {
+  if (!session.user) return false;
+  return canManage(await getCcrProfile(session.client, session.user.id));
+}
 
 export async function GET(req: NextRequest) {
+  const session = await requireSession();
+  if (session.error) return session.error;
+
   try {
     const { searchParams } = new URL(req.url);
-    const branch = searchParams.get('branch');
-    const search = searchParams.get('search')?.toLowerCase() || '';
-    const status = searchParams.get('status');
-    const agingBucket = searchParams.get('agingBucket');
-    const onlyOverdue30 = searchParams.get('onlyOverdue30') !== 'false';
+    const branch = searchParams.get("branch");
+    const search = searchParams.get("search")?.trim().toLowerCase() ?? "";
+    const status = searchParams.get("status")?.trim().toLowerCase() ?? "";
+    const agingBucket = searchParams.get("agingBucket");
+    const onlyOverdue30 = searchParams.get("onlyOverdue30") !== "false";
+    const profile = await getCcrProfile(session.client, session.user!.id);
+    if (!canUseCcr(profile)) return apiError("CCR access is required.", 403, "FORBIDDEN");
+    const { invoices: allInvoices, fromDb } = await fetchOverdueAlertsFromSupabase({ onlyOverdue30 }, session.client);
+    const invoices = profile.resolved_role === "STAFF"
+      ? allInvoices.filter((invoice) => invoice.pic_assigned === profile.employee_id || invoice.pic_assigned === profile.full_name)
+      : allInvoices;
 
-    const { invoices, kpi, fromDb } = await fetchOverdueAlertsFromSupabase({ onlyOverdue30 });
-    let filtered = [...invoices];
+    const filtered = invoices.filter((invoice) => {
+      const branchMatches = matches(branch, "Semua Cabang") || branch?.toLowerCase() === invoice.branch.toLowerCase();
+      const searchMatches = !search || [invoice.invoice_number, invoice.customer_name, invoice.npwp]
+        .some((value) => value.toLowerCase().includes(search));
+      const statusMatches = matches(status, "semua status") || invoice.risk_status.toLowerCase() === status;
+      const agingMatches = !agingBucket || agingBucket === "Semua Bucket" || agingBucket === "all"
+        || (agingBucket === "1 - 30 Hari" && invoice.days_overdue >= 1 && invoice.days_overdue <= 30)
+        || (agingBucket === "31 - 60 Hari" && invoice.days_overdue >= 31 && invoice.days_overdue <= 60)
+        || (agingBucket === "> 60 Hari" && invoice.days_overdue > 60);
+      return branchMatches && searchMatches && statusMatches && agingMatches;
+    });
 
-    if (branch && branch !== 'Semua Cabang' && branch !== 'all') {
-      filtered = filtered.filter(inv => inv.branch.toLowerCase() === branch.toLowerCase());
-    }
-
-    if (search) {
-      filtered = filtered.filter(
-        inv =>
-          inv.invoice_number.toLowerCase().includes(search) ||
-          inv.customer_name.toLowerCase().includes(search) ||
-          inv.npwp.toLowerCase().includes(search)
-      );
-    }
-
-    if (status && status !== 'Semua Status' && status !== 'all') {
-      filtered = filtered.filter(inv => inv.risk_status.toLowerCase() === status.toLowerCase());
-    }
-
-    if (agingBucket && agingBucket !== 'Semua Bucket' && agingBucket !== 'all') {
-      if (agingBucket === '1 - 30 Hari') {
-        filtered = filtered.filter(inv => inv.days_overdue >= 1 && inv.days_overdue <= 30);
-      } else if (agingBucket === '31 - 60 Hari') {
-        filtered = filtered.filter(inv => inv.days_overdue >= 31 && inv.days_overdue <= 60);
-      } else if (agingBucket === '> 60 Hari') {
-        filtered = filtered.filter(inv => inv.days_overdue > 60);
-      }
-    }
-
-    return NextResponse.json(
-      {
-        kpiSummary: kpi,
-        totalItems: filtered.length,
-        invoices: filtered,
-        fromDb: fromDb,
-      },
-      { status: 200 }
-    );
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: 'Internal Server Error', message: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ kpiSummary: calculateOverdueKpi(filtered), totalItems: filtered.length, invoices: filtered, fromDb });
+  } catch (error) {
+    console.error("Failed to read overdue alerts", error);
+    return apiError("Unable to read overdue alerts.", 500, "OVERDUE_READ_FAILED");
   }
 }
 
 export async function POST(req: NextRequest) {
+  const session = await requireSession();
+  if (session.error) return session.error;
+  const originError = checkOrigin(req);
+  if (originError) return originError;
+
   try {
-    const body = await req.json();
-    const { action, invoiceId, assignedTo, assignedBy, notes, invoiceIds } = body;
+    const body = await req.json() as {
+      action?: string;
+      invoiceId?: string;
+      assignedTo?: string;
+      notes?: string;
+      invoiceIds?: string[];
+    };
 
-    if (action === 'ASSIGN_PIC') {
-      const res = await assignPicInSupabase(invoiceId, assignedTo, assignedBy, notes);
-      return NextResponse.json(
-        {
-          success: res.success,
-          message: `PIC ${assignedTo} successfully assigned to invoice ${invoiceId}.`,
-        },
-        { status: 200 }
-      );
+    if (!(await canManageOverdue(session))) return apiError("You are not allowed to modify overdue workflow data.", 403, "FORBIDDEN");
+
+    if (body.action === "EVALUATE") {
+      if (!canManage(await getCcrProfile(session.client, session.user!.id))) return apiError("Only management users can evaluate overdue alerts.", 403, "FORBIDDEN");
+      const result = await evaluateOverdueAlertsInSupabase(new Date(), session.client);
+      return NextResponse.json({ success: true, ...result });
     }
-
-    if (action === 'BATCH_MID_ESCALATION') {
-      const res = await triggerBatchMidFeedEscalationInSupabase(invoiceIds || []);
-      return NextResponse.json(
-        {
-          success: res.success,
-          message: `Batch MID Feed Escalation executed for ${res.count} overdue invoices.`,
-        },
-        { status: 200 }
-      );
+    if (body.action === "ASSIGN_PIC" && body.invoiceId && body.assignedTo) {
+      if (!canManage(await getCcrProfile(session.client, session.user!.id))) return apiError("Only management users can assign overdue work.", 403, "FORBIDDEN");
+      const result = await assignPicInSupabase(body.invoiceId, body.assignedTo, session.user!.id, body.notes);
+      return NextResponse.json(result, { status: result.success ? 200 : 400 });
     }
-
-    return NextResponse.json({ error: 'Invalid action specified' }, { status: 400 });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: 'Failed to process overdue action', message: error.message },
-      { status: 500 }
-    );
+    if (body.action === "BATCH_MID_ESCALATION" && Array.isArray(body.invoiceIds)) {
+      const result = await triggerBatchMidFeedEscalationInSupabase(body.invoiceIds, session.user!.id);
+      return NextResponse.json(result, { status: result.success ? 200 : 400 });
+    }
+    return apiError("Invalid overdue action.", 400, "INVALID_ACTION");
+  } catch (error) {
+    console.error("Failed to process overdue action", error);
+    return apiError("Unable to process overdue action.", 500, "OVERDUE_ACTION_FAILED");
   }
 }

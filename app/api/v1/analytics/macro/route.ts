@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { fetchOverdueAlertsFromSupabase } from "@/lib/supabaseOverdueApi";
+import { getCcrProfile, canUseCcr } from "@/lib/server/authorization";
 
 type MacroRow = {
   period_month: string;
@@ -35,17 +36,11 @@ export async function GET(request: NextRequest) {
 
   if (userError || !userData.user) return jsonError("Authentication is required.", 401, "UNAUTHENTICATED");
 
-  const { data: access, error: accessError } = await supabase
-    .from("d3_user_access")
-    .select("app_role")
-    .eq("auth_user_id", userData.user.id)
-    .maybeSingle();
-
-  if (accessError) return jsonError("Unable to verify account access.", 403, "ACCESS_CHECK_FAILED");
-  const role = String(access?.app_role ?? "").toUpperCase();
-  if (!["HR", "MANAGER"].includes(role)) {
-    return jsonError("Sales Overview is limited to management and admin users.", 403, "FORBIDDEN");
+  const profile = await getCcrProfile(supabase, userData.user.id);
+  if (!canUseCcr(profile)) {
+    return jsonError("Sales Overview is limited to staff and management users.", 403, "FORBIDDEN");
   }
+  const role = profile.resolved_role;
 
   const params = request.nextUrl.searchParams;
   const endParam = params.get("end_period");
@@ -114,7 +109,7 @@ export async function GET(request: NextRequest) {
       series,
       alerts,
       branches: [],
-      meta: { source: "c1_macro_metric", validation_status: "validated", can_upload: role === "HR" },
+      meta: { source: "c1_macro_metric", validation_status: "validated", can_upload: role === "STAFF" },
     },
   });
 }

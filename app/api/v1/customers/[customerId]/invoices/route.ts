@@ -1,7 +1,9 @@
+import { requireSession, checkOrigin } from "@/lib/server/http";
 import { NextRequest, NextResponse } from 'next/server';
 import { AURORA_BLUE_INVOICES } from '@/lib/customerData';
 import { fetchInvoicesFromSupabase, bulkCloseInvoicesInSupabase } from '@/lib/supabaseApi';
 import { InvoiceDetail } from '@/types/customer';
+import { getCcrProfile, canUseCcr } from '@/lib/server/authorization';
 
 // In-memory fallback store for pending updates during session execution
 let invoicesStore = [...AURORA_BLUE_INVOICES];
@@ -10,6 +12,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ customerId: string }> }
 ) {
+  const session = await requireSession(); if (session.error) return session.error;
+  if (!canUseCcr(await getCcrProfile(session.client, session.user!.id))) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'CCR access is required.' } }, { status: 403 });
   try {
     const { customerId } = await params;
     const { searchParams } = new URL(req.url);
@@ -69,9 +73,9 @@ export async function GET(
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: 'Internal Server Error', message: error.message },
+      { error: 'Internal Server Error', message: 'Unable to process request.' },
       { status: 500 }
     );
   }
@@ -81,6 +85,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ customerId: string }> }
 ) {
+  const session = await requireSession(); if (session.error) return session.error;
+  if (!canUseCcr(await getCcrProfile(session.client, session.user!.id))) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'CCR access is required.' } }, { status: 403 });
+  const originError = checkOrigin(req); if (originError) return originError;
   try {
     const { customerId } = await params;
     const body = await req.json();
@@ -117,9 +124,9 @@ export async function PATCH(
     }
 
     return NextResponse.json({ error: 'Invalid action provided' }, { status: 400 });
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: 'Failed to perform bulk close operation', message: error.message },
+      { error: 'Failed to perform bulk close operation', message: 'Unable to process request.' },
       { status: 500 }
     );
   }
