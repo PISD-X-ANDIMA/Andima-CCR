@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { StatementOfAccountData } from "@/types/customer";
+import { CalendarDays, CheckCircle2, Download, Eye, Printer } from "lucide-react";
 
 interface StatementOfAccountViewProps {
   customerId: string;
@@ -106,12 +107,12 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
             </button>
 
             <button className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5">
-              <span>🖨️</span>
+              <Printer className="h-4 w-4" />
               <span>Cetak PDF</span>
             </button>
 
             <button className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5">
-              <span>📥</span>
+              <Download className="h-4 w-4" />
               <span>Unduh .XLSX</span>
             </button>
 
@@ -271,7 +272,7 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700">
-              <span>📅 Periode:</span>
+              <CalendarDays className="h-4 w-4" /> Periode:
               <span className="font-bold text-slate-900">Januari 2026 - Juli 2026 (YTD)</span>
             </div>
 
@@ -382,7 +383,7 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
                       </span>
                       {row.doc_action && (
                         <button className="block mx-auto mt-1 text-[11px] font-bold text-blue-600 hover:underline">
-                          👁️ {row.doc_action}
+                          <Eye className="inline h-4 w-4" /> {row.doc_action}
                         </button>
                       )}
                     </td>
@@ -407,7 +408,7 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
                   </td>
                   <td className="px-5 py-4 text-center">
                     <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-extrabold tracking-wide uppercase">
-                      ✅ REKONSILIASI COCOK
+                      <CheckCircle2 className="inline h-4 w-4" /> REKONSILIASI COCOK
                     </span>
                   </td>
                 </tr>

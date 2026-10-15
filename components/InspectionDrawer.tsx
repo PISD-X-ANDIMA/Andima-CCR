@@ -5,6 +5,7 @@ import { CustomerAnalyticsItem } from "@/types/customer";
 
 interface InspectionDrawerProps {
   customer: CustomerAnalyticsItem | null;
+  loading?: boolean;
 }
 
 const formatRupiah = (value: number) => new Intl.NumberFormat("id-ID", {
@@ -14,7 +15,10 @@ const formatRupiah = (value: number) => new Intl.NumberFormat("id-ID", {
 }).format(value);
 const displayRupiah = (value: number | null | undefined) => value == null ? "Belum ada data" : formatRupiah(value);
 
-export default function InspectionDrawer({ customer }: InspectionDrawerProps) {
+export default function InspectionDrawer({ customer, loading = false }: InspectionDrawerProps) {
+  if (loading) {
+    return <section className="rounded-2xl border border-slate-200 bg-white p-5" aria-label="Memuat ringkasan pelanggan" aria-busy="true"><div className="animate-pulse space-y-4"><div className="h-3 w-28 rounded bg-slate-200" /><div className="h-5 w-48 rounded bg-slate-200" /><div className="h-3 w-32 rounded bg-slate-200" /><div className="space-y-3 border-t border-slate-100 pt-4">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="flex justify-between gap-4"><div className="h-3 w-28 rounded bg-slate-200" /><div className="h-3 w-24 rounded bg-slate-200" /></div>)}</div></div></section>;
+  }
   if (!customer) {
     return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center font-medium text-slate-400">Pilih pelanggan untuk melihat ringkasan datanya.</div>;
   }
@@ -27,12 +31,6 @@ export default function InspectionDrawer({ customer }: InspectionDrawerProps) {
     ["Profit", displayRupiah(customer.sales_profit)],
     ["Total piutang", displayRupiah(customer.total_outstanding)],
     ["Invoice piutang", customer.active_invoices_count.toLocaleString("id-ID")],
-    ["Jumlah job", customer.job_count?.toLocaleString("id-ID") ?? "Belum ada data"],
-    ["Job dengan kendala", customer.issue_count?.toLocaleString("id-ID") ?? "Belum ada data"],
-    ["Job terbaru", customer.latest_job_number || "Belum ada data"],
-    ["Tanggal aktivitas terbaru", customer.latest_activity_date || "Belum ada data"],
-    ["Percakapan terakhir", customer.latest_conversation || "Belum ada data"],
-    ["Permintaan bantuan", customer.assistance_count?.toLocaleString("id-ID") ?? "Belum ada data"],
   ];
 
   return (

@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Check,
   Loader2,
+  CircleX,
 } from "lucide-react";
 
 import CustomButton from "../dashboard/CustomButton";
@@ -386,7 +387,7 @@ export default function DataUploadPage() {
         {/* Notifikasi Error jika Ada Masalah Database */}
         {errorMessage && (
           <div className="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-xs font-semibold text-rose-700 shadow-sm">
-            ❌ {errorMessage}
+            <CircleX className="inline h-4 w-4" /> {errorMessage}
           </div>
         )}
 

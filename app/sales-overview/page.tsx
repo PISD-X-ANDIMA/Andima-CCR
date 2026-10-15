@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import SalesOverview, { AlertRow, MacroPoint, MacroSummary, RecentDocument } from "@/components/Sales Overview/SalesOverview";
 import Header from "@/components/Header";
 import { shiftPeriod } from "@/lib/salesOverviewPeriod";
+import type { StaffOption } from "@/types/overdue";
 
 type ResponseBody = { data: { summary: MacroSummary; series: MacroPoint[]; alerts?: AlertRow[]; meta?: { can_upload?: boolean } } };
 type DocumentsBody = { data: RecentDocument[] };
+type StaffBody = { data: StaffOption[]; canAssign?: boolean };
 
 function currentMonth() {
   const date = new Date();
@@ -25,6 +27,9 @@ export default function SalesOverviewPage() {
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [documents, setDocuments] = useState<RecentDocument[]>([]);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [staffLoading, setStaffLoading] = useState(true);
+  const [canAssign, setCanAssign] = useState(false);
 
   const requestVersion = useRef(0);
   const load = useCallback(async () => {
@@ -33,12 +38,14 @@ export default function SalesOverviewPage() {
     setError(null);
     try {
       const refreshToken = Date.now().toString();
-      const [response, documentsResponse] = await Promise.all([
+      const [response, documentsResponse, staffResponse] = await Promise.all([
         fetch(`/api/v1/analytics/macro?start_period=${startPeriod}&end_period=${endPeriod}&refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
         fetch(`/api/v1/documents/recent?limit=10&refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
+        fetch(`/api/v1/overdue/staff?refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
       ]);
       const body = await response.json() as ResponseBody & { error?: { message?: string } };
       const documentsBody = await documentsResponse.json() as DocumentsBody & { error?: { message?: string } };
+      const staffBody = await staffResponse.json() as StaffBody;
       if (version !== requestVersion.current) return;
       if (!response.ok) throw new Error(body.error?.message ?? "Data Sales Overview gagal dimuat.");
       setSummary(body.data.summary);
@@ -47,6 +54,8 @@ export default function SalesOverviewPage() {
       setCanUpload(Boolean(body.data.meta?.can_upload));
       setDocuments(documentsResponse.ok ? documentsBody.data ?? [] : []);
       setDocumentsError(documentsResponse.ok ? null : documentsBody.error?.message ?? "Daftar dokumen gagal dimuat.");
+      setStaffOptions(staffResponse.ok ? staffBody.data ?? [] : []);
+      setCanAssign(staffResponse.ok && Boolean(staffBody.canAssign));
     } catch (reason) {
       if (version !== requestVersion.current) return;
       setSummary(null);
@@ -55,9 +64,11 @@ export default function SalesOverviewPage() {
       setCanUpload(false);
       setDocuments([]);
       setDocumentsError(reason instanceof Error ? reason.message : "Daftar dokumen gagal dimuat.");
+      setStaffOptions([]);
+      setCanAssign(false);
       setError(reason instanceof Error ? reason.message : "Data Sales Overview gagal dimuat.");
     } finally {
-      if (version === requestVersion.current) setIsLoading(false);
+      if (version === requestVersion.current) { setIsLoading(false); setStaffLoading(false); }
     }
   }, [endPeriod, startPeriod]);
 
@@ -69,7 +80,7 @@ export default function SalesOverviewPage() {
   return (
     <>
       <Header pageName="Sales Overview" />
-      <SalesOverview summary={summary} series={series} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={setStartPeriod} onEndPeriodChange={setEndPeriod} onRefresh={() => void load()} isLoading={isLoading} error={error} alerts={alerts} canUpload={canUpload} documents={documents} documentsLoading={isLoading} documentsError={documentsError} />
+      <SalesOverview summary={summary} series={series} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={setStartPeriod} onEndPeriodChange={setEndPeriod} onRefresh={() => void load()} isLoading={isLoading} error={error} alerts={alerts} canUpload={canUpload} documents={documents} documentsLoading={isLoading} documentsError={documentsError} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} />
     </>
   );
 }

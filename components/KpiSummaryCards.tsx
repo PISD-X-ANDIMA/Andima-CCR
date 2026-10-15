@@ -16,14 +16,15 @@ const displayRupiah = (value: number | null | undefined) => value == null ? "—
 
 export default function KpiSummaryCards({ kpi }: KpiSummaryCardsProps) {
   const cards = [
-    { label: "Pelanggan Terdata", value: (kpi.totalCustomers ?? 0).toLocaleString("id-ID"), detail: "Dari daftar perusahaan dan data transaksi", color: "text-blue-700", icon: "01" },
+    { label: "Total Active Customer", value: (kpi.totalActiveCustomers ?? kpi.totalCustomers ?? 0).toLocaleString("id-ID"), detail: "Customer aktif unik pada data C1", color: "text-blue-700", icon: "01" },
     { label: `Pendapatan${kpi.period ? ` · ${kpi.period.slice(0, 7)}` : ""}`, value: displayRupiah(kpi.totalRevenue), detail: "Total revenue pada periode terbaru", color: "text-emerald-700", icon: "02" },
-    { label: "Biaya Aktual", value: displayRupiah(kpi.totalCost), detail: "Dari laporan biaya terbaru per pelanggan", color: "text-slate-700", icon: "03" },
-    { label: "Piutang Jatuh Tempo", value: displayRupiah(kpi.overdueOutstanding), detail: `Total piutang ${displayRupiah(kpi.totalOutstanding)}`, color: "text-rose-700", icon: "04" },
+    { label: "High Risk Outstanding", value: displayRupiah(kpi.highRiskOutstanding), detail: "Outstanding berstatus HIGH RISK", color: "text-amber-700", icon: "02" },
+    { label: "Top Contributing Customer", value: kpi.topContributingCustomer?.name ?? "Belum ada data", detail: kpi.topContributingCustomer ? `${displayRupiah(kpi.topContributingCustomer.totalLogisticsVolume)} · Peringkat ${kpi.topContributingCustomer.rank}` : "Belum ada customer", color: "text-emerald-700", icon: "03" },
   ];
+  cards.splice(1, 1);
 
   return (
-    <div className="grid grid-cols-1 gap-4 font-sans sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 font-sans sm:grid-cols-2 xl:grid-cols-3">
       {cards.map((card) => (
         <section key={card.label} className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
           <div className="flex items-start justify-between gap-3">

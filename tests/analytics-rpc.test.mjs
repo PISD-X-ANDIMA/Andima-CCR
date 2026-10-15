@@ -45,6 +45,8 @@ async function setup() {
   await db.exec(migration);
   await db.exec(readFileSync(new URL("../supabase/migrations/20261017050000_refresh_overdue_alerts.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../supabase/migrations/20261017060000_preserve_overdue_customer_identity.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../supabase/migrations/20261017070000_backfill_overdue_alerts.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../supabase/migrations/20261018000000_fix_customer_analytics_kpi.sql", import.meta.url), "utf8"));
   return db;
 }
 
@@ -92,6 +94,18 @@ test("analytics RPCs aggregate validated C1 data and preserve API semantics", as
     assert.equal(customers.customers[0].customer_name, "Jakarta Customer");
     assert.equal(customers.customers[0].active_invoices_count, 2);
     assert.equal(customers.kpi.totalActiveCustomers, 2);
+    assert.equal(customers.kpi.totalCustomers, 2);
+    assert.equal(customers.kpi.totalRevenue, 2050);
+    assert.equal(customers.kpi.totalCost, 650);
+    assert.equal(customers.kpi.totalOutstanding, 250);
+    assert.equal(customers.kpi.overdueOutstanding, 1699);
+    assert.equal(customers.kpi.period, "2026-09-01");
+
+    const emptyFilter = (await db.query("select public.c1_get_customer_analytics('Jakarta', 'does-not-exist', '', 'sales_profit', 'desc', 1, 5) as value")).rows[0].value;
+    assert.deepEqual(emptyFilter.customers, []);
+    assert.equal(emptyFilter.total_items, 0);
+    assert.equal(emptyFilter.kpi.totalCustomers, 2);
+    assert.equal(emptyFilter.kpi.totalRevenue, 2050);
   } finally {
     await db.close();
   }

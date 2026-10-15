@@ -134,14 +134,16 @@ test("analytics routes authorize before one RPC and keep no-store responses", as
   assert.match(macroResponse.headers.get("server-timing"), /rpc/);
 
   let customerRpcCalls = 0;
+  let customerOptions;
   const customerRoute = load("app/api/v1/customers/analytics/route.ts", {
     "next/server": responseMock,
     "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
-    "@/lib/supabaseApi": { fetchCustomerAnalyticsFromSupabase: async () => { customerRpcCalls += 1; return { customers: [], kpi: {}, totalItems: 0 }; } },
+    "@/lib/supabaseApi": { fetchCustomerAnalyticsFromSupabase: async (options) => { customerRpcCalls += 1; customerOptions = options; return { customers: [], kpi: {}, totalItems: 0 }; } },
     "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "APPROVED" }), canUseCcr: () => true },
   }, { performance, URL });
-  const customerResponse = await customerRoute.GET({ url: "https://app.test/api/v1/customers/analytics?page=1&limit=5" });
+  const customerResponse = await customerRoute.GET({ url: "https://app.test/api/v1/customers/analytics?branch=Jakarta&search=%20Aurora%20&paymentCycle=Overdue%20(%3E%2030%20Hari)&sortBy=cost&sortOrder=asc&page=0&limit=1000" });
   assert.equal(customerRpcCalls, 1);
+  assert.equal(JSON.stringify(customerOptions), JSON.stringify({ branch: "Jakarta", search: "aurora", paymentCycle: "Overdue (> 30 Hari)", sortBy: "cost", sortOrder: "asc", page: 1, limit: 100 }));
   assert.equal(customerResponse.headers.get("cache-control"), "no-store, max-age=0");
   assert.match(customerResponse.headers.get("server-timing"), /rpc/);
 

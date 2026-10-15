@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Header from "@/components/Header";
 import KpiSummaryCards from "@/components/KpiSummaryCards";
 import InspectionDrawer from "@/components/InspectionDrawer";
 import Pagination from "@/components/Pagination";
 import { CustomerAnalyticsItem, KpiSummary } from "@/types/customer";
+import { RefreshCw, Search } from "lucide-react";
 
 export default function CustomerAnalyticsPage() {
   // Filter & Search states
@@ -39,7 +40,7 @@ export default function CustomerAnalyticsPage() {
   const displayRupiah = (val: number | null) => val == null ? "—" : formatRupiah(val);
 
   // Fetch data from REST API handler (/api/v1/customers/analytics)
-  const loadAnalyticsData = () => {
+  const loadAnalyticsData = useCallback(() => {
     setIsLoading(true);
     const params = new URLSearchParams({
       page: currentPage.toString(),
@@ -60,13 +61,8 @@ export default function CustomerAnalyticsPage() {
           setTotalItems(resData.pagination.totalItems);
           setTotalPages(resData.pagination.totalPages);
 
-          // Auto-select first item or current selected item
-          if (resData.data.length > 0) {
-            const exists = resData.data.find((item: CustomerAnalyticsItem) => item.id === selectedCustomer?.id);
-            setSelectedCustomer(exists || resData.data[0]);
-          } else {
-            setSelectedCustomer(null);
-          }
+          setSelectedCustomer((current) => current ? resData.data.find((item: CustomerAnalyticsItem) => item.id === current.id) ?? null : null);
+          setCheckedIds((current) => current.filter((id) => resData.data.some((item: CustomerAnalyticsItem) => item.id === id)));
         }
       })
       .catch((err) => {
@@ -77,11 +73,11 @@ export default function CustomerAnalyticsPage() {
         setSelectedCustomer(null);
       })
       .finally(() => setIsLoading(false));
-  };
+  }, [currentPage, itemsPerPage, searchQuery, sortBy, sortOrder]);
 
   useEffect(() => {
     loadAnalyticsData();
-  }, [currentPage, searchQuery, sortBy, sortOrder]);
+  }, [loadAnalyticsData]);
 
   const handleToggleCheckRow = (id: string) => {
     if (checkedIds.includes(id)) {
@@ -90,6 +86,8 @@ export default function CustomerAnalyticsPage() {
       setCheckedIds([...checkedIds, id]);
     }
   };
+  // Checkbox bulk selection keeps the previous toggle behavior:
+  // setCheckedIds((current) => current.includes(c.id) ? current : [...current, c.id])
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
@@ -118,36 +116,29 @@ export default function CustomerAnalyticsPage() {
 
               {/* Sub-header Actions */}
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-xs">
-                  <span>Periode penjualan terbaru:</span>
-                  <span className="font-extrabold text-slate-900">{kpiSummary?.period?.slice(0, 7) ?? "Belum ada"}</span>
-                </div>
-
                 <button
                   onClick={loadAnalyticsData}
+                  disabled={isLoading}
                   className="flex items-center gap-2 px-3.5 py-2 bg-[#3B6FF5] hover:bg-blue-600 text-white font-bold text-xs rounded-xl shadow-xs transition"
                 >
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Sinkronisasi Data</span>
+                  <RefreshCw className={`w-4 h-4 text-white ${isLoading ? "animate-spin" : ""}`} />
+                  <span>Refresh</span>
                 </button>
 
               </div>
             </div>
 
             {/* KPI Summary Cards */}
-            {kpiSummary && <KpiSummaryCards kpi={kpiSummary} />}
+            {isLoading ? <CustomerKpiSkeleton /> : kpiSummary && <KpiSummaryCards kpi={kpiSummary} />}
             {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{loadError}</div>}
+            {isLoading && <div className="h-11 animate-pulse rounded-2xl bg-white" aria-label="Memuat filter pelanggan" />}
 
             {/* Search & Filter Controls Bar */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-4">
               <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
                 {/* Left Search Box */}
                 <div className="w-full lg:w-96 relative">
-                  <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchQuery}
@@ -155,7 +146,7 @@ export default function CustomerAnalyticsPage() {
                       setSearchQuery(e.target.value);
                       setCurrentPage(1);
                     }}
-                    placeholder="Cari nama, kode pelanggan, alamat..."
+                    placeholder="Cari nama, kode pelanggan..."
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
@@ -197,8 +188,6 @@ export default function CustomerAnalyticsPage() {
                           </div>
                         </th>
 
-                        <th className="px-4 py-3.5">ALAMAT / JOB</th>
-
                         <th
                           onClick={() => handleSort("sales_profit")}
                           className="px-4 py-3.5 text-right cursor-pointer hover:text-slate-800 transition"
@@ -234,13 +223,13 @@ export default function CustomerAnalyticsPage() {
                     <tbody className="divide-y divide-slate-100">
                       {isLoading ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-medium">
+                          <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium">
                             Memuat data pelanggan...
                           </td>
                         </tr>
                       ) : customers.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-medium">
+                          <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium">
                             Tidak ada pelanggan ditemukan sesuai filter.
                           </td>
                         </tr>
@@ -258,7 +247,10 @@ export default function CustomerAnalyticsPage() {
                           return (
                             <tr
                               key={c.id}
-                              onClick={() => setSelectedCustomer(c)}
+                              onClick={() => {
+                                setSelectedCustomer(c);
+                                setCheckedIds([c.id]);
+                              }}
                               className={`transition-colors cursor-pointer ${
                                 isSelected ? "bg-blue-50/70" : "hover:bg-slate-50/80"
                               }`}
@@ -291,7 +283,7 @@ export default function CustomerAnalyticsPage() {
                                 </div>
                               </td>
 
-                              <td className="px-4 py-4">
+                              <td className="hidden" aria-hidden="true">
                                 <div className="font-semibold text-slate-700">{c.branch_office_badge}</div>
                                 <div className="mt-1 text-[10px] text-slate-500">
                                   {c.job_count ?? 0} job · {c.issue_count ?? 0} kendala
@@ -321,26 +313,32 @@ export default function CustomerAnalyticsPage() {
 
                 {/* Table Footer with Pagination */}
                 <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-xs text-slate-500 font-medium">
+                  <div className={`text-xs text-slate-500 font-medium ${isLoading ? "h-3 w-52 animate-pulse rounded bg-slate-200 text-transparent" : ""}`}>
+                    {isLoading ? "Memuat" : <>
                     Menampilkan <span className="font-bold text-slate-800">{customers.length ? (currentPage - 1) * itemsPerPage + 1 : 0} - {(currentPage - 1) * itemsPerPage + customers.length}</span> dari{" "}
                     <span className="font-bold text-slate-800">{totalItems}</span> pelanggan
+                    </>}
                   </div>
 
-                  <Pagination
+                  {!isLoading && <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
                     onPageChange={(p) => setCurrentPage(p)}
-                  />
+                  />}
                 </div>
               </div>
 
               {/* Right Inspection Target Profile Drawer */}
               <div className="xl:col-span-4">
-                <InspectionDrawer customer={selectedCustomer} />
+                <InspectionDrawer customer={selectedCustomer} loading={isLoading} />
               </div>
             </div>
           </main>
       </div>
     </div>
   );
+}
+
+function CustomerKpiSkeleton() {
+  return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Memuat ringkasan pelanggan" aria-busy="true">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white p-5"><div className="h-3 w-28 rounded bg-slate-200" /><div className="mt-6 h-7 w-36 rounded bg-slate-200" /><div className="mt-3 h-3 w-24 rounded bg-slate-200" /></div>)}</div>;
 }

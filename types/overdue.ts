@@ -66,7 +66,9 @@ export interface OverdueInvoiceItem {
   risk_status: RiskStatus;
   pic_assigned?: string;
   pic_initials?: string;
-  action_type: 'SP-1' | 'SP-2' | 'AUDIT' | 'TERMIN' | 'TUGASKAN';
+  pic_display_name?: string;
+  pic_role?: string;
+  action_type: 'SP-1' | 'SP-2' | 'SP-3' | 'AUDIT' | 'TERMIN' | 'TUGASKAN';
   contact_person: {
     name: string;
     role: string;
@@ -82,6 +84,13 @@ export interface OverdueInvoiceItem {
 }
 
 export interface OverdueKpiSummary {
+  totalActiveCustomers: number;
+  highRiskOutstanding: number;
+  topContributingCustomer: {
+    name: string;
+    outstanding: number;
+    invoiceCount: number;
+  } | null;
   totalOverdueValue: number;
   totalOverdueValueGrowth: number;
   affectedInvoicesCount: number;
@@ -95,20 +104,16 @@ export interface OverdueKpiSummary {
   unassignedFloatingValue: number;
 }
 
+export interface StaffOption {
+  employee_id: string;
+  full_name: string;
+}
+
 export interface WarningLetterParams {
   escalationLevel: 'SP-1' | 'SP-2' | 'SP-3';
   registrationNumber: string;
   issueDate: string;
   deadlineDate: string;
   picName: string;
-  escrowBank: 'mandiri' | 'bca';
-  channels: {
-    email: boolean;
-    whatsapp: boolean;
-    courier: boolean;
-    portal: boolean;
-  };
-  attachSoa: boolean;
-  attachStpf: boolean;
   internalNotes: string;
 }

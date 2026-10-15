@@ -24,7 +24,7 @@ function matches(value: string | null, expected: string) {
 
 async function canManageOverdue(session: Awaited<ReturnType<typeof requireSession>>) {
   if (!session.user) return false;
-  return canManage(await getCcrProfile(session.client, session.user.id));
+  return canManage(await getCcrProfile(session.client, session.user.id, { includeOrgDetails: false }));
 }
 
 export async function GET(req: NextRequest) {
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (session.error) return timed(session.error, startedAt, { auth: 0 });
   const originError = checkOrigin(req);
-  if (originError) return originError;
+  if (originError) return timed(originError, startedAt, { auth: 0 });
 
   try {
     const body = await req.json() as {
@@ -85,17 +85,17 @@ export async function POST(req: NextRequest) {
       invoiceIds?: string[];
     };
 
-    if (!(await canManageOverdue(session))) return apiError("You are not allowed to modify overdue workflow data.", 403, "FORBIDDEN");
+    if (!(await canManageOverdue(session))) return timed(apiError("You are not allowed to modify overdue workflow data.", 403, "FORBIDDEN"), startedAt, { auth: performance.now() - startedAt });
 
     if (body.action === "EVALUATE") {
-      if (!canManage(await getCcrProfile(session.client, session.user!.id))) return apiError("Only management users can evaluate overdue alerts.", 403, "FORBIDDEN");
+      if (!canManage(await getCcrProfile(session.client, session.user!.id, { includeOrgDetails: false }))) return timed(apiError("Only management users can evaluate overdue alerts.", 403, "FORBIDDEN"), startedAt, { auth: performance.now() - startedAt });
       // Evaluation writes the C1 projection and must use the server-only
       // client. Authorization has already been completed above.
       const result = await evaluateOverdueAlertsInSupabase();
       return timed(NextResponse.json({ success: true, ...result }), startedAt, { db: 0 });
     }
     if (body.action === "ASSIGN_PIC" && body.invoiceId && body.assignedTo) {
-      if (!canManage(await getCcrProfile(session.client, session.user!.id))) return apiError("Only management users can assign overdue work.", 403, "FORBIDDEN");
+      if (!canManage(await getCcrProfile(session.client, session.user!.id, { includeOrgDetails: false }))) return timed(apiError("Only management users can assign overdue work.", 403, "FORBIDDEN"), startedAt, { auth: performance.now() - startedAt });
       const result = await assignPicInSupabase(body.invoiceId, body.assignedTo, session.user!.id, body.notes);
       return timed(NextResponse.json(result, { status: result.success ? 200 : 400 }), startedAt, { db: 0 });
     }

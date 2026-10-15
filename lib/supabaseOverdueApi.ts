@@ -80,8 +80,29 @@ export function calculateOverdueKpi(invoices: OverdueInvoiceItem[]): OverdueKpiS
   const averageDays = invoices.length
     ? invoices.reduce((sum, invoice) => sum + invoice.days_overdue, 0) / invoices.length
     : 0;
+  const customerTotals = new Map<string, { name: string; outstanding: number; invoiceCount: number }>();
+  for (const invoice of invoices) {
+    const customerId = invoice.customer_id?.trim().toLowerCase();
+    const customerName = invoice.customer_name?.trim() || "Pelanggan tidak tersedia";
+    const key = customerId ? `id:${customerId}` : `name:${customerName.toLowerCase()}`;
+    const current = customerTotals.get(key);
+    if (current) {
+      current.outstanding += invoice.amount_overdue;
+      current.invoiceCount += 1;
+    } else {
+      customerTotals.set(key, { name: customerName, outstanding: invoice.amount_overdue, invoiceCount: 1 });
+    }
+  }
+  const topContributingCustomer = [...customerTotals.values()]
+    .sort((left, right) => right.outstanding - left.outstanding || right.invoiceCount - left.invoiceCount || left.name.localeCompare(right.name))[0] ?? null;
+  const highRiskOutstanding = invoices
+    .filter((invoice) => invoice.risk_status === "HIGH RISK")
+    .reduce((sum, invoice) => sum + invoice.amount_overdue, 0);
 
   return {
+    totalActiveCustomers: customerTotals.size,
+    highRiskOutstanding,
+    topContributingCustomer,
     totalOverdueValue: total,
     totalOverdueValueGrowth: 0,
     affectedInvoicesCount: invoices.length,
@@ -148,7 +169,7 @@ function toInvoice(row: AlertRow, staging: StagingOutstanding | undefined, assig
     risk_status: (row.alert_status || overdueRiskStatus(days)) as RiskStatus,
     pic_assigned: assignedTo,
     pic_initials: assignedTo ? assignedTo.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() : undefined,
-    action_type: days > 60 ? "SP-2" : days > 30 ? "SP-1" : "TUGASKAN",
+    action_type: days > 90 ? "SP-3" : days >= 60 ? "SP-2" : days >= 30 ? "SP-1" : "TUGASKAN",
     contact_person: customerId
       ? { name: "-", role: "-", phone: "-" }
       : { name: "Belum tersedia", role: "Belum tersedia", phone: "Belum tersedia" },
