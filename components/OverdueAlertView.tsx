@@ -109,7 +109,8 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
       onlyOverdue30: onlyOverdue30 ? "true" : "false",
     });
 
-    fetch(`/api/v1/overdue?${params.toString()}`)
+    params.set("refresh", Date.now().toString());
+    fetch(`/api/v1/overdue?${params.toString()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
       .then(async (response) => ({ ok: response.ok, body: await response.json() }))
       .then((result) => {
         if (!result.ok) throw new Error(result.body?.error?.message || "Gagal memuat overdue alert.");
@@ -141,7 +142,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
       setAssignmentHistory([]);
       return;
     }
-    fetch(`/api/v1/overdue/${encodeURIComponent(selectedInvoiceId)}/assign`)
+    fetch(`/api/v1/overdue/${encodeURIComponent(selectedInvoiceId)}/assign?refresh=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
       .then(async (response) => ({ ok: response.ok, body: await response.json() }))
       .then((result) => {
         if (!result.ok) throw new Error("Gagal memuat riwayat assignment.");
@@ -153,9 +154,10 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
   const handleEvaluate = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/v1/overdue/evaluate", {
+      const response = await fetch(`/api/v1/overdue/evaluate?refresh=${Date.now()}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error?.message || "Gagal mengevaluasi overdue.");

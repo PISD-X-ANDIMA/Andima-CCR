@@ -38,6 +38,15 @@ const OUTSTANDING_ALIASES = {
 
 type ValidationError = { field: string; row?: number; code: string; message: string; rawValue?: string };
 type DocumentType = "COMPANY_SALES_REPORT" | "OUTSTANDING_REPORT";
+type PersistedUploadRow = Record<string, unknown> & {
+  customer_id?: string | null;
+  customer_name?: string;
+  customer_code?: string | null;
+  c1_customer_id?: string | null;
+  create_date?: string | null;
+  job_number?: string | null;
+  mawb?: string | null;
+};
 
 function jsonError(message: string, status: number, code: string, errors: ValidationError[] = []) {
   return NextResponse.json({ error: { code, message, errors } }, { status });
@@ -285,7 +294,7 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
       parsedCosts.forEach((cost, index) => {
         if (cost === null || cost < 0) errors.push({ row, field: costs[index], code: "INVALID_NUMBER", message: "Komponen biaya harus berupa angka tidak negatif." });
       });
-      if (period && revenue !== null && revenue >= 0 && parsedCosts.every((cost) => cost !== null && cost >= 0)) valid.push({ row_number: row, period_month: period, customer_name: customer, customer_id: customerId ?? null, revenue, trucking_cost: parsedCosts[0], handling_cost: parsedCosts[1], storage_cost: parsedCosts[2], other_operational_cost: parsedCosts[3] });
+      if (period && revenue !== null && revenue >= 0 && parsedCosts.every((cost) => cost !== null && cost >= 0)) valid.push({ row_number: row, period_month: period, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId ?? null, revenue, trucking_cost: parsedCosts[0], handling_cost: parsedCosts[1], storage_cost: parsedCosts[2], other_operational_cost: parsedCosts[3] });
     } else {
       const amount = numberValue(value("amount"));
       const dueDate = dateValue(value("dueDate"));
@@ -293,7 +302,7 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
       if (!invoice) errors.push({ row, field: "invoice", code: "REQUIRED", message: "Invoice wajib diisi." });
       if (amount === null || amount < 0) errors.push({ row, field: "amount", code: "INVALID_NUMBER", message: "Nominal harus berupa angka tidak negatif." });
       if (!dueDate) errors.push({ row, field: "dueDate", code: "INVALID_DATE", message: "Due date tidak valid." });
-      if (invoice && amount !== null && amount >= 0 && dueDate) valid.push({ row_number: row, invoice_number: invoice, customer_name: customer, customer_id: customerId ?? null, outstanding_amount: amount, due_date: dueDate, create_date: dateValue(value("createDate")), job_number: String(value("job") ?? "").trim() || null, mawb: String(value("mawb") ?? "").trim() || null });
+      if (invoice && amount !== null && amount >= 0 && dueDate) valid.push({ row_number: row, invoice_number: invoice, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId ?? null, outstanding_amount: amount, due_date: dueDate, create_date: dateValue(value("createDate")), job_number: String(value("job") ?? "").trim() || null, mawb: String(value("mawb") ?? "").trim() || null });
     }
   });
   if (type === "OUTSTANDING_REPORT") {
@@ -374,19 +383,42 @@ export async function POST(request: NextRequest) {
   const upload = await persistenceClient.storage.from("c1-document-uploads").upload(storagePath, bytes, { contentType: file.type || "application/octet-stream", upsert: false });
   if (upload.error) {
     await persistenceClient.from("c1_document_uploads").update({ validation_status: "rejected", processed_at: new Date().toISOString(), error_summary: "Storage upload failed." }).eq("id", document.id);
-    return jsonError("Unable to store uploaded file.", 500, "STORAGE_FAILED");
+    return withTiming(jsonError("Unable to store uploaded file.", 500, "STORAGE_FAILED"), startedAt, { auth: authDuration, parse: performance.now() - parseStarted, storage: 0 });
   }
 
   try {
     const table = documentType === "COMPANY_SALES_REPORT" ? "c1_company_sales_staging_rows" : "c1_outstanding_staging_rows";
-    const stagingRows = result.rows.map((row) => ({
+    const unmatchedCustomers = result.rows
+      .filter((row) => !row.customer_id && row.customer_name !== UNKNOWN_CUSTOMER_NAME)
+      .map((row) => ({ customer_name: String(row.customer_name), customer_code: row.customer_code ? String(row.customer_code) : null }));
+    let customerResolution = new Map<string, string>();
+    if (unmatchedCustomers.length) {
+      const { data: resolved, error: customerError } = await persistenceClient.rpc("c1_resolve_uploaded_customers", {
+        p_document_id: document.id,
+        p_customers: unmatchedCustomers,
+      });
+      if (customerError) throw customerError;
+      const items = Array.isArray((resolved as { items?: unknown[] } | null)?.items) ? (resolved as { items: Array<{ customer_name?: string; customer_code?: string | null; c1_customer_id?: string }> }).items : [];
+      customerResolution = new Map(items.filter((item) => item.customer_name && item.c1_customer_id).map((item) => [item.customer_name!.trim().toLowerCase(), item.c1_customer_id!]));
+      for (const item of items) if (item.customer_code && item.c1_customer_id) customerResolution.set(item.customer_code.trim().toLowerCase(), item.c1_customer_id);
+    }
+    const sourceRows = result.rows as PersistedUploadRow[];
+    const resolvedRows: PersistedUploadRow[] = sourceRows.map((row) => ({
       ...row,
-      document_id: document.id,
-      customer_id: row.customer_id ?? null,
-      ...(documentType === "OUTSTANDING_REPORT"
-        ? { create_date: row.create_date ?? null, job_number: row.job_number ?? null, mawb: row.mawb ?? null }
-        : {}),
+      c1_customer_id: !row.customer_id && row.customer_name !== UNKNOWN_CUSTOMER_NAME ? customerResolution.get(String(row.customer_name).trim().toLowerCase()) ?? null : null,
     }));
+    const stagingRows = resolvedRows.map((row) => {
+      const { customer_code: sourceCustomerCode, ...persistedRow } = row;
+      void sourceCustomerCode;
+      return {
+        ...persistedRow,
+        document_id: document.id,
+        customer_id: row.customer_id ?? null,
+        ...(documentType === "OUTSTANDING_REPORT"
+          ? { create_date: row.create_date ?? null, job_number: row.job_number ?? null, mawb: row.mawb ?? null }
+          : {}),
+      };
+    });
     const { error: stagingError } = await persistenceClient.from(table).insert(stagingRows);
     if (stagingError) throw stagingError;
     // Finalize only the C1 document. The legacy macro refresh function can
@@ -424,11 +456,13 @@ export async function POST(request: NextRequest) {
         uploadWarnings.push({ field: "overdue", code: "OVERDUE_EVALUATION_FAILED", message: "Data outstanding tersimpan, tetapi overdue alert akan diperbarui pada refresh berikutnya." });
       }
     }
-    return withTiming(NextResponse.json({ data: { documentId: document.id, documentType, validationStatus: "validated", rowCount: result.rows.length, validRowCount: result.rows.length, invalidRowCount: 0, errors: [], warnings: uploadWarnings, unmatchedCustomerCount: result.unmatchedCustomerCount } }, { status: 201 }), startedAt, { auth: authDuration, parse: performance.now() - parseStarted, persistence: 0 });
+    const unresolvedCustomerCount = resolvedRows.filter((row) => !row.customer_id && !row.c1_customer_id).length;
+    return withTiming(NextResponse.json({ data: { documentId: document.id, documentType, validationStatus: "validated", rowCount: result.rows.length, validRowCount: result.rows.length, invalidRowCount: 0, errors: [], warnings: uploadWarnings, unmatchedCustomerCount: unresolvedCustomerCount } }, { status: 201 }), startedAt, { auth: authDuration, parse: performance.now() - parseStarted, persistence: 0 });
   } catch (error) {
     await persistenceClient.storage.from("c1-document-uploads").remove([storagePath]);
     await persistenceClient.from("c1_company_sales_staging_rows").delete().eq("document_id", document.id);
     await persistenceClient.from("c1_outstanding_staging_rows").delete().eq("document_id", document.id);
+    await persistenceClient.from("c1_customer").delete().eq("source_document_id", document.id).eq("source_type", "UPLOAD");
     const message = describeSupabaseError(error);
     console.error("[document-upload] processing failed", { documentId: document.id, message });
     await persistenceClient.from("c1_document_uploads").update({ validation_status: "rejected", processed_at: new Date().toISOString(), error_summary: message.slice(0, 500) }).eq("id", document.id);

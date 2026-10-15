@@ -29,6 +29,7 @@ type StagingOutstanding = {
   created_at: string;
   invoice_number: string;
   customer_id: string | null;
+  c1_customer_id: string | null;
   customer_name: string;
   outstanding_amount: number | string;
   due_date: string;
@@ -37,6 +38,7 @@ type StagingOutstanding = {
 type AlertRow = {
   invoice_id: string;
   customer_id: string | null;
+  c1_customer_id: string | null;
   due_date: string;
   evaluation_date: string;
   days_overdue: number;
@@ -97,7 +99,7 @@ export function calculateOverdueKpi(invoices: OverdueInvoiceItem[]): OverdueKpiS
 async function readValidatedOutstanding(client: SupabaseClient) {
   const { data: stagingRows, error: stagingError } = await client
     .from("c1_outstanding_staging_rows")
-    .select("invoice_number, customer_id, customer_name, outstanding_amount, due_date, created_at, c1_document_uploads!inner(validation_status)")
+    .select("invoice_number, customer_id, c1_customer_id, customer_name, outstanding_amount, due_date, created_at, c1_document_uploads!inner(validation_status)")
     .eq("c1_document_uploads.validation_status", "validated")
     .gt("outstanding_amount", 0)
     .order("due_date", { ascending: true });
@@ -115,33 +117,22 @@ async function readValidatedOutstanding(client: SupabaseClient) {
 
 export async function evaluateOverdueAlertsInSupabase(currentDate = new Date(), client?: SupabaseClient) {
   const supabase = client ?? getSupabaseClient();
-  const rows = await readValidatedOutstanding(supabase);
   const evaluationDate = dateOnly(currentDate);
-  const records = rows.map((row) => {
-    const daysOverdue = calculateDaysOverdue(row.due_date, currentDate);
-    return {
-      invoice_id: row.invoice_number,
-      customer_id: row.customer_id,
-      due_date: row.due_date,
-      evaluation_date: evaluationDate,
-      days_overdue: daysOverdue,
-      overdue_alert: daysOverdue > 30,
-      alert_status: overdueRiskStatus(daysOverdue),
-    };
-  });
-
-  if (records.length) {
-    const { error } = await supabase.from("c1_overdue_alert").upsert(records, { onConflict: "invoice_id" });
-    if (error) throw error;
-  }
-
-  return { evaluated: records.length, overdue: records.filter((record) => record.overdue_alert).length, evaluationDate };
+  const { data, error } = await supabase.rpc("c1_refresh_overdue_alerts", { p_evaluation_date: evaluationDate });
+  if (error) throw error;
+  const result = data as { evaluated?: number; overdue?: number; deleted?: number; evaluationDate?: string } | null;
+  return {
+    evaluated: Number(result?.evaluated ?? 0),
+    overdue: Number(result?.overdue ?? 0),
+    deleted: Number(result?.deleted ?? 0),
+    evaluationDate: result?.evaluationDate ?? evaluationDate,
+  };
 }
 
 function toInvoice(row: AlertRow, staging: StagingOutstanding | undefined, assignment: AssignmentRow | undefined): OverdueInvoiceItem {
   const days = row.days_overdue;
   const assignedTo = assignment?.assigned_to;
-  const customerId = row.customer_id ?? staging?.customer_id ?? null;
+  const customerId = row.c1_customer_id ?? row.customer_id ?? staging?.c1_customer_id ?? staging?.customer_id ?? null;
   return {
     id: row.invoice_id,
     invoice_number: row.invoice_id,
@@ -170,7 +161,7 @@ export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOption
   const supabase = client ?? getSupabaseClient();
   let alertsQuery = supabase
     .from("c1_overdue_alert")
-    .select("invoice_id, customer_id, due_date, evaluation_date, days_overdue, overdue_alert, alert_status")
+    .select("invoice_id, customer_id, c1_customer_id, due_date, evaluation_date, days_overdue, overdue_alert, alert_status")
     .gt("days_overdue", 0)
     .order("due_date", { ascending: true });
   if (options.onlyOverdue30 !== false) alertsQuery = alertsQuery.gt("days_overdue", 30);
@@ -194,14 +185,14 @@ export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOption
   if (alertsError) throw alertsError;
   if (assignmentsError) throw assignmentsError;
 
-  const stagingByInvoice = new Map(stagingRows.map((row) => [row.invoice_number.toLowerCase(), row]));
+  const stagingByInvoice = new Map(stagingRows.map((row) => [row.invoice_number.trim().toLowerCase(), row]));
   const latestAssignments = new Map<string, AssignmentRow>();
   for (const assignment of (assignments ?? []) as AssignmentRow[]) {
     if (!latestAssignments.has(assignment.invoice_id)) latestAssignments.set(assignment.invoice_id, assignment);
   }
 
   const invoices = ((alerts ?? []) as AlertRow[])
-    .map((alert) => toInvoice(alert, stagingByInvoice.get(alert.invoice_id.toLowerCase()), latestAssignments.get(alert.invoice_id)))
+    .map((alert) => toInvoice(alert, stagingByInvoice.get(alert.invoice_id.trim().toLowerCase()), latestAssignments.get(alert.invoice_id)))
     .sort((a, b) => a.due_date.localeCompare(b.due_date) || a.invoice_number.localeCompare(b.invoice_number));
 
   return { invoices, kpi: calculateOverdueKpi(invoices), fromDb: true };

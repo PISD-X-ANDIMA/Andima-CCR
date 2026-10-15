@@ -156,6 +156,37 @@ test("analytics routes authorize before one RPC and keep no-store responses", as
   assert.equal(forbiddenCalls, 0);
 });
 
+test("overdue route authorizes before a fresh admin read and exposes timing headers", async () => {
+  let fetchCalls = 0;
+  let receivedClient;
+  const adminClient = { name: "admin" };
+  const overdueRoute = load("app/api/v1/overdue-alerts/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ client: { name: "session" }, user: { id: user1 }, error: null }), apiError: (message, status, code) => responseMock.NextResponse.json({ error: { message, code } }, { status }) },
+    "@/lib/server/admin": { createAdminClient: () => adminClient },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "APPROVED" }), canUseCcr: () => true, canManage: () => true },
+    "@/lib/supabaseOverdueApi": { fetchOverdueAlertsFromSupabase: async (_options, client) => { fetchCalls += 1; receivedClient = client; return { invoices: [], fromDb: true }; }, calculateOverdueKpi: () => ({ affectedInvoicesCount: 0 }), describeSupabaseError: String },
+  }, { performance, URL });
+  const response = await overdueRoute.GET({ url: "https://app.test/api/v1/overdue?onlyOverdue30=true" });
+  assert.equal(response.status, 200);
+  assert.equal(fetchCalls, 1);
+  assert.equal(receivedClient, adminClient);
+  assert.equal(response.headers.get("cache-control"), "no-store, max-age=0");
+  assert.match(response.headers.get("server-timing"), /auth/);
+  assert.match(response.headers.get("server-timing"), /db/);
+
+  let forbiddenCalls = 0;
+  const forbiddenRoute = load("app/api/v1/overdue-alerts/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }), apiError: (message, status, code) => responseMock.NextResponse.json({ error: { message, code } }, { status }) },
+    "@/lib/server/admin": { createAdminClient: () => ({}) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: null }), canUseCcr: () => false, canManage: () => false },
+    "@/lib/supabaseOverdueApi": { fetchOverdueAlertsFromSupabase: async () => { forbiddenCalls += 1; return { invoices: [], fromDb: true }; }, calculateOverdueKpi: () => ({}) },
+  }, { performance, URL });
+  assert.equal((await forbiddenRoute.GET({ url: "https://app.test/api/v1/overdue" })).status, 403);
+  assert.equal(forbiddenCalls, 0);
+});
+
 async function database() {
   const db = new PGlite();
   await db.exec(`create role anon; create role authenticated; create role service_role;

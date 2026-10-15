@@ -6,6 +6,10 @@ import { AlertCircle, ArrowLeft, ArrowRight, Calendar, Download, FileUp, Refresh
 import { ChartAreaStacked } from "./chart";
 import UploadForm, { UploadResult } from "@/components/UploadForm/uploadform";
 import { QUICK_PERIODS, matchingQuickPeriod, quickPeriodRange } from "@/lib/salesOverviewPeriod";
+import { DocumentPreviewModal, RecentDocumentsPanel } from "./DocumentsPanel";
+import type { RecentDocument } from "@/lib/salesOverviewDocuments";
+
+export type { RecentDocument } from "@/lib/salesOverviewDocuments";
 
 export type MacroPoint = { period_month: string; revenue: number; cost: number; sales_profit: number; total_outstanding: number };
 export type MacroSummary = { revenue: number; cost: number; sales_profit: number; total_outstanding: number } | null;
@@ -34,6 +38,9 @@ type Props = {
   error: string | null;
   alerts?: AlertRow[];
   canUpload?: boolean;
+  documents: RecentDocument[];
+  documentsLoading: boolean;
+  documentsError: string | null;
 };
 
 const money = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
@@ -161,14 +168,40 @@ function QuickPeriodFilters({ startPeriod, endPeriod, onStartPeriodChange, onEnd
   </div>;
 }
 
-export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], canUpload = false }: Props) {
+export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], canUpload = false, documents, documentsLoading, documentsError }: Props) {
   const hasMacro = Boolean(summary);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   function handleUploadCompleted(result: UploadResult) {
     if (result.validationStatus === "validated") {
       setIsUploadOpen(false);
       onRefresh();
     }
+  }
+  async function exportCsv() {
+    if (isExporting || isLoading) return;
+    setIsExporting(true);
+    try {
+      const response = await fetch(`/api/v1/analytics/macro/export?start_period=${startPeriod}&end_period=${endPeriod}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Export gagal dibuat.");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `sales-overview-${startPeriod}-${endPeriod}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
+  }
+  async function openOriginal(documentId: string) {
+    const response = await fetch(`/api/v1/documents/${documentId}/preview`, { cache: "no-store" });
+    const body = await response.json() as { data?: { signedUrl?: string | null } };
+    if (response.ok && body.data?.signedUrl) window.open(body.data.signedUrl, "_blank", "noopener,noreferrer");
   }
   return (
     <main className="min-h-screen bg-slate-50 p-4 font-sans text-slate-800 md:p-8">
@@ -177,6 +210,7 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
           <h1 className="text-2xl font-bold uppercase tracking-tight text-slate-900">Sales Overview</h1>
           <div className="flex flex-wrap items-center gap-3">
             <QuickPeriodFilters startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={isLoading} />
+            <button type="button" onClick={() => void exportCsv()} disabled={isLoading || isExporting} className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" aria-label="Ekspor ringkasan analitik"><Download className="size-4" />{isExporting ? "Mengekspor..." : "Ekspor CSV"}</button>
             <button type="button" onClick={onRefresh} disabled={isLoading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-60"><RefreshCw className={isLoading ? "size-4 animate-spin" : "size-4"} />Refresh</button>
           </div>
         </header>
@@ -184,6 +218,7 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
           <div className="mb-3 flex items-center justify-between"><h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Monthly Macro Analytics</h2></div>
           {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label="Sales Profit Periode" value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail="Total Revenue - Cost" formula="Sales Profit = Revenue - Cost" icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label="Kebutuhan Cost Periode" value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail="Total biaya operasional" icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label="Outstanding Periode" value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail="Total invoice belum tertagih" icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label="Net Margin Ratio" value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail="Rasio pada rentang terpilih" formula="Net Margin Ratio = (Sales Profit / Revenue) x 100" icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
         </section>
+        <PeakMetrics series={series} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
         <section aria-label="Grafik Sales Overview" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ChartAreaStacked title="Pergerakan Performa Sales & Cost" series={series} metrics={["revenue", "cost", "total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
           <ChartAreaStacked title="Revenue" series={series} metrics={["revenue"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
@@ -191,13 +226,13 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
           <ChartAreaStacked title="Total Outstanding" series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
         </section>
         <AlertPanel alerts={alerts} loading={isLoading} />
-        <PeakMetrics series={series} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
-        <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {canUpload && <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm md:col-span-2"><h2 className="text-lg font-bold text-slate-900">Unggah & Ekspor Dokumen</h2><p className="mt-1 text-sm text-slate-500">Unggah Company Sales Report atau Data Outstanding untuk memperbarui dashboard.</p><button type="button" onClick={() => setIsUploadOpen(true)} className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#3B6FF5] px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-600"><FileUp className="size-4" />Unggah Berkas Report</button></div>}
-          <div className={`rounded-xl border border-slate-100 bg-slate-50 p-6 shadow-sm ${canUpload ? "" : "md:col-span-3"}`}><h2 className="text-base font-bold text-slate-900">Ekspor Ringkasan Analitik</h2><p className="mt-2 text-sm text-slate-500">Export belum tersedia.</p><button type="button" disabled className="mt-6 inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-slate-300 py-3 text-sm font-bold text-slate-500"><Download className="size-4" />Ekspor (Segera)</button></div>
+        <RecentDocumentsPanel documents={documents} loading={documentsLoading} error={documentsError} onPreview={setPreviewDocumentId} onOpenOriginal={(id) => void openOriginal(id)} />
+        <section className="grid grid-cols-1 gap-6">
+          {canUpload && <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-lg font-bold text-slate-900">Unggah Dokumen</h2><p className="mt-1 text-sm text-slate-500">Unggah Company Sales Report atau Data Outstanding untuk memperbarui dashboard.</p><button type="button" onClick={() => setIsUploadOpen(true)} className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#3B6FF5] px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-600"><FileUp className="size-4" />Unggah Berkas Report</button></div>}
         </section>
       </div>
       {canUpload && <UploadForm open={isUploadOpen} onClose={() => setIsUploadOpen(false)} onCompleted={handleUploadCompleted} />}
+      {previewDocumentId && <DocumentPreviewModal documentId={previewDocumentId} onClose={() => setPreviewDocumentId(null)} />}
     </main>
   );
 }
@@ -216,7 +251,7 @@ function AlertPanel({ alerts, loading }: { alerts: AlertRow[]; loading: boolean 
 function PeakMetrics({ series, startPeriod, endPeriod, loading, error }: { series: MacroPoint[]; startPeriod: string; endPeriod: string; loading: boolean; error: string | null }) {
   const selected = series.filter(point => point.period_month >= startPeriod && point.period_month <= endPeriod).sort((a, b) => b.period_month.localeCompare(a.period_month));
   const metrics = [{ key: "revenue", label: "Revenue Tertinggi", icon: <Wallet className="size-4" /> }, { key: "cost", label: "Cost Tertinggi", icon: <Receipt className="size-4" /> }, { key: "total_outstanding", label: "Outstanding Tertinggi", icon: <AlertCircle className="size-4" /> }] as const;
-  return <section aria-label="Nilai bulanan tertinggi" className="space-y-4"><div><h2 className="text-lg font-bold text-slate-900">Nilai Bulanan Tertinggi dalam Periode</h2><p className="text-sm text-slate-500">{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</p></div><div className="grid grid-cols-1 gap-4 md:grid-cols-3">{metrics.map(metric => {
+  return <section aria-label="Peak metrics" className="space-y-3"><div className="text-xs font-semibold text-slate-500">{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</div><div className="grid grid-cols-1 gap-4 md:grid-cols-3">{metrics.map(metric => {
     const maximum = selected.length ? Math.max(...selected.map(point => point[metric.key])) : null;
     const matching = selected.filter(point => point[metric.key] === maximum);
     return <article key={metric.key} aria-label={metric.label} aria-busy={loading} className="min-w-0 rounded-xl border border-slate-100 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-700">{metric.label}</h3><span className="rounded bg-blue-50 p-1.5 text-blue-600">{metric.icon}</span></div>{loading ? <div className="mt-4 animate-pulse space-y-3" aria-label={`Memuat ${metric.label}`}><div className="h-7 w-3/4 rounded bg-slate-200" /><div className="h-3 w-1/2 rounded bg-slate-200" /><div className="h-3 w-2/3 rounded bg-slate-200" /></div> : error ? <p role="alert" className="mt-4 text-sm text-red-700">Data tidak dapat dimuat.</p> : maximum === null ? <p className="mt-4 text-sm text-slate-500">Belum ada data</p> : <><p className="mt-4 break-words text-2xl font-bold text-slate-900">{money.format(maximum)}</p><p className="mt-2 text-sm text-slate-500">{periodLabel(matching[0].period_month)}</p>{matching.length > 1 && <p className="mt-2 text-xs text-slate-500">Nilai yang sama juga dicapai pada {matching.length - 1} bulan lain.</p>}</>}</article>;
