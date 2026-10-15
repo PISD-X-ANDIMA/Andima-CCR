@@ -3,6 +3,7 @@ import { apiError, checkOrigin, requireSession } from "@/lib/server/http";
 import {
   assignPicInSupabase,
   calculateOverdueKpi,
+  describeSupabaseError,
   evaluateOverdueAlertsInSupabase,
   fetchOverdueAlertsFromSupabase,
   triggerBatchMidFeedEscalationInSupabase,
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status")?.trim().toLowerCase() ?? "";
     const agingBucket = searchParams.get("agingBucket");
     const onlyOverdue30 = searchParams.get("onlyOverdue30") !== "false";
-    const profile = await getCcrProfile(session.client, session.user!.id);
+    const profile = await getCcrProfile(session.client, session.user!.id, { includeOrgDetails: false });
     if (!canUseCcr(profile)) return apiError("CCR access is required.", 403, "FORBIDDEN");
     const { invoices: allInvoices, fromDb } = await fetchOverdueAlertsFromSupabase({ onlyOverdue30 }, session.client);
     const invoices = profile.resolved_role === "STAFF"
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ kpiSummary: calculateOverdueKpi(filtered), totalItems: filtered.length, invoices: filtered, fromDb });
   } catch (error) {
-    console.error("Failed to read overdue alerts", error);
+    console.error("Failed to read overdue alerts", describeSupabaseError(error));
     return apiError("Unable to read overdue alerts.", 500, "OVERDUE_READ_FAILED");
   }
 }
@@ -74,7 +75,9 @@ export async function POST(req: NextRequest) {
 
     if (body.action === "EVALUATE") {
       if (!canManage(await getCcrProfile(session.client, session.user!.id))) return apiError("Only management users can evaluate overdue alerts.", 403, "FORBIDDEN");
-      const result = await evaluateOverdueAlertsInSupabase(new Date(), session.client);
+      // Evaluation writes the C1 projection and must use the server-only
+      // client. Authorization has already been completed above.
+      const result = await evaluateOverdueAlertsInSupabase();
       return NextResponse.json({ success: true, ...result });
     }
     if (body.action === "ASSIGN_PIC" && body.invoiceId && body.assignedTo) {
@@ -88,7 +91,7 @@ export async function POST(req: NextRequest) {
     }
     return apiError("Invalid overdue action.", 400, "INVALID_ACTION");
   } catch (error) {
-    console.error("Failed to process overdue action", error);
+    console.error("Failed to process overdue action", describeSupabaseError(error));
     return apiError("Unable to process overdue action.", 500, "OVERDUE_ACTION_FAILED");
   }
 }

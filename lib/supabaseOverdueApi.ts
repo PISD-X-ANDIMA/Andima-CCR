@@ -6,6 +6,19 @@ import type { OverdueInvoiceItem, OverdueKpiSummary, RiskStatus } from "@/types/
 
 export const getSupabaseClient = createAdminClient;
 
+export function describeSupabaseError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const value = error as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown };
+    const message = typeof value.message === "string" ? value.message : "Database operation failed.";
+    const code = value.code ? ` [${String(value.code)}]` : "";
+    const details = value.details ? ` ${String(value.details)}` : "";
+    const hint = value.hint ? ` Hint: ${String(value.hint)}` : "";
+    return `${message}${code}${details}${hint}`;
+  }
+  return String(error ?? "Database operation failed.");
+}
+
 export type OverdueQueryOptions = {
   startDate?: string;
   endDateExclusive?: string;
@@ -13,7 +26,6 @@ export type OverdueQueryOptions = {
 };
 
 type StagingOutstanding = {
-  document_id: string;
   created_at: string;
   invoice_number: string;
   customer_id: string | null;
@@ -59,11 +71,6 @@ export function overdueRiskStatus(daysOverdue: number): RiskStatus {
   return "WATCHLIST";
 }
 
-function inDateRange(value: string, options: OverdueQueryOptions) {
-  return (!options.startDate || value >= options.startDate)
-    && (!options.endDateExclusive || value < options.endDateExclusive);
-}
-
 export function calculateOverdueKpi(invoices: OverdueInvoiceItem[]): OverdueKpiSummary {
   const total = invoices.reduce((sum, invoice) => sum + invoice.amount_overdue, 0);
   const critical = invoices.filter((invoice) => invoice.days_overdue > 60);
@@ -90,26 +97,15 @@ export function calculateOverdueKpi(invoices: OverdueInvoiceItem[]): OverdueKpiS
 async function readValidatedOutstanding(client: SupabaseClient) {
   const { data: stagingRows, error: stagingError } = await client
     .from("c1_outstanding_staging_rows")
-    .select("document_id, invoice_number, customer_id, customer_name, outstanding_amount, due_date, created_at")
+    .select("invoice_number, customer_id, customer_name, outstanding_amount, due_date, created_at, c1_document_uploads!inner(validation_status)")
+    .eq("c1_document_uploads.validation_status", "validated")
     .gt("outstanding_amount", 0)
     .order("due_date", { ascending: true });
   if (stagingError) throw stagingError;
 
   const rows = (stagingRows ?? []) as StagingOutstanding[];
-  const documentIds = [...new Set(rows.map((row) => row.document_id).filter(Boolean))];
-  if (!documentIds.length) return [];
-
-  const { data: documents, error: documentError } = await client
-    .from("c1_document_uploads")
-    .select("id")
-    .in("id", documentIds)
-    .eq("validation_status", "validated");
-  if (documentError) throw documentError;
-
-  const validIds = new Set((documents ?? []).map((document) => document.id));
   const latestByInvoice = new Map<string, StagingOutstanding>();
   for (const row of rows) {
-    if (!validIds.has(row.document_id)) continue;
     const key = row.invoice_number.trim().toLowerCase();
     const previous = latestByInvoice.get(key);
     if (!previous || row.created_at > previous.created_at) latestByInvoice.set(key, row);
@@ -145,10 +141,11 @@ export async function evaluateOverdueAlertsInSupabase(currentDate = new Date(), 
 function toInvoice(row: AlertRow, staging: StagingOutstanding | undefined, assignment: AssignmentRow | undefined): OverdueInvoiceItem {
   const days = row.days_overdue;
   const assignedTo = assignment?.assigned_to;
+  const customerId = row.customer_id ?? staging?.customer_id ?? null;
   return {
     id: row.invoice_id,
     invoice_number: row.invoice_id,
-    customer_id: row.customer_id ?? staging?.customer_id ?? "",
+    customer_id: customerId ?? "",
     customer_name: staging?.customer_name ?? "Pelanggan tidak tersedia",
     npwp: "-",
     branch: "Tidak tersedia",
@@ -161,7 +158,9 @@ function toInvoice(row: AlertRow, staging: StagingOutstanding | undefined, assig
     pic_assigned: assignedTo,
     pic_initials: assignedTo ? assignedTo.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() : undefined,
     action_type: days > 60 ? "SP-2" : days > 30 ? "SP-1" : "TUGASKAN",
-    contact_person: { name: "-", role: "-", phone: "-" },
+    contact_person: customerId
+      ? { name: "-", role: "-", phone: "-" }
+      : { name: "Belum tersedia", role: "Belum tersedia", phone: "Belum tersedia" },
     last_log: { date: "-", time: "-", text: "Belum ada log penagihan.", logged_by: "-" },
     route: "",
   };
@@ -169,9 +168,27 @@ function toInvoice(row: AlertRow, staging: StagingOutstanding | undefined, assig
 
 export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOptions = {}, client?: SupabaseClient) {
   const supabase = client ?? getSupabaseClient();
+  let alertsQuery = supabase
+    .from("c1_overdue_alert")
+    .select("invoice_id, customer_id, due_date, evaluation_date, days_overdue, overdue_alert, alert_status")
+    .gt("days_overdue", 0)
+    .order("due_date", { ascending: true });
+  if (options.onlyOverdue30 !== false) alertsQuery = alertsQuery.gt("days_overdue", 30);
+  if (options.startDate) alertsQuery = alertsQuery.gte("due_date", options.startDate);
+  if (options.endDateExclusive) alertsQuery = alertsQuery.lt("due_date", options.endDateExclusive);
+
+  let assignmentsQuery = supabase
+    .from("c1_assignment")
+    .select("invoice_id, assigned_to, assigned_at, follow_up_status, c1_overdue_alert!inner(days_overdue, due_date)")
+    .gt("c1_overdue_alert.days_overdue", 0)
+    .order("assigned_at", { ascending: false });
+  if (options.onlyOverdue30 !== false) assignmentsQuery = assignmentsQuery.gt("c1_overdue_alert.days_overdue", 30);
+  if (options.startDate) assignmentsQuery = assignmentsQuery.gte("c1_overdue_alert.due_date", options.startDate);
+  if (options.endDateExclusive) assignmentsQuery = assignmentsQuery.lt("c1_overdue_alert.due_date", options.endDateExclusive);
+
   const [{ data: alerts, error: alertsError }, { data: assignments, error: assignmentsError }, stagingRows] = await Promise.all([
-    supabase.from("c1_overdue_alert").select("invoice_id, customer_id, due_date, evaluation_date, days_overdue, overdue_alert, alert_status"),
-    supabase.from("c1_assignment").select("invoice_id, assigned_to, assigned_at, follow_up_status").order("assigned_at", { ascending: false }),
+    alertsQuery,
+    assignmentsQuery,
     readValidatedOutstanding(supabase),
   ]);
   if (alertsError) throw alertsError;
@@ -184,8 +201,6 @@ export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOption
   }
 
   const invoices = ((alerts ?? []) as AlertRow[])
-    .filter((alert) => alert.days_overdue > 0 && inDateRange(alert.due_date, options))
-    .filter((alert) => options.onlyOverdue30 !== false ? alert.days_overdue > 30 : true)
     .map((alert) => toInvoice(alert, stagingByInvoice.get(alert.invoice_id.toLowerCase()), latestAssignments.get(alert.invoice_id)))
     .sort((a, b) => a.due_date.localeCompare(b.due_date) || a.invoice_number.localeCompare(b.invoice_number));
 

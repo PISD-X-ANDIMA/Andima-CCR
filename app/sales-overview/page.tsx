@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import SalesOverview, { AlertRow, MacroPoint, MacroSummary } from "@/components/Sales Overview/SalesOverview";
 import Header from "@/components/Header";
+import { shiftPeriod } from "@/lib/salesOverviewPeriod";
 
 type ResponseBody = { data: { summary: MacroSummary; series: MacroPoint[]; alerts?: AlertRow[]; meta?: { can_upload?: boolean } } };
 
@@ -11,15 +12,9 @@ function currentMonth() {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-function offsetMonth(value: string, offset: number) {
-  const date = new Date(`${value}-01T00:00:00Z`);
-  date.setUTCMonth(date.getUTCMonth() + offset);
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
 export default function SalesOverviewPage() {
   const endDefault = useMemo(() => currentMonth(), []);
-  const [startPeriod, setStartPeriod] = useState(() => offsetMonth(endDefault, -2));
+  const [startPeriod, setStartPeriod] = useState(() => shiftPeriod(endDefault, -2));
   const [endPeriod, setEndPeriod] = useState(endDefault);
   const [summary, setSummary] = useState<MacroSummary>(null);
   const [series, setSeries] = useState<MacroPoint[]>([]);
@@ -34,7 +29,11 @@ export default function SalesOverviewPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/v1/analytics/macro?start_period=${startPeriod}&end_period=${endPeriod}`, { cache: "no-store" });
+      const refreshToken = Date.now().toString();
+      const response = await fetch(`/api/v1/analytics/macro?start_period=${startPeriod}&end_period=${endPeriod}&refresh=${refreshToken}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       const body = await response.json() as ResponseBody & { error?: { message?: string } };
       if (version !== requestVersion.current) return;
       if (!response.ok) throw new Error(body.error?.message ?? "Data Sales Overview gagal dimuat.");

@@ -24,7 +24,11 @@ function role(value: unknown): CcrRole | null {
   return value === "STAFF" || value === "MANAGEMENT" ? value : null;
 }
 
-export async function getCcrProfile(client: SupabaseClient, userId: string): Promise<CcrProfile | null> {
+export async function getCcrProfile(
+  client: SupabaseClient,
+  userId: string,
+  options: { includeOrgDetails?: boolean } = {},
+): Promise<CcrProfile | null> {
   const { data: registration, error } = await client
     .from("b2_register")
     .select("auth_user_id, id, employee_id, full_name, email, phone, position_id, departement_id, registration_status, resolved_role, is_active")
@@ -36,16 +40,18 @@ export async function getCcrProfile(client: SupabaseClient, userId: string): Pro
   const departmentId = registration.departement_id as string | null;
   let position: { title: string } | null = null;
   let department: { name: string } | null = null;
-  try {
-    const admin = createAdminClient();
-    const [{ data: positionData }, { data: departmentData }] = await Promise.all([
-      positionId ? admin.from("d3_positions").select("title").eq("id", positionId).maybeSingle() : Promise.resolve({ data: null }),
-      departmentId ? admin.from("d3_departments").select("name").eq("id", departmentId).maybeSingle() : Promise.resolve({ data: null }),
-    ]);
-    position = positionData;
-    department = departmentData;
-  } catch {
-    // The b2 profile remains authoritative if reference metadata is unavailable.
+  if (options.includeOrgDetails !== false) {
+    try {
+      const admin = createAdminClient();
+      const [{ data: positionData }, { data: departmentData }] = await Promise.all([
+        positionId ? admin.from("d3_positions").select("title").eq("id", positionId).maybeSingle() : Promise.resolve({ data: null }),
+        departmentId ? admin.from("d3_departments").select("name").eq("id", departmentId).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      position = positionData;
+      department = departmentData;
+    } catch {
+      // The b2 profile remains authoritative if reference metadata is unavailable.
+    }
   }
   return {
     auth_user_id: String(registration.auth_user_id ?? registration.id ?? userId),

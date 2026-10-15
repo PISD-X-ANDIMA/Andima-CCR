@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError, checkOrigin, requireSession } from "@/lib/server/http";
-import { evaluateOverdueAlertsInSupabase } from "@/lib/supabaseOverdueApi";
+import { describeSupabaseError, evaluateOverdueAlertsInSupabase } from "@/lib/supabaseOverdueApi";
 import { getCcrProfile, canManage } from "@/lib/server/authorization";
 
 export async function POST(req: NextRequest) {
@@ -14,9 +14,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    return NextResponse.json({ success: true, ...(await evaluateOverdueAlertsInSupabase(new Date(), session.client)) });
+    return NextResponse.json({ success: true, ...(await evaluateOverdueAlertsInSupabase()) });
   } catch (error) {
-    console.error("Failed to evaluate overdue alerts", error);
+    console.error("Failed to evaluate overdue alerts", describeSupabaseError(error));
     return apiError("Unable to evaluate overdue alerts.", 500, "OVERDUE_EVALUATION_FAILED");
   }
 }

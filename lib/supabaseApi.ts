@@ -5,105 +5,72 @@ import { INITIAL_CUSTOMERS, INITIAL_KPI_SUMMARY, STATEMENT_AURORA_BLUE } from '.
 
 export const getSupabaseClient = createAdminClient;
 
+export type CustomerAnalyticsQuery = {
+  branch?: string | null;
+  search?: string | null;
+  paymentCycle?: string | null;
+  sortBy?: string;
+  sortOrder?: string;
+  page?: number;
+  limit?: number;
+};
+
+function fallbackCustomerAnalytics(options: CustomerAnalyticsQuery) {
+  const branch = options.branch?.trim().toLowerCase() || "";
+  const search = options.search?.trim().toLowerCase() || "";
+  const paymentCycle = options.paymentCycle?.trim() || "";
+  const sortBy = options.sortBy || "sales_profit";
+  const sortOrder = options.sortOrder === "asc" ? "asc" : "desc";
+  const page = Math.max(1, options.page ?? 1);
+  const limit = Math.max(1, options.limit ?? 5);
+
+  let filtered = [...INITIAL_CUSTOMERS];
+  if (branch && branch !== "semua cabang" && branch !== "all") filtered = filtered.filter((customer) => customer.branch.toLowerCase() === branch);
+  if (search) filtered = filtered.filter((customer) => [customer.customer_name, customer.npwp, customer.id].some((value) => value.toLowerCase().includes(search)));
+  if (paymentCycle === "Lancar (< 30 Hari)") filtered = filtered.filter((customer) => customer.dso_trend.july_2026 <= 30);
+  if (paymentCycle === "Overdue (> 30 Hari)") filtered = filtered.filter((customer) => customer.dso_trend.july_2026 > 30);
+
+  filtered.sort((left, right) => {
+    const leftValue = sortBy === "customer_name" ? left.customer_name : sortBy === "cost" ? left.cost : sortBy === "total_outstanding" ? left.total_outstanding : left.sales_profit;
+    const rightValue = sortBy === "customer_name" ? right.customer_name : sortBy === "cost" ? right.cost : sortBy === "total_outstanding" ? right.total_outstanding : right.sales_profit;
+    const comparison = typeof leftValue === "string" ? leftValue.localeCompare(String(rightValue)) : Number(leftValue) - Number(rightValue);
+    return sortOrder === "asc" ? comparison : -comparison;
+  });
+
+  const totalItems = filtered.length;
+  return {
+    customers: filtered.slice((page - 1) * limit, page * limit),
+    kpi: INITIAL_KPI_SUMMARY,
+    totalItems,
+    fromDb: false,
+  };
+}
+
 /**
- * Fetch customer analytics from Supabase database with fallback to seed data
+ * Fetch customer analytics from the indexed C1 RPC with a seed fallback.
  */
-export async function fetchCustomerAnalyticsFromSupabase() {
+export async function fetchCustomerAnalyticsFromSupabase(options: CustomerAnalyticsQuery = {}) {
   try {
     const supabase = getSupabaseClient();
-    const { data: customerRows, error: custError } = await supabase
-      .from('customer')
-      .select('*');
-
-    if (custError || !customerRows || customerRows.length === 0) {
-      return { customers: INITIAL_CUSTOMERS, kpi: INITIAL_KPI_SUMMARY, fromDb: false };
-    }
-
-    // Fetch monthly metrics for all customers if available
-    const { data: metricsRows } = await supabase
-      .from('customer_monthly_metrics')
-      .select('*');
-
-    // Fetch active invoices count per customer if available
-    const { data: invoiceRows } = await supabase
-      .from('invoice_detail')
-      .select('customer_id, payment_status, bulk_close_status');
-
-    const mappedCustomers: CustomerAnalyticsItem[] = customerRows.map((c: any, idx: number) => {
-      const custMetrics = metricsRows?.filter((m: any) => m.customer_id === c.customer_id) || [];
-      const custInvoices = invoiceRows?.filter((inv: any) => inv.customer_id === c.customer_id) || [];
-
-      // Calculate aggregated metrics
-      const latestMetric = custMetrics[custMetrics.length - 1];
-      const salesProfit = latestMetric ? Number(latestMetric.sales_profit) : 350000000 + (idx * 50000000);
-      const cost = latestMetric ? Number(latestMetric.cost) : 300000000 + (idx * 40000000);
-      const totalOutstanding = latestMetric ? Number(latestMetric.total_outstanding) : 500000000 + (idx * 60000000);
-
-      const displayId = c.customer_id.startsWith('CUST-')
-        ? c.customer_id
-        : `CUST-${String(idx + 1).padStart(4, '0')}`;
-
-      return {
-        id: displayId,
-        customer_name: c.customer_name,
-        npwp: c.npwp || '01.345.890.1',
-        location_detail: `${c.branch} Port Area`,
-        branch: c.branch,
-        branch_office_badge: c.branch === 'Jakarta' ? 'Jakarta Pusat' : c.branch,
-        sales_profit: salesProfit,
-        sales_profit_trend: 'up',
-        cost: cost,
-        total_outstanding: totalOutstanding,
-        credit_limit: Number(c.credit_limit || 1000000000),
-        payment_accuracy: Number(c.payment_accuracy || 90.0),
-        active_invoices_count: custInvoices.length > 0 ? custInvoices.length : 15,
-        dso_trend: {
-          may_2026: Number(c.dso_days || 25) + 3,
-          june_2026: Number(c.dso_days || 25) + 1,
-          july_2026: Number(c.dso_days || 25),
-        },
-        pic: {
-          name: c.pic_name || 'Account Executive',
-          phone: c.pic_phone || '+62 21 5082 1199',
-        },
-        connected_routes: [
-          { route: `${c.branch} - Regional Port`, volume: '30 TEUs / bln' },
-        ],
-      };
+    const { data, error } = await supabase.rpc('c1_get_customer_analytics', {
+      p_branch: options.branch ?? null,
+      p_search: options.search ?? '',
+      p_payment_cycle: options.paymentCycle ?? '',
+      p_sort_by: options.sortBy ?? 'sales_profit',
+      p_sort_order: options.sortOrder ?? 'desc',
+      p_page: options.page ?? 1,
+      p_limit: options.limit ?? 5,
     });
 
-    // Calculate KPI Summary
-    const totalActiveCustomers = mappedCustomers.length;
-    const branchBreakdown = {
-      jkt: mappedCustomers.filter((c) => c.branch === 'Jakarta').length,
-      sub: mappedCustomers.filter((c) => c.branch === 'Surabaya').length,
-      smg: mappedCustomers.filter((c) => c.branch === 'Semarang').length,
-      bpn: mappedCustomers.filter((c) => c.branch === 'Balikpapan').length,
-      medan: mappedCustomers.filter((c) => c.branch === 'Medan').length,
-    };
+    if (error || !data || !Array.isArray((data as { customers?: unknown }).customers) || !(data as { customers: unknown[] }).customers.length) {
+      return fallbackCustomerAnalytics(options);
+    }
 
-    const avgDso = mappedCustomers.reduce((acc, curr) => acc + curr.dso_trend.july_2026, 0) / (totalActiveCustomers || 1);
-    const topCust = [...mappedCustomers].sort((a, b) => b.sales_profit - a.sales_profit)[0];
-
-    const kpiSummary = {
-      totalActiveCustomers,
-      branchBreakdown,
-      averagePaymentCycle: Number(avgDso.toFixed(1)),
-      paymentCycleDiffVsQ2: -2.1,
-      highRiskOutstanding: 4850000,
-      highRiskAccountCount: 4,
-      highRiskGrowthPercent: 6.4,
-      topContributingCustomer: {
-        name: topCust?.customer_name || 'Aurora Blue',
-        rank: 1,
-        totalLogisticsVolume: topCust?.sales_profit || 4200000000,
-      },
-    };
-
-    return { customers: mappedCustomers, kpi: kpiSummary, fromDb: true };
+    const result = data as { customers: CustomerAnalyticsItem[]; kpi: typeof INITIAL_KPI_SUMMARY; total_items: number };
+    return { customers: result.customers, kpi: result.kpi, totalItems: Number(result.total_items) || 0, fromDb: true };
   } catch (error) {
     console.error('Error querying Supabase customer analytics:', error);
-    return { customers: INITIAL_CUSTOMERS, kpi: INITIAL_KPI_SUMMARY, fromDb: false };
+    return fallbackCustomerAnalytics(options);
   }
 }
 

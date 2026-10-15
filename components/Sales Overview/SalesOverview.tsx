@@ -5,6 +5,7 @@ import Pagination from "@/components/Pagination";
 import { AlertCircle, ArrowLeft, ArrowRight, Calendar, Download, FileUp, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle } from "lucide-react";
 import { ChartAreaStacked } from "./chart";
 import UploadForm, { UploadResult } from "@/components/UploadForm/uploadform";
+import { QUICK_PERIODS, matchingQuickPeriod, quickPeriodRange } from "@/lib/salesOverviewPeriod";
 
 export type MacroPoint = { period_month: string; revenue: number; cost: number; sales_profit: number; total_outstanding: number };
 export type MacroSummary = { revenue: number; cost: number; sales_profit: number; total_outstanding: number } | null;
@@ -53,7 +54,7 @@ function periodLabel(period: string) {
   return `${monthNames[(month || 1) - 1]} ${year}`;
 }
 
-function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, disabled }: Pick<Props, "startPeriod" | "endPeriod" | "onStartPeriodChange" | "onEndPeriodChange"> & { disabled: boolean }) {
+function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, disabled, buttonLabel }: Pick<Props, "startPeriod" | "endPeriod" | "onStartPeriodChange" | "onEndPeriodChange"> & { disabled: boolean; buttonLabel?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [calendarYear, setCalendarYear] = useState(() => periodParts(endPeriod).year);
   const [draftStart, setDraftStart] = useState(startPeriod);
@@ -114,9 +115,9 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
 
   return (
     <div ref={rootRef} className="relative">
-      <button ref={triggerRef} type="button" onClick={openPicker} disabled={disabled} className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 disabled:opacity-60" aria-expanded={isOpen} aria-haspopup="dialog">
+      <button ref={triggerRef} type="button" onClick={openPicker} disabled={disabled} className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60 ${buttonLabel ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50" : "border-slate-200 bg-white text-slate-600"}`} aria-label={buttonLabel ? `${buttonLabel}: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}` : undefined} aria-expanded={isOpen} aria-haspopup="dialog">
         <Calendar className="size-4 text-indigo-600" />
-        <span>{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</span>
+        <span>{buttonLabel ?? `${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}`}</span>
       </button>
       {isOpen && (
         <div className="absolute left-0 top-full z-30 sm:left-auto sm:right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-4 shadow-xl" role="dialog" aria-label="Pilih rentang bulan">
@@ -149,11 +150,25 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
   );
 }
 
+function QuickPeriodFilters({ startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, disabled }: Pick<Props, "startPeriod" | "endPeriod" | "onStartPeriodChange" | "onEndPeriodChange"> & { disabled: boolean }) {
+  const activeMonths = matchingQuickPeriod(startPeriod, endPeriod);
+  return <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-1" role="group" aria-label="Filter cepat periode">
+    {QUICK_PERIODS.map((period) => {
+      const active = activeMonths === period.months;
+      return <button key={period.months} type="button" onClick={() => { const range = quickPeriodRange(endPeriod, period.months); onStartPeriodChange(range.startPeriod); onEndPeriodChange(range.endPeriod); }} disabled={disabled} aria-pressed={active} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${active ? "bg-[#3B6FF5] text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}>{period.label}</button>;
+    })}
+    <MonthRangePicker startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={disabled} buttonLabel="Custom" />
+  </div>;
+}
+
 export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], canUpload = false }: Props) {
   const hasMacro = Boolean(summary);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   function handleUploadCompleted(result: UploadResult) {
-    if (result.validationStatus === "validated") onRefresh();
+    if (result.validationStatus === "validated") {
+      setIsUploadOpen(false);
+      onRefresh();
+    }
   }
   return (
     <main className="min-h-screen bg-slate-50 p-4 font-sans text-slate-800 md:p-8">
@@ -161,13 +176,13 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
         <header className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <h1 className="text-2xl font-bold uppercase tracking-tight text-slate-900">Sales Overview</h1>
           <div className="flex flex-wrap items-center gap-3">
-            <MonthRangePicker startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={isLoading} />
+            <QuickPeriodFilters startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={isLoading} />
             <button type="button" onClick={onRefresh} disabled={isLoading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-60"><RefreshCw className={isLoading ? "size-4 animate-spin" : "size-4"} />Refresh</button>
           </div>
         </header>
         <section>
           <div className="mb-3 flex items-center justify-between"><h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Monthly Macro Analytics</h2></div>
-          {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label="Sales Profit Bulanan" value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail="Revenue - Cost" formula="Sales Profit = Revenue - Cost" icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label="Kebutuhan Cost Bulanan" value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail="Real Operational Cost" icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label="Total Outstanding" value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail="Uncollected Invoices" icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label="Net Margin Ratio" value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail="Operating Threshold" formula="Net Margin Ratio = (Sales Profit / Revenue) x 100" icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
+          {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label="Sales Profit Periode" value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail="Total Revenue - Cost" formula="Sales Profit = Revenue - Cost" icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label="Kebutuhan Cost Periode" value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail="Total biaya operasional" icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label="Outstanding Periode" value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail="Total invoice belum tertagih" icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label="Net Margin Ratio" value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail="Rasio pada rentang terpilih" formula="Net Margin Ratio = (Sales Profit / Revenue) x 100" icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
         </section>
         <section aria-label="Grafik Sales Overview" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ChartAreaStacked title="Pergerakan Performa Sales & Cost" series={series} metrics={["revenue", "cost", "total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />

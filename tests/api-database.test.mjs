@@ -26,6 +26,136 @@ test("registration validates types, domain, password, and position/department on
   for (const bad of [null, {}, { ...registration, phone: 123 }, { ...registration, email: "test@gmail.com" }, { ...registration, password: "weak" }, { ...registration, department_id: user1 }]) assert.equal(validateRegistration(bad), null);
 });
 
+test("document uploads preserve source customer names when the master lookup misses", () => {
+  const uploadRoute = load("app/api/v1/documents/upload/route.ts", {
+    "node:crypto": { createHash: () => ({ update() { return this; }, digest: () => "checksum" }) },
+    "node:path": { join: (...parts) => parts.join("/") },
+    "node:url": { pathToFileURL: value => ({ toString: () => String(value) }) },
+    "next/server": { NextRequest: class {}, NextResponse: responseMock.NextResponse },
+    "next/headers": { cookies: async () => ({}) },
+    xlsx: { read: () => ({ Sheets: {}, SheetNames: [] }), utils: {} },
+    "@/utils/supabase/server": { createClient: () => ({}) },
+    "@/lib/server/admin": { createAdminClient: () => ({}) },
+    "@/lib/server/http": { checkOrigin: () => null, apiError: () => responseMock.NextResponse.json({}) },
+    "@/lib/supabaseOverdueApi": { describeSupabaseError: String, evaluateOverdueAlertsInSupabase: async () => ({}) },
+    "@/lib/server/authorization": { getCcrProfile: async () => null, canUpload: () => false },
+  });
+  const customerMap = new Map([
+    ["known co", "customer-known"],
+    ["code 42", "customer-by-code"],
+  ]);
+
+  const sales = uploadRoute.validateRows([
+    ["period", "customer", "customer code", "revenue", "trucking cost", "handling cost", "storage cost", "other operational cost"],
+    ["2026-09", "Known Co", "", "100", "10", "20", "30", "40"],
+    ["2026-09", "  File Only Co  ", "", "200", "20", "30", "40", "50"],
+    ["2026-09", "Different Name", "CODE-42", "300", "30", "40", "50", "60"],
+    ["2026-09", "", "", "400", "40", "50", "60", "70"],
+  ], "COMPANY_SALES_REPORT", customerMap);
+  assert.equal(sales.errors.length, 0);
+  assert.equal(JSON.stringify(sales.rows.map(row => ({ name: row.customer_name, id: row.customer_id }))), JSON.stringify([
+    { name: "Known Co", id: "customer-known" },
+    { name: "File Only Co", id: null },
+    { name: "Different Name", id: "customer-by-code" },
+    { name: "Tidak ditemukan", id: null },
+  ]));
+  assert.equal(sales.unmatchedCustomerCount, 2);
+  assert.equal(sales.warnings.find(warning => warning.code === "UNKNOWN_CUSTOMER").rawValue, "File Only Co");
+  assert.equal(sales.warnings.some(warning => warning.code === "CUSTOMER_VALUE_MISSING"), true);
+
+  const outstanding = uploadRoute.validateRows([
+    ["invoice", "customer", "amount", "due date"],
+    ["INV-UNKNOWN", "File Outstanding Co", "500", "2026-10-15"],
+  ], "OUTSTANDING_REPORT", customerMap);
+  assert.equal(outstanding.errors.length, 0);
+  assert.equal(JSON.stringify(outstanding.rows[0]), JSON.stringify({
+    row_number: 2,
+    invoice_number: "INV-UNKNOWN",
+    customer_name: "File Outstanding Co",
+    customer_id: null,
+    outstanding_amount: 500,
+    due_date: "2026-10-15",
+    create_date: null,
+    job_number: null,
+    mawb: null,
+  }));
+  assert.equal(outstanding.unmatchedCustomerCount, 1);
+
+  const missingCustomerColumn = uploadRoute.validateRows([
+    ["period", "revenue", "trucking cost", "handling cost", "storage cost", "other operational cost"],
+    ["2026-09", "100", "10", "20", "30", "40"],
+  ], "COMPANY_SALES_REPORT", customerMap);
+  assert.equal(missingCustomerColumn.errors.length, 0);
+  assert.equal(missingCustomerColumn.rows[0].customer_name, "Tidak ditemukan");
+  assert.equal(missingCustomerColumn.warnings[0].code, "CUSTOMER_COLUMN_MISSING");
+});
+
+test("Sales Overview quick periods preserve the selected end month", () => {
+  const { quickPeriodRange, matchingQuickPeriod, listPeriods } = load("lib/salesOverviewPeriod.ts");
+  assert.equal(JSON.stringify(quickPeriodRange("2026-09", 1)), JSON.stringify({ startPeriod: "2026-09", endPeriod: "2026-09" }));
+  assert.equal(JSON.stringify(quickPeriodRange("2026-09", 3)), JSON.stringify({ startPeriod: "2026-07", endPeriod: "2026-09" }));
+  assert.equal(JSON.stringify(quickPeriodRange("2026-09", 12)), JSON.stringify({ startPeriod: "2025-10", endPeriod: "2026-09" }));
+  assert.equal(matchingQuickPeriod("2026-07", "2026-09"), 3);
+  assert.equal(matchingQuickPeriod("2026-06", "2026-09"), null);
+  assert.equal(JSON.stringify(listPeriods("2026-07", "2026-09")), JSON.stringify(["2026-07", "2026-08", "2026-09"]));
+});
+
+test("Sales Overview macro metrics aggregate the range and fill empty months", () => {
+  const periods = load("lib/salesOverviewPeriod.ts");
+  const { buildMacroSeries, summarizeMacroSeries } = load("lib/salesOverviewMetrics.ts", { "@/lib/salesOverviewPeriod": periods });
+  const result = buildMacroSeries("2026-07", "2026-09", [
+    { period_month: "2026-07-01", revenue: 1000, total_cost: 300 },
+    { period_month: "2026-09-01", revenue: "500", total_cost: "200" },
+  ], [
+    { due_date: "2026-08-15", outstanding_amount: 700 },
+  ]);
+  assert.equal(result.hasData, true);
+  assert.equal(JSON.stringify(result.series), JSON.stringify([
+    { period_month: "2026-07", revenue: 1000, cost: 300, sales_profit: 700, total_outstanding: 0 },
+    { period_month: "2026-08", revenue: 0, cost: 0, sales_profit: 0, total_outstanding: 700 },
+    { period_month: "2026-09", revenue: 500, cost: 200, sales_profit: 300, total_outstanding: 0 },
+  ]));
+  assert.equal(JSON.stringify(summarizeMacroSeries(result.series, result.hasData)), JSON.stringify({ revenue: 1500, cost: 500, sales_profit: 1000, total_outstanding: 700 }));
+  assert.equal(summarizeMacroSeries(result.series, false), null);
+});
+
+test("analytics routes authorize before one RPC and keep no-store responses", async () => {
+  let macroRpcCalls = 0;
+  const macroRoute = load("app/api/v1/analytics/macro/route.ts", {
+    "next/server": responseMock,
+    "next/headers": { cookies: async () => ({}) },
+    "@/utils/supabase/server": { createClient: () => ({ auth: { getUser: async () => ({ data: { user: { id: user1 } }, error: null }) } }) },
+    "@/lib/server/admin": { createAdminClient: () => ({ rpc: async () => { macroRpcCalls += 1; return { data: { summary: null, series: [], alerts: [] }, error: null }; } }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "APPROVED" }), canUseCcr: () => true },
+  }, { performance });
+  const macroResponse = await macroRoute.GET({ nextUrl: new URL("https://app.test/api/v1/analytics/macro?start_period=2026-08&end_period=2026-10") });
+  assert.equal(macroRpcCalls, 1);
+  assert.equal(macroResponse.headers.get("cache-control"), "no-store, max-age=0");
+  assert.match(macroResponse.headers.get("server-timing"), /rpc/);
+
+  let customerRpcCalls = 0;
+  const customerRoute = load("app/api/v1/customers/analytics/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/supabaseApi": { fetchCustomerAnalyticsFromSupabase: async () => { customerRpcCalls += 1; return { customers: [], kpi: {}, totalItems: 0 }; } },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "APPROVED" }), canUseCcr: () => true },
+  }, { performance, URL });
+  const customerResponse = await customerRoute.GET({ url: "https://app.test/api/v1/customers/analytics?page=1&limit=5" });
+  assert.equal(customerRpcCalls, 1);
+  assert.equal(customerResponse.headers.get("cache-control"), "no-store, max-age=0");
+  assert.match(customerResponse.headers.get("server-timing"), /rpc/);
+
+  let forbiddenCalls = 0;
+  const forbiddenRoute = load("app/api/v1/customers/analytics/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/supabaseApi": { fetchCustomerAnalyticsFromSupabase: async () => { forbiddenCalls += 1; return { customers: [], kpi: {}, totalItems: 0 }; } },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: null, is_active: true, registration_status: "APPROVED" }), canUseCcr: () => false },
+  }, { performance, URL });
+  assert.equal((await forbiddenRoute.GET({ url: "https://app.test/api/v1/customers/analytics" })).status, 403);
+  assert.equal(forbiddenCalls, 0);
+});
+
 async function database() {
   const db = new PGlite();
   await db.exec(`create role anon; create role authenticated; create role service_role;
@@ -93,11 +223,18 @@ test("uploaded sales and outstanding aggregate by month; failed finalization lea
       insert into public.c1_document_uploads(id,file_name,document_type,storage_path,mime_type,file_size_bytes,uploader_user_id,validation_status)
       values ('${doc1}','sales.csv','COMPANY_SALES_REPORT','sales.csv','text/csv',100,'${user1}','processing'), ('${doc2}','outstanding.csv','OUTSTANDING_REPORT','outstanding.csv','text/csv',100,'${user1}','processing');
       insert into public.c1_company_sales_staging_rows(document_id,row_number,period_month,customer_name,revenue,trucking_cost,handling_cost,storage_cost,other_operational_cost)
-      values ('${doc1}',2,'2026-09-01','Test',1000,100,20,30,50), ('${doc1}',3,'2026-09-01','Test',500,50,10,20,20);
+      values ('${doc1}',2,'2026-09-01','File Sales Company',1000,100,20,30,50), ('${doc1}',3,'2026-09-01','File Sales Company',500,50,10,20,20);
       insert into public.c1_outstanding_staging_rows(document_id,row_number,invoice_number,customer_name,outstanding_amount,due_date)
-      values ('${doc2}',2,'INV-1','Test',700,'2026-10-15');`);
+      values ('${doc2}',2,'INV-1','File Outstanding Company',700,'2026-10-15');`);
     await db.query("select public.finalize_c1_document_upload($1,2)", [doc1]);
     await db.query("select public.finalize_c1_document_upload($1,1)", [doc2]);
+    assert.deepEqual((await db.query("select customer_name from c1_company_sales_staging_rows where document_id = $1 order by row_number", [doc1])).rows, [
+      { customer_name: "File Sales Company" },
+      { customer_name: "File Sales Company" },
+    ]);
+    assert.deepEqual((await db.query("select customer_name from c1_outstanding_staging_rows where document_id = $1", [doc2])).rows, [
+      { customer_name: "File Outstanding Company" },
+    ]);
     const macro = await db.query("select period_month::text, revenue::float, cost::float, total_outstanding::float from c1_macro_metric order by period_month");
     assert.deepEqual(macro.rows, [
       { period_month: "2026-09-01", revenue: 1500, cost: 300, total_outstanding: 0 },

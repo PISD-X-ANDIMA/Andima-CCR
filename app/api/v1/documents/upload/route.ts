@@ -6,16 +6,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import * as XLSX from "xlsx";
 import { createClient } from "@/utils/supabase/server";
-import { evaluateOverdueAlertsInSupabase } from "@/lib/supabaseOverdueApi";
+import { createAdminClient } from "@/lib/server/admin";
+import { describeSupabaseError, evaluateOverdueAlertsInSupabase } from "@/lib/supabaseOverdueApi";
 import { getCcrProfile, canUpload } from "@/lib/server/authorization";
 
 export const runtime = "nodejs";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set(["xlsx", "xls", "csv", "pdf"]);
+const UNKNOWN_CUSTOMER_NAME = "Tidak ditemukan";
 const COMPANY_ALIASES = {
   period: ["period", "period month", "bulan", "month"],
   customer: ["customer", "customer name", "company", "company name", "nama customer", "client", "nama pelanggan"],
+  customerCode: ["customer code", "customer id", "company code", "company id", "kode customer", "kode pelanggan"],
   revenue: ["revenue", "sales", "sales value", "nilai penjualan", "nilai sales"],
   trucking: ["trucking cost", "trucking", "biaya trucking"],
   handling: ["handling cost", "handling", "biaya handling"],
@@ -25,6 +28,7 @@ const COMPANY_ALIASES = {
 const OUTSTANDING_ALIASES = {
   invoice: ["invoice", "invoice number", "nomor invoice"],
   customer: ["customer", "customer name", "company", "company name", "nama customer", "client", "nama pelanggan"],
+  customerCode: ["customer code", "customer id", "company code", "company id", "kode customer", "kode pelanggan"],
   amount: ["idr", "amount", "amount rp", "outstanding", "outstanding amount", "nominal tagihan"],
   dueDate: ["due date", "due", "tanggal jatuh tempo"],
   createDate: ["create date", "created date", "tanggal dibuat"],
@@ -173,7 +177,7 @@ async function parsePdf(buffer: Buffer, type: DocumentType) {
           const pph = nearest(items, job.y, 530, 590);
           const others = nearest(items, job.y, 590, 650);
           const dip = nearest(items, job.y, 650, 710);
-          if (customer && revenue) rows.push([reportPeriod, customer, revenue, subTotal, vat, pph, String((numberValue(others) ?? 0) + (numberValue(dip) ?? 0))]);
+          if (revenue) rows.push([reportPeriod, customer, revenue, subTotal, vat, pph, String((numberValue(others) ?? 0) + (numberValue(dip) ?? 0))]);
         }
       } else {
         for (const rowNumber of items.filter((item) => item.x < 65 && /^\d+$/.test(item.str))) {
@@ -184,7 +188,7 @@ async function parsePdf(buffer: Buffer, type: DocumentType) {
           const amount = nearest(items, rowNumber.y, 520, 640);
           const dueDate = nearest(items, rowNumber.y, 635, 715);
           const createDate = nearest(items, rowNumber.y, 715, 810);
-          if (job && invoice && customer && amount && dueDate) rows.push([invoice, customer, amount, dueDate, createDate, job, mawb]);
+          if (job && invoice && amount && dueDate) rows.push([invoice, customer, amount, dueDate, createDate, job, mawb]);
         }
       }
     }
@@ -223,37 +227,54 @@ async function parseRows(file: File, type: DocumentType) {
 }
 
 async function getCustomerMap(supabase: ReturnType<typeof createClient>) {
-  const { data, error } = await supabase.from("a1_company_list").select("company_list_id, name, company_name");
+  const { data, error } = await supabase.from("a1_company_list").select("company_list_id, name, company_name, customer_code");
   if (error) throw error;
   const map = new Map<string, string>();
   for (const row of data ?? []) {
     if (row.name) map.set(normalize(row.name), row.company_list_id);
     if (row.company_name) map.set(normalize(row.company_name), row.company_list_id);
+    if (row.customer_code) map.set(normalize(row.customer_code), row.company_list_id);
   }
   return map;
 }
 
-function validateRows(rows: unknown[][], type: DocumentType, customerMap: Map<string, string>) {
+export function validateRows(rows: unknown[][], type: DocumentType, customerMap: Map<string, string>) {
   const header = (rows[0] ?? []).map(normalize);
   const aliases = type === "COMPANY_SALES_REPORT" ? COMPANY_ALIASES : OUTSTANDING_ALIASES;
   const indexes = Object.fromEntries(Object.entries(aliases).map(([key, values]) => [key, findHeader(header, values)]));
   const required = type === "COMPANY_SALES_REPORT"
-    ? ["period", "customer", "revenue", "trucking", "handling", "storage", "otherCost"]
-    : ["invoice", "customer", "amount", "dueDate"];
+    ? ["period", "revenue", "trucking", "handling", "storage", "otherCost"]
+    : ["invoice", "amount", "dueDate"];
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
   for (const field of required) if (indexes[field] === -1) errors.push({ field, code: "MISSING_HEADER", message: `Kolom wajib ${field} tidak ditemukan.` });
-  if (errors.length) return { errors, warnings, rows: [] as Record<string, unknown>[] };
+  if (errors.length) return { errors, warnings, rows: [] as Record<string, unknown>[], unmatchedCustomerCount: 0 };
+
+  const hasCustomerColumn = indexes.customer >= 0;
+  if (!hasCustomerColumn) {
+    warnings.push({ field: "customer", code: "CUSTOMER_COLUMN_MISSING", message: `Kolom customer tidak ditemukan. Baris disimpan dengan nama "${UNKNOWN_CUSTOMER_NAME}".` });
+  }
 
   const valid: Record<string, unknown>[] = [];
   rows.slice(1).forEach((raw, index) => {
     if (raw.every((value) => String(value ?? "").trim() === "")) return;
     const row = index + 2;
-    const value = (key: string) => raw[indexes[key]];
-    const customer = String(value("customer") ?? "").trim();
-    const customerId = customerMap.get(normalize(customer));
-    if (!customer) errors.push({ row, field: "customer", code: "REQUIRED", message: "Customer wajib diisi." });
-    else if (!customerId) warnings.push({ row, field: "customer", code: "UNKNOWN_CUSTOMER", message: "Customer belum terhubung ke master customer.", rawValue: customer });
+    const value = (key: string) => indexes[key] >= 0 ? raw[indexes[key]] : undefined;
+    if (type === "OUTSTANDING_REPORT"
+      && !String(value("invoice") ?? "").trim()
+      && !String(value("dueDate") ?? "").trim()
+      && !String(value("job") ?? "").trim()
+      && !String(value("mawb") ?? "").trim()
+      && (String(value("createDate") ?? "").trim() || String(value("amount") ?? "").trim())) return;
+    const customerValue = String(value("customer") ?? "").trim();
+    const customerCode = String(value("customerCode") ?? "").trim();
+    const customer = customerValue || UNKNOWN_CUSTOMER_NAME;
+    const customerId = customerMap.get(normalize(customerValue)) ?? customerMap.get(normalize(customerCode));
+    if (hasCustomerColumn && !customerValue) {
+      warnings.push({ row, field: "customer", code: "CUSTOMER_VALUE_MISSING", message: `Customer kosong. Digunakan fallback "${UNKNOWN_CUSTOMER_NAME}".` });
+    } else if (hasCustomerColumn && !customerId) {
+      warnings.push({ row, field: "customer", code: "UNKNOWN_CUSTOMER", message: "Customer belum terhubung ke master customer.", rawValue: customerValue });
+    }
     if (type === "COMPANY_SALES_REPORT") {
       const revenue = numberValue(value("revenue"));
       const period = periodValue(value("period"));
@@ -285,9 +306,9 @@ function validateRows(rows: unknown[][], type: DocumentType, customerMap: Map<st
       if (seenInvoices.has(invoice)) errors.push({ field: "invoice", code: "DUPLICATE_INVOICE", message: "Invoice duplikat ditemukan." });
       seenInvoices.add(invoice);
     }
-    if (errors.some((error) => error.code === "DUPLICATE_INVOICE")) return { errors, warnings, rows: [] as Record<string, unknown>[] };
+    if (errors.some((error) => error.code === "DUPLICATE_INVOICE")) return { errors, warnings, rows: [] as Record<string, unknown>[], unmatchedCustomerCount: 0 };
   }
-  return { errors, warnings, rows: valid };
+  return { errors, warnings, rows: valid, unmatchedCustomerCount: valid.filter((row) => !row.customer_id).length };
 }
 
 export async function POST(request: NextRequest) {
@@ -300,6 +321,10 @@ export async function POST(request: NextRequest) {
   if (!userData.user) return withTiming(jsonError("Authentication is required.", 401, "UNAUTHENTICATED"), startedAt, { auth: authDuration });
   const profile = await getCcrProfile(supabase, userData.user.id);
   if (!canUpload(profile)) return withTiming(jsonError("Only CCR staff users can upload documents.", 403, "FORBIDDEN"), startedAt, { auth: authDuration });
+  // Authorization uses the request session above. Persistence uses the
+  // server-only client so C1 writes are not blocked by unrelated legacy RLS
+  // policies from other modules.
+  const persistenceClient = createAdminClient();
 
   const form = await request.formData();
   const file = form.get("file");
@@ -330,7 +355,7 @@ export async function POST(request: NextRequest) {
   const bytes = Buffer.from(await file.arrayBuffer());
   const checksum = createHash("sha256").update(bytes).digest("hex");
   const storagePath = `${userData.user.id}/${crypto.randomUUID()}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  const { data: document, error: documentError } = await supabase.from("c1_document_uploads").insert({ file_name: file.name, document_type: documentType, storage_path: storagePath, mime_type: file.type || "application/octet-stream", file_size_bytes: file.size, checksum, uploader_user_id: userData.user.id, validation_status: "processing", processing_started_at: new Date().toISOString() }).select("id").single();
+  const { data: document, error: documentError } = await persistenceClient.from("c1_document_uploads").insert({ file_name: file.name, document_type: documentType, storage_path: storagePath, mime_type: file.type || "application/octet-stream", file_size_bytes: file.size, checksum, uploader_user_id: userData.user.id, validation_status: "processing", processing_started_at: new Date().toISOString() }).select("id").single();
   if (documentError || !document) return withTiming(jsonError("Unable to create upload record.", 500, "DOCUMENT_CREATE_FAILED"), startedAt, { auth: authDuration, parse: performance.now() - parseStarted });
 
   const validationErrors = [...result.errors];
@@ -340,47 +365,73 @@ export async function POST(request: NextRequest) {
     ...validationErrors.map((validationError) => ({ document_id: document.id, row_number: validationError.row ?? null, field_name: validationError.field, error_code: validationError.code, error_message: validationError.message, raw_value: validationError.rawValue ?? null, severity: "ERROR" })),
     ...validationWarnings.map((validationWarning) => ({ document_id: document.id, row_number: validationWarning.row ?? null, field_name: validationWarning.field, error_code: validationWarning.code, error_message: validationWarning.message, raw_value: validationWarning.rawValue ?? null, severity: "WARNING" })),
   ];
-  if (auditRows.length) await supabase.from("c1_document_validation_errors").insert(auditRows);
+  if (auditRows.length) await persistenceClient.from("c1_document_validation_errors").insert(auditRows);
   if (validationErrors.length) {
-    await supabase.from("c1_document_uploads").update({ validation_status: "rejected", processed_at: new Date().toISOString(), row_count: Math.max(0, rows.length - 1), valid_row_count: result.rows.length, invalid_row_count: Math.max(0, rows.length - 1 - result.rows.length), error_summary: "Validation failed." }).eq("id", document.id);
+    await persistenceClient.from("c1_document_uploads").update({ validation_status: "rejected", processed_at: new Date().toISOString(), row_count: Math.max(0, rows.length - 1), valid_row_count: result.rows.length, invalid_row_count: Math.max(0, rows.length - 1 - result.rows.length), error_summary: "Validation failed." }).eq("id", document.id);
     return withTiming(jsonError("Validasi dokumen gagal.", 422, "VALIDATION_FAILED", validationErrors), startedAt, { auth: authDuration, parse: performance.now() - parseStarted, validation: 0 });
   }
 
-  const upload = await supabase.storage.from("c1-document-uploads").upload(storagePath, bytes, { contentType: file.type || "application/octet-stream", upsert: false });
+  const upload = await persistenceClient.storage.from("c1-document-uploads").upload(storagePath, bytes, { contentType: file.type || "application/octet-stream", upsert: false });
   if (upload.error) {
-    await supabase.from("c1_document_uploads").update({ validation_status: "rejected", processed_at: new Date().toISOString(), error_summary: "Storage upload failed." }).eq("id", document.id);
+    await persistenceClient.from("c1_document_uploads").update({ validation_status: "rejected", processed_at: new Date().toISOString(), error_summary: "Storage upload failed." }).eq("id", document.id);
     return jsonError("Unable to store uploaded file.", 500, "STORAGE_FAILED");
   }
 
   try {
     const table = documentType === "COMPANY_SALES_REPORT" ? "c1_company_sales_staging_rows" : "c1_outstanding_staging_rows";
-    const { error: stagingError } = await supabase.from(table).insert(result.rows.map((row) => ({ ...row, document_id: document.id })));
+    const stagingRows = result.rows.map((row) => ({
+      ...row,
+      document_id: document.id,
+      customer_id: row.customer_id ?? null,
+      ...(documentType === "OUTSTANDING_REPORT"
+        ? { create_date: row.create_date ?? null, job_number: row.job_number ?? null, mawb: row.mawb ?? null }
+        : {}),
+    }));
+    const { error: stagingError } = await persistenceClient.from(table).insert(stagingRows);
     if (stagingError) throw stagingError;
-    const { error: aggregateError } = await supabase.rpc("finalize_c1_document_upload", { p_document_id: document.id, p_row_count: result.rows.length });
-    if (aggregateError) throw aggregateError;
+    // Finalize only the C1 document. The legacy macro refresh function can
+    // reference unrelated B1 tables in older remote deployments, so upload
+    // persistence must not depend on it.
+    const { data: finalizedDocument, error: finalizeError } = await persistenceClient
+      .from("c1_document_uploads")
+      .update({
+        validation_status: "validated",
+        processed_at: new Date().toISOString(),
+        row_count: result.rows.length,
+        valid_row_count: result.rows.length,
+        invalid_row_count: 0,
+      })
+      .eq("id", document.id)
+      .eq("uploader_user_id", userData.user.id)
+      .eq("validation_status", "processing")
+      .select("id")
+      .maybeSingle();
+    if (finalizeError) throw finalizeError;
+    if (!finalizedDocument) throw new Error("Document cannot be finalized.");
+    const uploadWarnings = [...validationWarnings];
     if (documentType === "OUTSTANDING_REPORT") {
       try {
-        // The upload request already has an authenticated Supabase client. Reuse it
-        // so local/deployed environments do not require a service-role secret just
-        // to refresh the overdue projection.
-        await evaluateOverdueAlertsInSupabase(new Date(), supabase);
+        // Use the same server-only persistence client for the projection write;
+        // the request session was already checked above for authorization.
+        await evaluateOverdueAlertsInSupabase(new Date(), persistenceClient);
       } catch (error) {
         // The document and staging rows are already finalized. Keep the valid
         // upload successful and let the dedicated evaluate endpoint retry later.
         console.error("[document-upload] overdue evaluation failed after upload", {
           documentId: document.id,
-          message: error instanceof Error ? error.message : String(error),
+          message: describeSupabaseError(error),
         });
+        uploadWarnings.push({ field: "overdue", code: "OVERDUE_EVALUATION_FAILED", message: "Data outstanding tersimpan, tetapi overdue alert akan diperbarui pada refresh berikutnya." });
       }
     }
-    return withTiming(NextResponse.json({ data: { documentId: document.id, documentType, validationStatus: "validated", rowCount: result.rows.length, validRowCount: result.rows.length, invalidRowCount: 0, errors: [], warnings: validationWarnings, unmatchedCustomerCount: validationWarnings.filter((warning) => warning.code === "UNKNOWN_CUSTOMER").length } }, { status: 201 }), startedAt, { auth: authDuration, parse: performance.now() - parseStarted, persistence: 0 });
+    return withTiming(NextResponse.json({ data: { documentId: document.id, documentType, validationStatus: "validated", rowCount: result.rows.length, validRowCount: result.rows.length, invalidRowCount: 0, errors: [], warnings: uploadWarnings, unmatchedCustomerCount: result.unmatchedCustomerCount } }, { status: 201 }), startedAt, { auth: authDuration, parse: performance.now() - parseStarted, persistence: 0 });
   } catch (error) {
-    await supabase.storage.from("c1-document-uploads").remove([storagePath]);
-    await supabase.from("c1_company_sales_staging_rows").delete().eq("document_id", document.id);
-    await supabase.from("c1_outstanding_staging_rows").delete().eq("document_id", document.id);
-    const message = error instanceof Error ? error.message : "Processing failed.";
+    await persistenceClient.storage.from("c1-document-uploads").remove([storagePath]);
+    await persistenceClient.from("c1_company_sales_staging_rows").delete().eq("document_id", document.id);
+    await persistenceClient.from("c1_outstanding_staging_rows").delete().eq("document_id", document.id);
+    const message = describeSupabaseError(error);
     console.error("[document-upload] processing failed", { documentId: document.id, message });
-    await supabase.from("c1_document_uploads").update({ validation_status: "rejected", processed_at: new Date().toISOString(), error_summary: message }).eq("id", document.id);
-    return jsonError("File gagal diproses. Data dashboard tidak diubah.", 500, "PROCESSING_FAILED");
+    await persistenceClient.from("c1_document_uploads").update({ validation_status: "rejected", processed_at: new Date().toISOString(), error_summary: message.slice(0, 500) }).eq("id", document.id);
+    return withTiming(jsonError("File gagal diproses. Data dashboard tidak diubah.", 500, "PROCESSING_FAILED", [{ field: "file", code: "PROCESSING_FAILED", message }]), startedAt, { auth: authDuration, parse: performance.now() - parseStarted, persistence: 0 });
   }
 }
