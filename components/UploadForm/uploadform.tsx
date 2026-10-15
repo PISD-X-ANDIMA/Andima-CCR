@@ -2,6 +2,7 @@
 
 import { DragEvent, useRef, useState } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle2, FileUp, UploadCloud, X } from "lucide-react";
+import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ACCEPT = ".xlsx,.xls,.csv,.pdf";
@@ -76,9 +77,9 @@ export default function UploadForm({ open, onClose, onCompleted }: Props) {
     formData.append("document_type", documentType);
     try {
       const response = await fetch("/api/v1/documents/upload", { method: "POST", body: formData });
-      const body = await response.json() as { data?: UploadResult; error?: { errors?: UploadResult["errors"]; message?: string } };
-      if (!response.ok || !body.data) {
-        setErrors(body.error?.errors?.length ? body.error.errors : [{ field: "file", code: "UPLOAD_FAILED", message: body.error?.message ?? "File gagal diproses." }]);
+      const body = await readJsonResponse<{ data?: UploadResult; error?: { errors?: UploadResult["errors"]; message?: string } }>(response);
+      if (!response.ok || !body?.data) {
+        setErrors(body?.error?.errors?.length ? body.error.errors : [{ field: "file", code: "UPLOAD_FAILED", message: responseMessage(body, "File gagal diproses.") }]);
         setStatus("rejected");
         return;
       }

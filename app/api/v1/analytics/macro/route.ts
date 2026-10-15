@@ -51,9 +51,17 @@ function withTiming(response: NextResponse, startedAt: number, phases: Record<st
 export async function GET(request: NextRequest) {
   const startedAt = performance.now();
   const authStarted = performance.now();
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const { data: userData, error: userError } = await supabase.auth.getUser();
+  let supabase: ReturnType<typeof createClient>;
+  let userData: Awaited<ReturnType<ReturnType<typeof createClient>["auth"]["getUser"]>>["data"];
+  let userError: Awaited<ReturnType<ReturnType<typeof createClient>["auth"]["getUser"]>>["error"];
+  try {
+    const cookieStore = await cookies();
+    supabase = createClient(cookieStore);
+    ({ data: userData, error: userError } = await supabase.auth.getUser());
+  } catch (error) {
+    console.error("Supabase analytics configuration is unavailable", error instanceof Error ? error.message : error);
+    return withTiming(jsonError("Analytics service is not configured.", 503, "ANALYTICS_CONFIGURATION_MISSING"), startedAt, { auth: performance.now() - authStarted });
+  }
   const authDuration = performance.now() - authStarted;
 
   if (userError || !userData.user) return withTiming(jsonError("Authentication is required.", 401, "UNAUTHENTICATED"), startedAt, { auth: authDuration });

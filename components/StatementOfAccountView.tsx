@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { StatementOfAccountData } from "@/types/customer";
 import { CalendarDays, CheckCircle2, Download, Eye, Printer } from "lucide-react";
+import { readJsonResponse } from "@/lib/clientHttp";
 
 interface StatementOfAccountViewProps {
   customerId: string;
@@ -28,8 +29,8 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
   useEffect(() => {
     setLoading(true);
     fetch(`/api/v1/customers/${customerId}/statement`)
-      .then((res) => res.json())
-      .then((data) => setStatementData(data))
+      .then((res) => readJsonResponse<StatementOfAccountData>(res))
+      .then((data) => { if (data) setStatementData(data); else console.error("Statement response is empty."); })
       .catch((err) => console.error("Failed to load statement:", err))
       .finally(() => setLoading(false));
   }, [customerId]);

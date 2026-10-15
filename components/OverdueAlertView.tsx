@@ -20,6 +20,7 @@ import Header from "@/components/Header";
 import CustomDropdown from "@/components/CustomDropdown";
 import Pagination from "@/components/Pagination";
 import type { AssignmentRecord, OverdueInvoiceItem, OverdueKpiSummary, StaffOption } from "@/types/overdue";
+import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 
 interface OverdueAlertViewProps {
   onOpenWarningLetter: (item: OverdueInvoiceItem) => void;
@@ -101,12 +102,12 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
     setErrorMessage(null);
     const params = new URLSearchParams({ branch: "Semua Cabang", search: searchQuery, status: selectedStatus, agingBucket, onlyOverdue30: onlyOverdue30 ? "true" : "false", refresh: Date.now().toString() });
     fetch(`/api/v1/overdue?${params.toString()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
-      .then(async (response) => ({ ok: response.ok, body: await response.json() }))
+      .then(async (response) => ({ ok: response.ok, body: await readJsonResponse<{ invoices?: OverdueInvoiceItem[]; kpiSummary?: OverdueKpiSummary; error?: { message?: string } }>(response) }))
       .then((result) => {
-        if (!result.ok) throw new Error(result.body?.error?.message || "Gagal memuat overdue alert.");
-        const nextInvoices = result.body.invoices ?? [];
+        if (!result.ok) throw new Error(responseMessage(result.body, "Gagal memuat overdue alert."));
+        const nextInvoices = result.body?.invoices ?? [];
         setInvoices(nextInvoices);
-        setKpiSummary(result.body.kpiSummary ?? null);
+        setKpiSummary(result.body?.kpiSummary ?? null);
         setSelectedInvoice((current) => nextInvoices.find((invoice: OverdueInvoiceItem) => invoice.id === current?.id) ?? nextInvoices[0] ?? null);
         setCheckedIds((current) => current.filter((id) => nextInvoices.some((invoice: OverdueInvoiceItem) => invoice.id === id)));
         setCurrentPage(1);
@@ -128,12 +129,12 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
     let active = true;
     setStaffLoading(true);
     fetch(`/api/v1/overdue/staff?refresh=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
-      .then(async (response) => ({ ok: response.ok, body: await response.json() }))
+      .then(async (response) => ({ ok: response.ok, body: await readJsonResponse<{ data?: StaffOption[]; canAssign?: boolean; error?: { message?: string } }>(response) }))
       .then((result) => {
         if (!active) return;
-        if (!result.ok) throw new Error("Gagal memuat staff aktif.");
-        setStaffOptions(result.body.data ?? []);
-        setCanAssign(Boolean(result.body.canAssign));
+        if (!result.ok) throw new Error(responseMessage(result.body, "Gagal memuat staff aktif."));
+        setStaffOptions(result.body?.data ?? []);
+        setCanAssign(Boolean(result.body?.canAssign));
       })
       .catch(() => { if (active) { setStaffOptions([]); setCanAssign(false); } })
       .finally(() => { if (active) setStaffLoading(false); });
@@ -144,8 +145,8 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
   useEffect(() => {
     if (!selectedInvoiceId) { setAssignmentHistory([]); return; }
     fetch(`/api/v1/overdue/${encodeURIComponent(selectedInvoiceId)}/assign?refresh=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
-      .then(async (response) => ({ ok: response.ok, body: await response.json() }))
-      .then((result) => { if (!result.ok) throw new Error("Gagal memuat riwayat assignment."); setAssignmentHistory(result.body.data ?? []); })
+      .then(async (response) => ({ ok: response.ok, body: await readJsonResponse<{ data?: AssignmentRecord[]; error?: { message?: string } }>(response) }))
+      .then((result) => { if (!result.ok) throw new Error(responseMessage(result.body, "Gagal memuat riwayat assignment.")); setAssignmentHistory(result.body?.data ?? []); })
       .catch(() => setAssignmentHistory([]));
   }, [selectedInvoiceId]);
 
@@ -153,9 +154,9 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
     setLoading(true);
     try {
       const response = await fetch(`/api/v1/overdue/evaluate?refresh=${Date.now()}`, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store" });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body?.error?.message || "Gagal mengevaluasi overdue.");
-      showToast(`${body.overdue ?? 0} invoice overdue terdeteksi.`);
+      const body = await readJsonResponse<{ overdue?: number; error?: { message?: string } }>(response);
+      if (!response.ok) throw new Error(responseMessage(body, "Gagal mengevaluasi overdue."));
+      showToast(`${body?.overdue ?? 0} invoice overdue terdeteksi.`);
       loadOverdueData();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Gagal mengevaluasi overdue.");
@@ -166,8 +167,8 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
   const handleExportReport = async () => {
     try {
       const response = await fetch("/api/v1/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ format: "XLSX", requestedBy: "CCR", periodFilter: { agingBucket } }) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body?.error?.message || "Export gagal.");
+      const body = await readJsonResponse<{ error?: { message?: string } }>(response);
+      if (!response.ok) throw new Error(responseMessage(body, "Export gagal."));
       showToast("Laporan ekspor berhasil dibuat.");
     } catch (error) { showToast(error instanceof Error ? error.message : "Export gagal."); }
   };
@@ -176,8 +177,8 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
     if (!assignModalInvoice || !assignTargetPic || !canAssign) { showToast("PIC wajib dipilih."); return; }
     try {
       const response = await fetch(`/api/v1/overdue/${encodeURIComponent(assignModalInvoice.id)}/assign`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assignedTo: assignTargetPic }) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body?.error?.message || body?.error || "Assignment gagal.");
+      const body = await readJsonResponse<{ error?: { message?: string } }>(response);
+      if (!response.ok) throw new Error(responseMessage(body, "Assignment gagal."));
       const staff = staffOptions.find((item) => item.employee_id === assignTargetPic);
       showToast(`PIC ${staff?.full_name ?? assignTargetPic} berhasil ditugaskan.`);
       setAssignModalInvoice(null);

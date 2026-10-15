@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { readJsonResponse } from "@/lib/clientHttp";
 export type Account = { full_name: string; app_role: string | null; initials: string };
 const Context = createContext<{ account: Account | null; clearAccount: () => void }>({ account: null, clearAccount: () => {} });
 export function AccountProvider({ children }: { children: ReactNode }) {
@@ -12,7 +13,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const controller = new AbortController();
     fetch("/api/v1/account/me", { cache: "no-store", signal: controller.signal }).then(async response => {
       if (!response.ok) { setAccount(null); return; }
-      const body = await response.json(); if (!controller.signal.aborted) setAccount(body.data);
+      const body = await readJsonResponse<{ data?: Account }>(response);
+      if (!controller.signal.aborted) setAccount(body?.data ?? null);
     }).catch(() => {});
     return () => controller.abort();
   }, [isPublic]);

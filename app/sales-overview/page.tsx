@@ -5,6 +5,7 @@ import SalesOverview, { AlertRow, MacroPoint, MacroSummary, RecentDocument } fro
 import Header from "@/components/Header";
 import { shiftPeriod } from "@/lib/salesOverviewPeriod";
 import type { StaffOption } from "@/types/overdue";
+import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 
 type ResponseBody = { data: { summary: MacroSummary; series: MacroPoint[]; alerts?: AlertRow[]; meta?: { can_upload?: boolean } } };
 type DocumentsBody = { data: RecentDocument[] };
@@ -43,19 +44,19 @@ export default function SalesOverviewPage() {
         fetch(`/api/v1/documents/recent?limit=10&refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
         fetch(`/api/v1/overdue/staff?refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
       ]);
-      const body = await response.json() as ResponseBody & { error?: { message?: string } };
-      const documentsBody = await documentsResponse.json() as DocumentsBody & { error?: { message?: string } };
-      const staffBody = await staffResponse.json() as StaffBody;
+      const body = await readJsonResponse<ResponseBody & { error?: { message?: string } }>(response);
+      const documentsBody = await readJsonResponse<DocumentsBody & { error?: { message?: string } }>(documentsResponse);
+      const staffBody = await readJsonResponse<StaffBody>(staffResponse);
       if (version !== requestVersion.current) return;
-      if (!response.ok) throw new Error(body.error?.message ?? "Data Sales Overview gagal dimuat.");
+      if (!response.ok || !body?.data) throw new Error(responseMessage(body, "Data Sales Overview gagal dimuat."));
       setSummary(body.data.summary);
       setSeries(body.data.series);
       setAlerts(body.data.alerts ?? []);
       setCanUpload(Boolean(body.data.meta?.can_upload));
-      setDocuments(documentsResponse.ok ? documentsBody.data ?? [] : []);
-      setDocumentsError(documentsResponse.ok ? null : documentsBody.error?.message ?? "Daftar dokumen gagal dimuat.");
-      setStaffOptions(staffResponse.ok ? staffBody.data ?? [] : []);
-      setCanAssign(staffResponse.ok && Boolean(staffBody.canAssign));
+      setDocuments(documentsResponse.ok ? documentsBody?.data ?? [] : []);
+      setDocumentsError(documentsResponse.ok ? null : responseMessage(documentsBody, "Daftar dokumen gagal dimuat."));
+      setStaffOptions(staffResponse.ok ? staffBody?.data ?? [] : []);
+      setCanAssign(staffResponse.ok && Boolean(staffBody?.canAssign));
     } catch (reason) {
       if (version !== requestVersion.current) return;
       setSummary(null);

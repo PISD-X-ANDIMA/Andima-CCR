@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, FormEvent, ChangeEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { readJsonResponse, responseMessage } from '@/lib/clientHttp';
 
 interface FieldErrors {
   fullName?: string;
@@ -41,8 +42,9 @@ export default function RegisterPage() {
   useEffect(() => {
     fetch('/api/auth/register', { cache: 'no-store' })
       .then(async (response) => {
-        const body = await response.json();
-        if (!response.ok) throw new Error(body?.error?.message || 'Referensi registrasi tidak tersedia.');
+        const body = await readJsonResponse<{ data?: { positions?: RegistrationPosition[]; departments?: RegistrationDepartment[] }; error?: { message?: string } }>(response);
+        if (!response.ok) throw new Error(responseMessage(body, 'Referensi registrasi tidak tersedia.'));
+        if (!body) throw new Error('Referensi registrasi tidak mengembalikan data.');
         setPositions(body.data?.positions ?? []);
         setDepartments(body.data?.departments ?? []);
       })

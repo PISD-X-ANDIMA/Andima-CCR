@@ -7,6 +7,7 @@ import InspectionDrawer from "@/components/InspectionDrawer";
 import Pagination from "@/components/Pagination";
 import { CustomerAnalyticsItem, KpiSummary } from "@/types/customer";
 import { RefreshCw, Search } from "lucide-react";
+import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 
 export default function CustomerAnalyticsPage() {
   // Filter & Search states
@@ -52,17 +53,22 @@ export default function CustomerAnalyticsPage() {
 
     fetch(`/api/v1/customers/analytics?${params.toString()}`)
       .then(async (res) => {
-        const resData = await res.json();
-        if (!res.ok) throw new Error(resData.message || resData.error?.message || "Gagal memuat data dari Supabase.");
+        const resData = await readJsonResponse<{
+          data?: CustomerAnalyticsItem[];
+          kpiSummary?: KpiSummary;
+          pagination?: { totalItems?: number; totalPages?: number };
+        } & { error?: { message?: string }; message?: string }>(res);
+        if (!res.ok) throw new Error(responseMessage(resData, "Gagal memuat data dari Supabase."));
+        if (!resData) throw new Error("Respons analytics kosong.");
         setLoadError(null);
         if (resData.data) {
           setCustomers(resData.data);
-          setKpiSummary(resData.kpiSummary);
-          setTotalItems(resData.pagination.totalItems);
-          setTotalPages(resData.pagination.totalPages);
+          setKpiSummary(resData.kpiSummary ?? null);
+          setTotalItems(resData.pagination?.totalItems ?? 0);
+          setTotalPages(resData.pagination?.totalPages ?? 1);
 
-          setSelectedCustomer((current) => current ? resData.data.find((item: CustomerAnalyticsItem) => item.id === current.id) ?? null : null);
-          setCheckedIds((current) => current.filter((id) => resData.data.some((item: CustomerAnalyticsItem) => item.id === id)));
+          setSelectedCustomer((current) => current ? resData.data!.find((item: CustomerAnalyticsItem) => item.id === current.id) ?? null : null);
+          setCheckedIds((current) => current.filter((id) => resData.data!.some((item: CustomerAnalyticsItem) => item.id === id)));
         }
       })
       .catch((err) => {

@@ -9,6 +9,7 @@ import { QUICK_PERIODS, matchingQuickPeriod, quickPeriodRange } from "@/lib/sale
 import { DocumentPreviewModal, RecentDocumentsPanel } from "./DocumentsPanel";
 import type { RecentDocument } from "@/lib/salesOverviewDocuments";
 import type { StaffOption } from "@/types/overdue";
+import { readJsonResponse } from "@/lib/clientHttp";
 
 export type { RecentDocument } from "@/lib/salesOverviewDocuments";
 
@@ -204,8 +205,8 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
   }
   async function openOriginal(documentId: string) {
     const response = await fetch(`/api/v1/documents/${documentId}/preview`, { cache: "no-store" });
-    const body = await response.json() as { data?: { signedUrl?: string | null } };
-    if (response.ok && body.data?.signedUrl) window.open(body.data.signedUrl, "_blank", "noopener,noreferrer");
+    const body = await readJsonResponse<{ data?: { signedUrl?: string | null } }>(response);
+    if (response.ok && body?.data?.signedUrl) window.open(body.data.signedUrl, "_blank", "noopener,noreferrer");
   }
   return (
     <main className="min-h-screen bg-slate-50 p-4 font-sans text-slate-800 md:p-8">
