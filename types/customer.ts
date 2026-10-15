@@ -1,4 +1,4 @@
-export type BranchLocation = 'Jakarta' | 'Semarang' | 'Surabaya' | 'Balikpapan' | 'Medan';
+export type BranchLocation = 'Jakarta' | 'Semarang' | 'Surabaya' | 'Balikpapan' | 'Medan' | 'Tidak ditentukan';
 
 export interface Customer {
   customer_id: string;
@@ -47,10 +47,11 @@ export interface CustomerAnalyticsItem {
   location_detail: string;
   branch: BranchLocation;
   branch_office_badge: string;
-  sales_profit: number;
+  sales_profit: number | null;
+  revenue?: number | null;
   sales_profit_trend: 'up' | 'down' | 'flat';
-  cost: number;
-  total_outstanding: number;
+  cost: number | null;
+  total_outstanding: number | null;
   credit_limit: number;
   payment_accuracy: number;
   active_invoices_count: number;
@@ -67,27 +68,29 @@ export interface CustomerAnalyticsItem {
     route: string;
     volume: string;
   }>;
+  job_count?: number;
+  issue_count?: number;
+  latest_job_number?: string | null;
+  latest_activity_date?: string | null;
+  latest_conversation?: string | null;
+  assistance_count?: number;
 }
 
 export interface KpiSummary {
-  totalActiveCustomers: number;
-  branchBreakdown: {
-    jkt: number;
-    sub: number;
-    smg: number;
-    bpn: number;
-    medan?: number;
-  };
-  averagePaymentCycle: number; // e.g. 24.5
-  paymentCycleDiffVsQ2: number; // e.g. -2.1
-  highRiskOutstanding: number; // e.g. 4850000
-  highRiskAccountCount: number; // e.g. 4
-  highRiskGrowthPercent: number; // e.g. 6.4
-  topContributingCustomer: {
-    name: string;
-    rank: number;
-    totalLogisticsVolume: number;
-  };
+  totalCustomers?: number;
+  period?: string | null;
+  totalRevenue?: number | null;
+  totalCost?: number | null;
+  totalOutstanding?: number | null;
+  overdueOutstanding?: number | null;
+  totalActiveCustomers?: number;
+  branchBreakdown?: { jkt: number; sub: number; smg: number; bpn: number; medan?: number };
+  averagePaymentCycle?: number;
+  paymentCycleDiffVsQ2?: number;
+  highRiskOutstanding?: number;
+  highRiskAccountCount?: number;
+  highRiskGrowthPercent?: number;
+  topContributingCustomer?: { name: string; rank: number; totalLogisticsVolume: number };
 }
 
 export interface AnalyticsResponse {

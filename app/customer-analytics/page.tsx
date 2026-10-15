@@ -4,20 +4,12 @@ import React, { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import KpiSummaryCards from "@/components/KpiSummaryCards";
 import InspectionDrawer from "@/components/InspectionDrawer";
-import StatementOfAccountView from "@/components/StatementOfAccountView";
-import CustomDropdown from "@/components/CustomDropdown";
 import Pagination from "@/components/Pagination";
-import { CustomerAnalyticsItem, KpiSummary, BranchLocation } from "@/types/customer";
+import { CustomerAnalyticsItem, KpiSummary } from "@/types/customer";
 
 export default function CustomerAnalyticsPage() {
-  const [activeMenu, setActiveMenu] = useState("customer-analytics");
-  const [activeView, setActiveView] = useState<"analytics" | "statement">("analytics");
-  const [statementCustomerId, setStatementCustomerId] = useState<string>("CUST-0192");
-
   // Filter & Search states
-  const [selectedBranch, setSelectedBranch] = useState<string>("Semua Cabang");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [paymentCycleFilter, setPaymentCycleFilter] = useState<string>("Semua Siklus Pembayaran");
   const [sortBy, setSortBy] = useState<string>("sales_profit");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -28,13 +20,14 @@ export default function CustomerAnalyticsPage() {
   // Data states
   const [customers, setCustomers] = useState<CustomerAnalyticsItem[]>([]);
   const [kpiSummary, setKpiSummary] = useState<KpiSummary | null>(null);
-  const [totalItems, setTotalItems] = useState<number>(148);
-  const [totalPages, setTotalPages] = useState<number>(30);
+  const [totalItems, setTotalItems] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Selected customer for Inspection Profile Drawer
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerAnalyticsItem | null>(null);
-  const [checkedIds, setCheckedIds] = useState<string[]>(["CUST-0192"]);
+  const [checkedIds, setCheckedIds] = useState<string[]>([]);
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -43,6 +36,7 @@ export default function CustomerAnalyticsPage() {
       maximumFractionDigits: 0,
     }).format(val);
   };
+  const displayRupiah = (val: number | null) => val == null ? "—" : formatRupiah(val);
 
   // Fetch data from REST API handler (/api/v1/customers/analytics)
   const loadAnalyticsData = () => {
@@ -50,16 +44,16 @@ export default function CustomerAnalyticsPage() {
     const params = new URLSearchParams({
       page: currentPage.toString(),
       limit: itemsPerPage.toString(),
-      branch: selectedBranch,
       search: searchQuery,
-      paymentCycle: paymentCycleFilter,
       sortBy: sortBy,
       sortOrder: sortOrder,
     });
 
     fetch(`/api/v1/customers/analytics?${params.toString()}`)
-      .then((res) => res.json())
-      .then((resData) => {
+      .then(async (res) => {
+        const resData = await res.json();
+        if (!res.ok) throw new Error(resData.message || resData.error?.message || "Gagal memuat data dari Supabase.");
+        setLoadError(null);
         if (resData.data) {
           setCustomers(resData.data);
           setKpiSummary(resData.kpiSummary);
@@ -69,24 +63,25 @@ export default function CustomerAnalyticsPage() {
           // Auto-select first item or current selected item
           if (resData.data.length > 0) {
             const exists = resData.data.find((item: CustomerAnalyticsItem) => item.id === selectedCustomer?.id);
-            if (!exists) {
-              setSelectedCustomer(resData.data[0]);
-            }
+            setSelectedCustomer(exists || resData.data[0]);
+          } else {
+            setSelectedCustomer(null);
           }
         }
       })
-      .catch((err) => console.error("Error fetching analytics data:", err))
+      .catch((err) => {
+        console.error("Error fetching analytics data:", err);
+        setLoadError(err.message || "Gagal memuat data dari Supabase.");
+        setCustomers([]);
+        setKpiSummary(null);
+        setSelectedCustomer(null);
+      })
       .finally(() => setIsLoading(false));
   };
 
   useEffect(() => {
     loadAnalyticsData();
-  }, [currentPage, selectedBranch, searchQuery, paymentCycleFilter, sortBy, sortOrder]);
-
-  const handleOpenStatement = (customerId: string) => {
-    setStatementCustomerId(customerId);
-    setActiveView("statement");
-  };
+  }, [currentPage, searchQuery, sortBy, sortOrder]);
 
   const handleToggleCheckRow = (id: string) => {
     if (checkedIds.includes(id)) {
@@ -109,15 +104,9 @@ export default function CustomerAnalyticsPage() {
     <div className="min-h-screen bg-[#F8FAFC] font-sans">
       <div className="flex min-h-screen flex-col">
         {/* Top Header */}
-        <Header pageName={activeView === "statement" ? "Statement of Account" : "Customer Analytics"} />
+        <Header pageName="Customer Analytics" />
 
         {/* View Switcher: Statement of Account OR Main Customer Analytics View */}
-        {activeView === "statement" ? (
-          <StatementOfAccountView
-            customerId={statementCustomerId}
-            onBack={() => setActiveView("analytics")}
-          />
-        ) : (
           <main className="flex-1 p-6 md:p-8 space-y-6 w-full">
             {/* Page Header Title & Subheader Actions */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -130,8 +119,8 @@ export default function CustomerAnalyticsPage() {
               {/* Sub-header Actions */}
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-xs">
-                  <span>📅 Kuartal Berjalan:</span>
-                  <span className="font-extrabold text-slate-900">Q3-2026 (Juli - Sep)</span>
+                  <span>Periode penjualan terbaru:</span>
+                  <span className="font-extrabold text-slate-900">{kpiSummary?.period?.slice(0, 7) ?? "Belum ada"}</span>
                 </div>
 
                 <button
@@ -144,17 +133,12 @@ export default function CustomerAnalyticsPage() {
                   <span>Sinkronisasi Data</span>
                 </button>
 
-                <button className="flex items-center gap-2 px-4 py-2 bg-[#3B6FF5] hover:bg-blue-600 text-white font-extrabold text-xs rounded-xl shadow-md transition">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  <span>Ekspor Portofolio (.xlsx)</span>
-                </button>
               </div>
             </div>
 
             {/* KPI Summary Cards */}
             {kpiSummary && <KpiSummaryCards kpi={kpiSummary} />}
+            {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{loadError}</div>}
 
             {/* Search & Filter Controls Bar */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-4">
@@ -171,73 +155,13 @@ export default function CustomerAnalyticsPage() {
                       setSearchQuery(e.target.value);
                       setCurrentPage(1);
                     }}
-                    placeholder="Search Customer name, NPWP..."
+                    placeholder="Cari nama, kode pelanggan, alamat..."
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
 
-                {/* Right Filter Dropdowns */}
-                <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
-                  <div className="w-56">
-                    <CustomDropdown
-                      placeholder={paymentCycleFilter}
-                      categoryTitle="SIKLUS PEMBAYARAN"
-                      categoryBadge="Filter"
-                      items={[
-                        { id: "all", label: "Semua Siklus Pembayaran" },
-                        { id: "safe", label: "Lancar (< 30 Hari)" },
-                        { id: "overdue", label: "Overdue (> 30 Hari)" },
-                      ]}
-                      value={paymentCycleFilter}
-                      onChange={(item) => {
-                        setPaymentCycleFilter(item.label);
-                        setCurrentPage(1);
-                      }}
-                    />
-                  </div>
-
-                  <button className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-2">
-                    <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    <span>Unduh CSV</span>
-                  </button>
-                </div>
               </div>
 
-              {/* Branch Filter Tabs (KANTOR CABANG:) */}
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap text-xs">
-                <span className="font-extrabold text-slate-400 uppercase tracking-wider mr-2 text-[10px]">
-                  KANTOR CABANG:
-                </span>
-
-                {[
-                  { label: "Semua Cabang", count: 148 },
-                  { label: "Jakarta", count: 62 },
-                  { label: "Semarang", count: 26 },
-                  { label: "Surabaya", count: 38 },
-                  { label: "Balikpapan", count: 22 },
-                  { label: "Medan", count: 14 },
-                ].map((b) => {
-                  const isSelected = selectedBranch === b.label;
-                  return (
-                    <button
-                      key={b.label}
-                      onClick={() => {
-                        setSelectedBranch(b.label);
-                        setCurrentPage(1);
-                      }}
-                      className={`px-3.5 py-1.5 rounded-full font-bold transition-all ${
-                        isSelected
-                          ? "bg-[#3B6FF5] text-white shadow-xs"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      {b.label} ({b.count})
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Split View: Left Table & Right Inspection Profile Panel */}
@@ -245,7 +169,7 @@ export default function CustomerAnalyticsPage() {
               {/* Left Customer Analytics Table */}
               <div className="xl:col-span-8 bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs min-w-[650px]">
+                  <table className="w-full text-left border-collapse text-xs min-w-162.5">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-extrabold text-[10px] tracking-wider uppercase">
                         <th className="w-10 px-4 py-3.5 text-center">
@@ -273,14 +197,14 @@ export default function CustomerAnalyticsPage() {
                           </div>
                         </th>
 
-                        <th className="px-4 py-3.5">BRANCH OFFICE</th>
+                        <th className="px-4 py-3.5">ALAMAT / JOB</th>
 
                         <th
                           onClick={() => handleSort("sales_profit")}
                           className="px-4 py-3.5 text-right cursor-pointer hover:text-slate-800 transition"
                         >
                           <div className="flex items-center justify-end gap-1">
-                            <span>SALES PROFIT (MO.)</span>
+                            <span>PROFIT PERIODE TERBARU</span>
                             {sortBy === "sales_profit" && (sortOrder === "asc" ? "▲" : "▼")}
                           </div>
                         </th>
@@ -290,7 +214,7 @@ export default function CustomerAnalyticsPage() {
                           className="px-4 py-3.5 text-right cursor-pointer hover:text-slate-800 transition"
                         >
                           <div className="flex items-center justify-end gap-1">
-                            <span>COST (MO.)</span>
+                            <span>BIAYA AKTUAL TERBARU</span>
                             {sortBy === "cost" && (sortOrder === "asc" ? "▲" : "▼")}
                           </div>
                         </th>
@@ -300,7 +224,7 @@ export default function CustomerAnalyticsPage() {
                           className="px-4 py-3.5 text-right cursor-pointer hover:text-slate-800 transition"
                         >
                           <div className="flex items-center justify-end gap-1">
-                            <span>TOTAL OUTSTANDING</span>
+                            <span>TOTAL PIUTANG</span>
                             {sortBy === "total_outstanding" && (sortOrder === "asc" ? "▲" : "▼")}
                           </div>
                         </th>
@@ -361,31 +285,31 @@ export default function CustomerAnalyticsPage() {
                                       {c.customer_name}
                                     </div>
                                     <div className="text-[11px] text-slate-500 font-medium mt-0.5">
-                                      {c.id} / NPWP: {c.npwp}
+                                      ID: {c.id} / Kode: {c.npwp}
                                     </div>
                                   </div>
                                 </div>
                               </td>
 
                               <td className="px-4 py-4">
-                                <span className="px-2.5 py-1 rounded bg-slate-100 text-slate-800 font-bold text-[11px]">
-                                  {c.branch_office_badge}
-                                </span>
+                                <div className="font-semibold text-slate-700">{c.branch_office_badge}</div>
+                                <div className="mt-1 text-[10px] text-slate-500">
+                                  {c.job_count ?? 0} job · {c.issue_count ?? 0} kendala
+                                </div>
                               </td>
 
                               <td className="px-4 py-4 text-right">
                                 <div className="font-extrabold text-emerald-600 flex items-center justify-end gap-1">
-                                  <span>{formatRupiah(c.sales_profit)}</span>
-                                  <span className="text-[10px]">▲</span>
+                                  <span>{displayRupiah(c.sales_profit)}</span>
                                 </div>
                               </td>
 
                               <td className="px-4 py-4 text-right font-extrabold text-slate-500">
-                                {formatRupiah(c.cost)}
+                                {displayRupiah(c.cost)}
                               </td>
 
                               <td className="px-4 py-4 text-right font-extrabold text-slate-900">
-                                {formatRupiah(c.total_outstanding)}
+                                {displayRupiah(c.total_outstanding)}
                               </td>
                             </tr>
                           );
@@ -398,7 +322,7 @@ export default function CustomerAnalyticsPage() {
                 {/* Table Footer with Pagination */}
                 <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="text-xs text-slate-500 font-medium">
-                    Menampilkan <span className="font-bold text-slate-800">1 - {customers.length}</span> dari{" "}
+                    Menampilkan <span className="font-bold text-slate-800">{customers.length ? (currentPage - 1) * itemsPerPage + 1 : 0} - {(currentPage - 1) * itemsPerPage + customers.length}</span> dari{" "}
                     <span className="font-bold text-slate-800">{totalItems}</span> pelanggan
                   </div>
 
@@ -412,15 +336,10 @@ export default function CustomerAnalyticsPage() {
 
               {/* Right Inspection Target Profile Drawer */}
               <div className="xl:col-span-4">
-                <InspectionDrawer
-                  customer={selectedCustomer}
-                  onOpenStatement={handleOpenStatement}
-                  onRefreshData={loadAnalyticsData}
-                />
+                <InspectionDrawer customer={selectedCustomer} />
               </div>
             </div>
           </main>
-        )}
       </div>
     </div>
   );
