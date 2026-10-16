@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+
+# Local credentials and generated state
+.vercel/
+.next/
+node_modules/
+*.log

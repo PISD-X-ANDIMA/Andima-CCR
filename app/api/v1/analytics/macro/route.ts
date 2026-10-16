@@ -90,12 +90,21 @@ export async function GET(request: NextRequest) {
 
   const endDateExclusive = nextMonthStart(endDate);
   const rpcStarted = performance.now();
-  const { data: rpcData, error: rpcError } = await createAdminClient().rpc("c1_get_sales_overview_analytics", {
-    p_start_period: startDate,
-    p_end_period_exclusive: endDateExclusive,
-  });
+  let rpcData: unknown;
+  let rpcError: { message?: string } | null = null;
+  try {
+    const result = await createAdminClient().rpc("c1_get_sales_overview_analytics", {
+      p_start_period: startDate,
+      p_end_period_exclusive: endDateExclusive,
+    });
+    rpcData = result.data;
+    rpcError = result.error;
+  } catch (error) {
+    console.error("Sales Overview analytics RPC failed", error instanceof Error ? error.message : error);
+    rpcError = { message: error instanceof Error ? error.message : "Analytics database unavailable" };
+  }
   const rpcDuration = performance.now() - rpcStarted;
-  if (rpcError || !rpcData) return withTiming(noStore(jsonError("Unable to load Sales Overview data.", 500, "DATABASE_ERROR")), startedAt, { auth: performance.now() - authStarted, rpc: rpcDuration });
+  if (rpcError || !rpcData) return withTiming(noStore(jsonError("Unable to load Sales Overview data.", 503, "DATABASE_ERROR")), startedAt, { auth: performance.now() - authStarted, rpc: rpcDuration });
 
   const mappingStarted = performance.now();
   const result = rpcData as MacroRpcResult;

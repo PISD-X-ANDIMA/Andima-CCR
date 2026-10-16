@@ -26,7 +26,28 @@ test("registration validates types, domain, password, and position/department on
   for (const bad of [null, {}, { ...registration, phone: 123 }, { ...registration, email: "test@gmail.com" }, { ...registration, password: "weak" }, { ...registration, department_id: user1 }]) assert.equal(validateRegistration(bad), null);
 });
 
-test("document uploads preserve source customer names when the master lookup misses", () => {
+test("CCR authorization matrix allows chart access for management and staff", () => {
+  const authorization = load("lib/server/authorization.ts", { "@/lib/server/admin": { createAdminClient: () => ({}) } });
+  const profiles = [
+    ...["CCR-003", "CCR-004", "CCR-005"].map(employee_id => ({ employee_id, resolved_role: "MANAGEMENT", registration_status: "PROVISIONED", is_active: true })),
+    ...["CCR-006", "CCR-007", "CCR-008", "CCR-009", "CCR-010", "CCR-011", "CCR-012"].map(employee_id => ({ employee_id, resolved_role: "STAFF", registration_status: "PROVISIONED", is_active: true })),
+  ];
+  for (const profile of profiles) {
+    assert.equal(authorization.canUseCcr(profile), true, profile.employee_id);
+    assert.equal(authorization.canManage(profile), profile.resolved_role === "MANAGEMENT", profile.employee_id);
+    assert.equal(authorization.canUpload(profile), profile.resolved_role === "STAFF", profile.employee_id);
+  }
+  for (const invalid of [
+    { resolved_role: "STAFF", registration_status: "PENDING", is_active: true },
+    { resolved_role: "MANAGEMENT", registration_status: "REJECTED", is_active: true },
+    { resolved_role: "STAFF", registration_status: "PROVISIONED", is_active: false },
+    { resolved_role: null, registration_status: "PROVISIONED", is_active: true },
+  ]) {
+    assert.equal(authorization.canUseCcr(invalid), false);
+  }
+});
+
+test("document uploads reject missing or unmatched customers before staging", () => {
   const uploadRoute = load("app/api/v1/documents/upload/route.ts", {
     "node:crypto": { createHash: () => ({ update() { return this; }, digest: () => "checksum" }) },
     "node:path": { join: (...parts) => parts.join("/") },
@@ -52,42 +73,118 @@ test("document uploads preserve source customer names when the master lookup mis
     ["2026-09", "Different Name", "CODE-42", "300", "30", "40", "50", "60"],
     ["2026-09", "", "", "400", "40", "50", "60", "70"],
   ], "COMPANY_SALES_REPORT", customerMap);
-  assert.equal(sales.errors.length, 0);
-  assert.equal(JSON.stringify(sales.rows.map(row => ({ name: row.customer_name, id: row.customer_id }))), JSON.stringify([
-    { name: "Known Co", id: "customer-known" },
-    { name: "File Only Co", id: null },
-    { name: "Different Name", id: "customer-by-code" },
-    { name: "Tidak ditemukan", id: null },
-  ]));
-  assert.equal(sales.unmatchedCustomerCount, 2);
-  assert.equal(sales.warnings.find(warning => warning.code === "UNKNOWN_CUSTOMER").rawValue, "File Only Co");
-  assert.equal(sales.warnings.some(warning => warning.code === "CUSTOMER_VALUE_MISSING"), true);
+  assert.equal(sales.errors.filter(error => error.field === "customer").length, 2);
+  assert.equal(sales.errors.some(error => error.code === "UNKNOWN_CUSTOMER" && error.rawValue === "File Only Co"), true);
+  assert.equal(sales.errors.some(error => error.code === "UNKNOWN_CUSTOMER" && error.rawValue === "Different Name"), false);
+  assert.equal(sales.errors.some(error => error.code === "REQUIRED" && error.row === 5), true);
+  assert.equal(sales.rows.length, 2);
+  assert.equal(JSON.stringify(sales.rows[0]), JSON.stringify({
+    row_number: 2,
+    period_month: "2026-09-01",
+    customer_name: "Known Co",
+    customer_id: "customer-known",
+    revenue: 100,
+    trucking_cost: 10,
+    handling_cost: 20,
+    storage_cost: 30,
+    other_operational_cost: 40,
+  }));
+  assert.equal(sales.unmatchedCustomerCount, 0);
 
   const outstanding = uploadRoute.validateRows([
     ["invoice", "customer", "amount", "due date"],
     ["INV-UNKNOWN", "File Outstanding Co", "500", "2026-10-15"],
   ], "OUTSTANDING_REPORT", customerMap);
-  assert.equal(outstanding.errors.length, 0);
-  assert.equal(JSON.stringify(outstanding.rows[0]), JSON.stringify({
-    row_number: 2,
-    invoice_number: "INV-UNKNOWN",
-    customer_name: "File Outstanding Co",
-    customer_id: null,
-    outstanding_amount: 500,
-    due_date: "2026-10-15",
-    create_date: null,
-    job_number: null,
-    mawb: null,
-  }));
-  assert.equal(outstanding.unmatchedCustomerCount, 1);
+  assert.equal(outstanding.errors.length, 1);
+  assert.equal(outstanding.errors[0].code, "UNKNOWN_CUSTOMER");
+  assert.equal(outstanding.rows.length, 0);
+  assert.equal(outstanding.unmatchedCustomerCount, 0);
 
   const missingCustomerColumn = uploadRoute.validateRows([
     ["period", "revenue", "trucking cost", "handling cost", "storage cost", "other operational cost"],
     ["2026-09", "100", "10", "20", "30", "40"],
   ], "COMPANY_SALES_REPORT", customerMap);
-  assert.equal(missingCustomerColumn.errors.length, 0);
-  assert.equal(missingCustomerColumn.rows[0].customer_name, "Tidak ditemukan");
-  assert.equal(missingCustomerColumn.warnings[0].code, "CUSTOMER_COLUMN_MISSING");
+  assert.equal(missingCustomerColumn.errors.length, 1);
+  assert.equal(missingCustomerColumn.errors[0].code, "MISSING_HEADER");
+  assert.equal(missingCustomerColumn.rows.length, 0);
+});
+
+test("C1 upload exposes only spreadsheet and PDF formats", () => {
+  const uploadSource = read("app/api/v1/documents/upload/route.ts");
+  const formSource = read("components/UploadForm/uploadform.tsx");
+  assert.match(uploadSource, /new Set\(\[\"xlsx\", \"xls\", \"pdf\"\]\)/);
+  assert.doesNotMatch(uploadSource, /\"csv\"/);
+  assert.match(formSource, /const ACCEPT = \"\.xlsx,\.xls,\.pdf\"/);
+  assert.doesNotMatch(formSource, /\.csv/);
+});
+
+test("C1 upload rejects CSV before persistence", async () => {
+  class MockFile {
+    constructor(name, type) {
+      this.name = name;
+      this.type = type;
+      this.size = 32;
+    }
+  }
+  const uploadRoute = load("app/api/v1/documents/upload/route.ts", {
+    "node:crypto": { createHash: () => ({ update() { return this; }, digest: () => "checksum" }) },
+    "node:path": { join: (...parts) => parts.join("/") },
+    "node:url": { pathToFileURL: value => ({ toString: () => String(value) }) },
+    "next/server": responseMock,
+    "next/headers": { cookies: async () => ({}) },
+    xlsx: { read: () => ({ Sheets: {}, SheetNames: [] }), utils: {} },
+    "@/utils/supabase/server": { createClient: () => ({ auth: { getUser: async () => ({ data: { user: { id: user1 } } }) } }) },
+    "@/lib/server/admin": { createAdminClient: () => ({}) },
+    "@/lib/server/http": { checkOrigin: () => null },
+    "@/lib/supabaseOverdueApi": { describeSupabaseError: String, evaluateOverdueAlertsInSupabase: async () => ({}) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "STAFF", is_active: true, registration_status: "APPROVED" }), canUpload: () => true },
+  }, { performance, File: MockFile });
+  const file = new MockFile("sales.csv", "text/csv");
+  const response = await uploadRoute.POST({ formData: async () => ({ get: key => key === "file" ? file : "COMPANY_SALES_REPORT" }) });
+  assert.equal(response.status, 422);
+  assert.equal((await response.json()).error.code, "UNSUPPORTED_FORMAT");
+});
+
+test("validation detail endpoint enforces CCR access and no-store responses", async () => {
+  const unauthorized = load("app/api/v1/documents/[id]/validation/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ error: responseMock.NextResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 }) }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => null, canUseCcr: () => false },
+    "@/lib/server/admin": { createAdminClient: () => { throw new Error("database must not be queried"); } },
+  }, { performance });
+  const unauthorizedResponse = await unauthorized.GET({}, { params: Promise.resolve({ id: doc1 }) });
+  assert.equal(unauthorizedResponse.status, 401);
+  assert.equal(unauthorizedResponse.headers.get("cache-control"), "no-store, max-age=0");
+
+  let databaseCalls = 0;
+  const admin = {
+    from(table) {
+      databaseCalls += 1;
+      if (table === "c1_document_uploads") {
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: doc1, validation_status: "rejected" }, error: null }) }) }) };
+      }
+      return { select: () => ({ eq: () => ({ order: async () => ({ data: [{ row_number: 2, field_name: "customer", error_code: "REQUIRED", error_message: "Customer wajib diisi." }], error: null }) }) }) };
+    },
+  };
+  const authorized = load("app/api/v1/documents/[id]/validation/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "APPROVED" }), canUseCcr: () => true },
+    "@/lib/server/admin": { createAdminClient: () => admin },
+  }, { performance });
+  const authorizedResponse = await authorized.GET({}, { params: Promise.resolve({ id: doc1 }) });
+  assert.equal(authorizedResponse.status, 200);
+  assert.equal(databaseCalls, 2);
+  assert.equal(authorizedResponse.headers.get("cache-control"), "no-store, max-age=0");
+  assert.match(authorizedResponse.headers.get("server-timing"), /auth/);
+  assert.deepEqual((await authorizedResponse.json()).data.errors[0], { row_number: 2, field_name: "customer", error_code: "REQUIRED", error_message: "Customer wajib diisi." });
+});
+
+test("legacy data upload route redirects to Sales Overview", () => {
+  const redirects = [];
+  const route = load("app/data-upload/page.tsx", { "next/navigation": { redirect: path => redirects.push(path) } });
+  route.default();
+  assert.deepEqual(redirects, ["/sales-overview"]);
 });
 
 test("Sales Overview quick periods preserve the selected end month", () => {
@@ -132,6 +229,17 @@ test("analytics routes authorize before one RPC and keep no-store responses", as
   assert.equal(macroRpcCalls, 1);
   assert.equal(macroResponse.headers.get("cache-control"), "no-store, max-age=0");
   assert.match(macroResponse.headers.get("server-timing"), /rpc/);
+
+  const staffMacroRoute = load("app/api/v1/analytics/macro/route.ts", {
+    "next/server": responseMock,
+    "next/headers": { cookies: async () => ({}) },
+    "@/utils/supabase/server": { createClient: () => ({ auth: { getUser: async () => ({ data: { user: { id: user2 } } }) } }) },
+    "@/lib/server/admin": { createAdminClient: () => ({ rpc: async () => ({ data: { summary: null, series: [], alerts: [] }, error: null }) }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "STAFF", is_active: true, registration_status: "PROVISIONED" }), canUseCcr: () => true },
+  }, { performance });
+  const staffMacroResponse = await staffMacroRoute.GET({ nextUrl: new URL("https://app.test/api/v1/analytics/macro?start_period=2026-08&end_period=2026-10") });
+  assert.equal(staffMacroResponse.status, 200);
+  assert.equal((await staffMacroResponse.json()).data.meta.can_upload, true);
 
   let customerRpcCalls = 0;
   let customerOptions;

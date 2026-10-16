@@ -42,7 +42,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   const isPublicRoute = pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isC1Route = ["/sales-overview", "/customer-analytics", "/overdue-alert"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
-  const isC2Route = ["/dashboard", "/data-upload", "/cost-exception", "/priority-exception", "/customer-cost", "/evidence", "/monthly-closing", "/export-report"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  const isC2Route = ["/dashboard", "/cost-exception", "/priority-exception", "/customer-cost", "/evidence", "/monthly-closing", "/export-report"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const [isCcrOpen, setIsCcrOpen] = useState(true);
   const [isC1Open, setIsC1Open] = useState(isC1Route);
   const [isC2Open, setIsC2Open] = useState(isC2Route);
@@ -105,7 +105,6 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
                 </SidebarGroup>
                 <SidebarGroup label="C2" open={isC2Open} active={isC2Route} onToggle={() => setIsC2Open((value) => !value)}>
                   <HrmsLink label="Dashboard" href="/dashboard" />
-                  <HrmsLink label="Data Upload" href="/data-upload" />
                   <HrmsLink label="Cost Exception" href="/cost-exception" />
                   <HrmsLink label="Priority Exception" href="/priority-exception" />
                   <HrmsLink label="Customer Cost" href="/customer-cost" />

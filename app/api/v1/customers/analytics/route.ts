@@ -16,7 +16,13 @@ export async function GET(req: NextRequest) {
   const authStarted = performance.now();
   const session = await requireSession();
   if (session.error) return timing(session.error, { auth: performance.now() - authStarted });
-  const profile = await getCcrProfile(session.client, session.user!.id, { includeOrgDetails: false });
+  let profile;
+  try {
+    profile = await getCcrProfile(session.client, session.user!.id, { includeOrgDetails: false });
+  } catch (error) {
+    console.error('Customer analytics authorization failed:', error);
+    return timing(NextResponse.json({ error: { code: 'AUTHORIZATION_UNAVAILABLE', message: 'Customer analytics authorization is unavailable.' } }, { status: 503 }), { auth: performance.now() - authStarted });
+  }
   const authDuration = performance.now() - authStarted;
   if (!canUseCcr(profile)) {
     return timing(NextResponse.json({ error: { code: 'FORBIDDEN', message: 'CCR access is required.' } }, { status: 403 }), { auth: authDuration });

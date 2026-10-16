@@ -13,8 +13,7 @@ import { getCcrProfile, canUpload } from "@/lib/server/authorization";
 export const runtime = "nodejs";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const ALLOWED_EXTENSIONS = new Set(["xlsx", "xls", "csv", "pdf"]);
-const UNKNOWN_CUSTOMER_NAME = "Tidak ditemukan";
+const ALLOWED_EXTENSIONS = new Set(["xlsx", "xls", "pdf"]);
 const COMPANY_ALIASES = {
   period: ["period", "period month", "bulan", "month"],
   customer: ["customer", "customer name", "company", "company name", "nama customer", "client", "nama pelanggan"],
@@ -252,17 +251,12 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
   const aliases = type === "COMPANY_SALES_REPORT" ? COMPANY_ALIASES : OUTSTANDING_ALIASES;
   const indexes = Object.fromEntries(Object.entries(aliases).map(([key, values]) => [key, findHeader(header, values)]));
   const required = type === "COMPANY_SALES_REPORT"
-    ? ["period", "revenue", "trucking", "handling", "storage", "otherCost"]
-    : ["invoice", "amount", "dueDate"];
+    ? ["period", "customer", "revenue", "trucking", "handling", "storage", "otherCost"]
+    : ["invoice", "customer", "amount", "dueDate"];
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
   for (const field of required) if (indexes[field] === -1) errors.push({ field, code: "MISSING_HEADER", message: `Kolom wajib ${field} tidak ditemukan.` });
   if (errors.length) return { errors, warnings, rows: [] as Record<string, unknown>[], unmatchedCustomerCount: 0 };
-
-  const hasCustomerColumn = indexes.customer >= 0;
-  if (!hasCustomerColumn) {
-    warnings.push({ field: "customer", code: "CUSTOMER_COLUMN_MISSING", message: `Kolom customer tidak ditemukan. Baris disimpan dengan nama "${UNKNOWN_CUSTOMER_NAME}".` });
-  }
 
   const valid: Record<string, unknown>[] = [];
   rows.slice(1).forEach((raw, index) => {
@@ -277,13 +271,10 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
       && (String(value("createDate") ?? "").trim() || String(value("amount") ?? "").trim())) return;
     const customerValue = String(value("customer") ?? "").trim();
     const customerCode = String(value("customerCode") ?? "").trim();
-    const customer = customerValue || UNKNOWN_CUSTOMER_NAME;
+    const customer = customerValue;
     const customerId = customerMap.get(normalize(customerValue)) ?? customerMap.get(normalize(customerCode));
-    if (hasCustomerColumn && !customerValue) {
-      warnings.push({ row, field: "customer", code: "CUSTOMER_VALUE_MISSING", message: `Customer kosong. Digunakan fallback "${UNKNOWN_CUSTOMER_NAME}".` });
-    } else if (hasCustomerColumn && !customerId) {
-      warnings.push({ row, field: "customer", code: "UNKNOWN_CUSTOMER", message: "Customer belum terhubung ke master customer.", rawValue: customerValue });
-    }
+    if (!customerValue) errors.push({ row, field: "customer", code: "REQUIRED", message: "Customer wajib diisi." });
+    else if (!customerId) errors.push({ row, field: "customer", code: "UNKNOWN_CUSTOMER", message: "Customer belum terhubung ke master customer.", rawValue: customerValue });
     if (type === "COMPANY_SALES_REPORT") {
       const revenue = numberValue(value("revenue"));
       const period = periodValue(value("period"));
@@ -294,7 +285,7 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
       parsedCosts.forEach((cost, index) => {
         if (cost === null || cost < 0) errors.push({ row, field: costs[index], code: "INVALID_NUMBER", message: "Komponen biaya harus berupa angka tidak negatif." });
       });
-      if (period && revenue !== null && revenue >= 0 && parsedCosts.every((cost) => cost !== null && cost >= 0)) valid.push({ row_number: row, period_month: period, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId ?? null, revenue, trucking_cost: parsedCosts[0], handling_cost: parsedCosts[1], storage_cost: parsedCosts[2], other_operational_cost: parsedCosts[3] });
+      if (period && customerId && revenue !== null && revenue >= 0 && parsedCosts.every((cost) => cost !== null && cost >= 0)) valid.push({ row_number: row, period_month: period, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId, revenue, trucking_cost: parsedCosts[0], handling_cost: parsedCosts[1], storage_cost: parsedCosts[2], other_operational_cost: parsedCosts[3] });
     } else {
       const amount = numberValue(value("amount"));
       const dueDate = dateValue(value("dueDate"));
@@ -302,7 +293,7 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
       if (!invoice) errors.push({ row, field: "invoice", code: "REQUIRED", message: "Invoice wajib diisi." });
       if (amount === null || amount < 0) errors.push({ row, field: "amount", code: "INVALID_NUMBER", message: "Nominal harus berupa angka tidak negatif." });
       if (!dueDate) errors.push({ row, field: "dueDate", code: "INVALID_DATE", message: "Due date tidak valid." });
-      if (invoice && amount !== null && amount >= 0 && dueDate) valid.push({ row_number: row, invoice_number: invoice, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId ?? null, outstanding_amount: amount, due_date: dueDate, create_date: dateValue(value("createDate")), job_number: String(value("job") ?? "").trim() || null, mawb: String(value("mawb") ?? "").trim() || null });
+      if (invoice && customerId && amount !== null && amount >= 0 && dueDate) valid.push({ row_number: row, invoice_number: invoice, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId, outstanding_amount: amount, due_date: dueDate, create_date: dateValue(value("createDate")), job_number: String(value("job") ?? "").trim() || null, mawb: String(value("mawb") ?? "").trim() || null });
     }
   });
   if (type === "OUTSTANDING_REPORT") {
@@ -317,7 +308,7 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
     }
     if (errors.some((error) => error.code === "DUPLICATE_INVOICE")) return { errors, warnings, rows: [] as Record<string, unknown>[], unmatchedCustomerCount: 0 };
   }
-  return { errors, warnings, rows: valid, unmatchedCustomerCount: valid.filter((row) => !row.customer_id).length };
+  return { errors, warnings, rows: valid, unmatchedCustomerCount: 0 };
 }
 
 export async function POST(request: NextRequest) {
@@ -352,8 +343,8 @@ export async function POST(request: NextRequest) {
     try {
       customerMap = await getCustomerMap(supabase);
     } catch (error) {
-      console.warn("[document-upload] customer master lookup unavailable; continuing with unmatched customers", error);
-      customerMap = new Map();
+      console.error("[document-upload] customer master lookup unavailable", error);
+      throw new Error("CUSTOMER_MASTER_UNAVAILABLE");
     }
     result = validateRows(rows, documentType, customerMap);
   } catch (error) {
@@ -388,25 +379,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const table = documentType === "COMPANY_SALES_REPORT" ? "c1_company_sales_staging_rows" : "c1_outstanding_staging_rows";
-    const unmatchedCustomers = result.rows
-      .filter((row) => !row.customer_id && row.customer_name !== UNKNOWN_CUSTOMER_NAME)
-      .map((row) => ({ customer_name: String(row.customer_name), customer_code: row.customer_code ? String(row.customer_code) : null }));
-    let customerResolution = new Map<string, string>();
-    if (unmatchedCustomers.length) {
-      const { data: resolved, error: customerError } = await persistenceClient.rpc("c1_resolve_uploaded_customers", {
-        p_document_id: document.id,
-        p_customers: unmatchedCustomers,
-      });
-      if (customerError) throw customerError;
-      const items = Array.isArray((resolved as { items?: unknown[] } | null)?.items) ? (resolved as { items: Array<{ customer_name?: string; customer_code?: string | null; c1_customer_id?: string }> }).items : [];
-      customerResolution = new Map(items.filter((item) => item.customer_name && item.c1_customer_id).map((item) => [item.customer_name!.trim().toLowerCase(), item.c1_customer_id!]));
-      for (const item of items) if (item.customer_code && item.c1_customer_id) customerResolution.set(item.customer_code.trim().toLowerCase(), item.c1_customer_id);
-    }
     const sourceRows = result.rows as PersistedUploadRow[];
-    const resolvedRows: PersistedUploadRow[] = sourceRows.map((row) => ({
-      ...row,
-      c1_customer_id: !row.customer_id && row.customer_name !== UNKNOWN_CUSTOMER_NAME ? customerResolution.get(String(row.customer_name).trim().toLowerCase()) ?? null : null,
-    }));
+    const resolvedRows = sourceRows;
     const stagingRows = resolvedRows.map((row) => {
       const { customer_code: sourceCustomerCode, ...persistedRow } = row;
       void sourceCustomerCode;
@@ -456,13 +430,11 @@ export async function POST(request: NextRequest) {
         uploadWarnings.push({ field: "overdue", code: "OVERDUE_EVALUATION_FAILED", message: "Data outstanding tersimpan, tetapi overdue alert akan diperbarui pada refresh berikutnya." });
       }
     }
-    const unresolvedCustomerCount = resolvedRows.filter((row) => !row.customer_id && !row.c1_customer_id).length;
-    return withTiming(NextResponse.json({ data: { documentId: document.id, documentType, validationStatus: "validated", rowCount: result.rows.length, validRowCount: result.rows.length, invalidRowCount: 0, errors: [], warnings: uploadWarnings, unmatchedCustomerCount: unresolvedCustomerCount } }, { status: 201 }), startedAt, { auth: authDuration, parse: performance.now() - parseStarted, persistence: 0 });
+    return withTiming(NextResponse.json({ data: { documentId: document.id, documentType, validationStatus: "validated", rowCount: result.rows.length, validRowCount: result.rows.length, invalidRowCount: 0, errors: [], warnings: uploadWarnings, unmatchedCustomerCount: 0 } }, { status: 201 }), startedAt, { auth: authDuration, parse: performance.now() - parseStarted, persistence: 0 });
   } catch (error) {
     await persistenceClient.storage.from("c1-document-uploads").remove([storagePath]);
     await persistenceClient.from("c1_company_sales_staging_rows").delete().eq("document_id", document.id);
     await persistenceClient.from("c1_outstanding_staging_rows").delete().eq("document_id", document.id);
-    await persistenceClient.from("c1_customer").delete().eq("source_document_id", document.id).eq("source_type", "UPLOAD");
     const message = describeSupabaseError(error);
     console.error("[document-upload] processing failed", { documentId: document.id, message });
     await persistenceClient.from("c1_document_uploads").update({ validation_status: "rejected", processed_at: new Date().toISOString(), error_summary: message.slice(0, 500) }).eq("id", document.id);

@@ -5,7 +5,7 @@ import { AlertCircle, AlertTriangle, CheckCircle2, FileUp, UploadCloud, X } from
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const ACCEPT = ".xlsx,.xls,.csv,.pdf";
+const ACCEPT = ".xlsx,.xls,.pdf";
 
 export type UploadIssue = { field: string; row?: number; code: string; message: string; rawValue?: string };
 
@@ -46,8 +46,8 @@ export default function UploadForm({ open, onClose, onCompleted }: Props) {
     setWarnings([]);
     setStatus("ready");
     const extension = nextFile.name.split(".").pop()?.toLowerCase();
-    if (!extension || !["xlsx", "xls", "csv", "pdf"].includes(extension)) {
-      setErrors([{ field: "file", code: "UNSUPPORTED_FORMAT", message: "Format file harus .xlsx, .xls, .csv, atau .pdf." }]);
+    if (!extension || !["xlsx", "xls", "pdf"].includes(extension)) {
+      setErrors([{ field: "file", code: "UNSUPPORTED_FORMAT", message: "Format file harus .xlsx, .xls, atau .pdf." }]);
       setFile(null);
       setStatus("rejected");
       return;
@@ -105,7 +105,7 @@ export default function UploadForm({ open, onClose, onCompleted }: Props) {
           <div><label htmlFor="document-type" className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">Jenis Dokumen</label><select id="document-type" value={documentType} onChange={(event) => setDocumentType(event.target.value as DocumentType)} disabled={status === "processing"} className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"><option value="COMPANY_SALES_REPORT">Company Sales Report</option><option value="OUTSTANDING_REPORT">Data Outstanding</option></select></div>
           <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(event) => chooseFile(event.target.files?.[0])} />
           <div onDragEnter={(event) => { event.preventDefault(); setIsDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setIsDragging(false)} onDrop={handleDrop} onClick={() => inputRef.current?.click()} className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${isDragging ? "border-[#3B6FF5] bg-blue-100" : "border-[#a5b4fc] bg-[#eff6ff]"}`}>
-            <FileUp className="mx-auto mb-3 size-7 text-[#3B6FF5]" /><p className="font-semibold text-slate-800">Tarik & lepas file atau <span className="text-[#3B6FF5] underline">Jelajahi file</span></p><p className="mt-2 text-xs text-slate-500">.xlsx, .xls, .csv, .pdf - maksimum 5 MB</p>
+            <FileUp className="mx-auto mb-3 size-7 text-[#3B6FF5]" /><p className="font-semibold text-slate-800">Tarik & lepas file atau <span className="text-[#3B6FF5] underline">Jelajahi file</span></p><p className="mt-2 text-xs text-slate-500">.xlsx, .xls, .pdf - maksimum 5 MB</p>
           </div>
           {file && <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="flex min-w-0 items-center gap-3"><FileUp className="size-5 shrink-0 text-[#3B6FF5]" /><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{file.name}</p><p className="text-xs text-slate-500">{formatSize(file.size)} - {status === "processing" ? "Processing" : status === "validated" ? "Validated" : "Ready"}</p></div></div><button type="button" onClick={(event) => { event.stopPropagation(); setFile(null); setStatus("ready"); setErrors([]); setWarnings([]); }} className="rounded p-1 text-slate-400 hover:text-red-600" aria-label="Hapus file"><X className="size-4" /></button></div>}
           {status === "validated" && <div className="flex items-center gap-2 rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm text-teal-700"><CheckCircle2 className="size-4" />Dokumen berhasil divalidasi dan disimpan.</div>}
