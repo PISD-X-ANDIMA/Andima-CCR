@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Pagination from "@/components/Pagination";
 import { AlertCircle, ArrowLeft, ArrowRight, Calendar, Download, FileUp, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle } from "lucide-react";
 import { ChartAreaStacked } from "./chart";
 import UploadForm, { UploadResult } from "@/components/UploadForm/uploadform";
@@ -10,6 +9,7 @@ import { DocumentPreviewModal, RecentDocumentsPanel } from "./DocumentsPanel";
 import type { RecentDocument } from "@/lib/salesOverviewDocuments";
 import type { StaffOption } from "@/types/overdue";
 import { readJsonResponse } from "@/lib/clientHttp";
+import { useAccount } from "@/components/account-provider";
 
 export type { RecentDocument } from "@/lib/salesOverviewDocuments";
 
@@ -174,6 +174,9 @@ function QuickPeriodFilters({ startPeriod, endPeriod, onStartPeriodChange, onEnd
 }
 
 export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], canUpload = false, documents, documentsLoading, documentsError, staffOptions = [], staffLoading = false, canAssign = false }: Props) {
+  const { account } = useAccount();
+  const isStaff = account?.app_role === "STAFF" || canUpload;
+  const effectiveCanAssign = !isStaff && canAssign;
   const hasMacro = Boolean(summary);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
@@ -230,7 +233,7 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
           <ChartAreaStacked title="Cost" series={series} metrics={["cost"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
           <ChartAreaStacked title="Total Outstanding" series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
         </section>
-        <AlertPanel alerts={alerts} loading={isLoading} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />
+        <AlertPanel alerts={alerts} loading={isLoading} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={effectiveCanAssign} onRefresh={onRefresh} />
         <RecentDocumentsPanel documents={documents} loading={documentsLoading} error={documentsError} onPreview={setPreviewDocumentId} onOpenOriginal={(id) => void openOriginal(id)} />
         <section className="grid grid-cols-1 gap-6">
           {canUpload && <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-lg font-bold text-slate-900">Unggah Dokumen</h2><p className="mt-1 text-sm text-slate-500">Unggah Company Sales Report atau Data Outstanding untuk memperbarui dashboard.</p><button type="button" onClick={() => setIsUploadOpen(true)} className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#3B6FF5] px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-600"><FileUp className="size-4" />Unggah Berkas Report</button></div>}
@@ -243,15 +246,34 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
 }
 
 function MetricCard({ label, value, detail, formula, icon, empty }: { label: string; value: string; detail: string; formula?: string; icon: React.ReactNode; empty: boolean }) { return <article className="min-h-32 rounded-xl border border-slate-100 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><div className="flex items-center gap-1.5"><h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</h3>{formula && <span className="group relative inline-flex"><button type="button" className="inline-flex size-4 items-center justify-center rounded-full border border-blue-200 text-blue-600" aria-label={`Rumus ${label}`} title={formula}><HelpCircle className="size-3" /></button><span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-slate-900 px-2.5 py-2 text-left text-[11px] font-medium normal-case tracking-normal text-white shadow-lg group-hover:block group-focus-within:block">{formula}</span></span>}</div><p className="text-[10px] text-slate-400">{detail}</p></div><span className="rounded bg-blue-50 p-1.5 text-blue-600">{icon}</span></div><p className={`mt-4 text-2xl font-bold tracking-tight ${empty ? "text-slate-400" : "text-slate-900"}`}>{value}</p><div className="mt-3 flex items-center gap-1 text-xs text-slate-500">{empty ? "Belum ada data" : <><Activity className="size-3.5 text-teal-600" />Validated</>}</div></article>; }
-function AlertPanel({ alerts, loading, staffOptions, staffLoading, canAssign, onRefresh }: { alerts: AlertRow[]; loading: boolean; staffOptions: StaffOption[]; staffLoading: boolean; canAssign: boolean; onRefresh: () => void }) {
-  const pageSize = 5;
-  const alertsVersion = alerts.map((alert) => `${alert.id}:${alert.due}:${alert.amount}`).join("|");
-  const [pageState, setPageState] = useState({ version: alertsVersion, page: 1 });
+function AlertPanel({ alerts = [], loading, staffOptions, staffLoading, canAssign, onRefresh }: { alerts?: AlertRow[]; loading: boolean; staffOptions: StaffOption[]; staffLoading: boolean; canAssign: boolean; onRefresh: () => void }) {
+  const maxDisplay = 5;
   const ordered = [...alerts].sort((a, b) => a.due.localeCompare(b.due));
-  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
-  const currentPage = pageState.version === alertsVersion ? Math.min(pageState.page, totalPages) : 1;
-  const visible = ordered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  return <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-lg font-bold text-slate-900">Daftar Alerts Overdue</h2><p className="mb-4 text-xs text-slate-500">Invoice tervalidasi yang melewati 30 hari, diurutkan dari yang paling lama.</p>{loading ? <AlertSkeleton /> : ordered.length ? <><div className="space-y-3">{visible.map((alert, index) => <AlertCard key={`alert-row-${alert.id}-${alert.due}-${(currentPage - 1) * pageSize + index}`} alert={alert} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />)}</div>{totalPages > 1 && <div className="mt-5 flex min-w-0 justify-center overflow-hidden"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })} /></div>}</> : <PanelEmpty text="Belum ada data overdue alert." />}</section>;
+  const visible = ordered.slice(0, maxDisplay);
+  return (
+    <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
+      <h2 className="text-lg font-bold text-slate-900">Daftar Alerts Overdue</h2>
+      <p className="mb-4 text-xs text-slate-500">Invoice tervalidasi yang melewati 30 hari, diurutkan dari yang paling lama.</p>
+      {loading ? (
+        <AlertSkeleton />
+      ) : ordered.length ? (
+        <div className="space-y-3">
+          {visible.map((alert, index) => (
+            <AlertCard
+              key={`alert-row-${alert.id}-${alert.due}-${index}`}
+              alert={alert}
+              staffOptions={staffOptions}
+              staffLoading={staffLoading}
+              canAssign={canAssign}
+              onRefresh={onRefresh}
+            />
+          ))}
+        </div>
+      ) : (
+        <PanelEmpty text="Belum ada data overdue alert." />
+      )}
+    </section>
+  );
 }
 
 function AlertCard({ alert, staffOptions, staffLoading, canAssign, onRefresh }: { alert: AlertRow; staffOptions: StaffOption[]; staffLoading: boolean; canAssign: boolean; onRefresh: () => void }) {
@@ -267,7 +289,55 @@ function AlertCard({ alert, staffOptions, staffLoading, canAssign, onRefresh }: 
       onRefresh();
     } finally { setSaving(false); }
   }
-  return <div className="rounded-lg bg-slate-50 p-3"><div className="flex justify-between text-xs font-bold"><span>{alert.id}</span><span className="text-red-600">{alert.days} Hari</span></div><p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p><p className="text-[10px] text-slate-500">Due: {alert.due} - {money.format(alert.amount)}</p><div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500"><span>{alert.branch || "Cabang belum tersedia"}</span>{alert.picAssigned && <span>PIC: {alert.picAssigned}</span>}{alert.riskStatus && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">{alert.riskStatus}</span>}</div>{!alert.picAssigned && <div className="mt-2 flex gap-2"><select value={selectedStaff} onChange={(event) => setSelectedStaff(event.target.value)} disabled={!canAssign || staffLoading || !staffOptions.length} className="min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]" aria-label={`Pilih PIC ${alert.id}`}><option value="">{staffLoading ? "Memuat staff..." : !canAssign ? "Tidak berwenang" : "Pilih PIC"}</option>{staffOptions.map((staff) => <option key={staff.employee_id} value={staff.employee_id}>{staff.full_name} ({staff.employee_id})</option>)}</select><button type="button" onClick={() => void assign()} disabled={!selectedStaff || saving || !canAssign} className="rounded bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white disabled:opacity-50">{saving ? "..." : "Assign PIC"}</button></div>}</div>;
+  return (
+    <div className="rounded-lg bg-slate-50 p-3">
+      <div className="flex justify-between text-xs font-bold">
+        <span>{alert.id}</span>
+        <span className="text-red-600">{alert.days} Hari</span>
+      </div>
+      <p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p>
+      <p className="text-[10px] text-slate-500">Due: {alert.due} - {money.format(alert.amount)}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+        <span>{alert.branch || "Cabang belum tersedia"}</span>
+        {alert.picAssigned ? (
+          <span>PIC: {alert.picAssigned}</span>
+        ) : (
+          <span className="text-slate-400">PIC: Belum ditugaskan</span>
+        )}
+        {alert.riskStatus && (
+          <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">
+            {alert.riskStatus}
+          </span>
+        )}
+      </div>
+      {!alert.picAssigned && canAssign && (
+        <div className="mt-2 flex gap-2">
+          <select
+            value={selectedStaff}
+            onChange={(event) => setSelectedStaff(event.target.value)}
+            disabled={staffLoading || !staffOptions.length}
+            className="min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]"
+            aria-label={`Pilih PIC ${alert.id}`}
+          >
+            <option value="">{staffLoading ? "Memuat staff..." : "Pilih PIC"}</option>
+            {staffOptions.map((staff) => (
+              <option key={staff.employee_id} value={staff.employee_id}>
+                {staff.full_name} ({staff.employee_id})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => void assign()}
+            disabled={!selectedStaff || saving}
+            className="rounded bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "..." : "Assign PIC"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 function PeakMetrics({ series, startPeriod, endPeriod, loading, error }: { series: MacroPoint[]; startPeriod: string; endPeriod: string; loading: boolean; error: string | null }) {
   const selected = series.filter(point => point.period_month >= startPeriod && point.period_month <= endPeriod).sort((a, b) => b.period_month.localeCompare(a.period_month));
