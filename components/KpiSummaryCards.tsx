@@ -12,19 +12,19 @@ const formatRupiah = (value: number) => new Intl.NumberFormat("id-ID", {
   currency: "IDR",
   maximumFractionDigits: 0,
 }).format(value);
-const displayRupiah = (value: number | null | undefined) => value == null ? "—" : formatRupiah(value);
+
+const displayRupiah = (value: number | null | undefined) => value == null ? "-" : formatRupiah(value);
 
 export default function KpiSummaryCards({ kpi }: KpiSummaryCardsProps) {
   const cards = [
-    { label: "Total Active Customer", value: (kpi.totalActiveCustomers ?? kpi.totalCustomers ?? 0).toLocaleString("id-ID"), detail: "Customer aktif unik pada data C1", color: "text-blue-700", icon: "01" },
-    { label: `Pendapatan${kpi.period ? ` · ${kpi.period.slice(0, 7)}` : ""}`, value: displayRupiah(kpi.totalRevenue), detail: "Total revenue pada periode terbaru", color: "text-emerald-700", icon: "02" },
-    { label: "High Risk Outstanding", value: displayRupiah(kpi.highRiskOutstanding), detail: "Outstanding berstatus HIGH RISK", color: "text-amber-700", icon: "02" },
-    { label: "Top Contributing Customer", value: kpi.topContributingCustomer?.name ?? "Belum ada data", detail: kpi.topContributingCustomer ? `${displayRupiah(kpi.topContributingCustomer.totalLogisticsVolume)} · Peringkat ${kpi.topContributingCustomer.rank}` : "Belum ada customer", color: "text-emerald-700", icon: "03" },
+    { label: "Total customer/company", value: (kpi.totalActiveCustomers ?? kpi.totalCustomers ?? 0).toLocaleString("id-ID"), detail: "Customer/company unik pada data C1 tervalidasi", color: "text-blue-700", icon: "01" },
+    { label: `Sales Profit${kpi.period ? ` · ${kpi.period.slice(0, 7)}` : ""}`, value: displayRupiah(kpi.currentMonthSalesProfit ?? ((kpi.totalRevenue ?? 0) - (kpi.totalCost ?? 0))), detail: "Profit pada periode data terbaru", color: "text-emerald-700", icon: "02" },
+    { label: `Cost${kpi.period ? ` · ${kpi.period.slice(0, 7)}` : ""}`, value: displayRupiah(kpi.currentMonthCost ?? kpi.totalCost), detail: "Biaya pada periode data terbaru", color: "text-amber-700", icon: "03" },
+    { label: "Total Outstanding", value: displayRupiah(kpi.totalOutstanding), detail: "Saldo outstanding dari upload tervalidasi", color: "text-slate-800", icon: "04" },
   ];
-  cards.splice(1, 1);
 
   return (
-    <div className="grid grid-cols-1 gap-4 font-sans sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 font-sans sm:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => (
         <section key={card.label} className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
           <div className="flex items-start justify-between gap-3">

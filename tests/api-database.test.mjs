@@ -48,7 +48,7 @@ test("CCR authorization matrix allows chart access for management and staff", ()
 });
 
 test("document uploads reject missing or unmatched customers before staging", () => {
-  const uploadRoute = load("app/api/v1/documents/upload/route.ts", {
+  const uploadRoute = load("lib/documentUploadValidation.ts", {
     "node:crypto": { createHash: () => ({ update() { return this; }, digest: () => "checksum" }) },
     "node:path": { join: (...parts) => parts.join("/") },
     "node:url": { pathToFileURL: value => ({ toString: () => String(value) }) },
@@ -137,6 +137,7 @@ test("C1 upload rejects CSV before persistence", async () => {
     "@/lib/server/admin": { createAdminClient: () => ({}) },
     "@/lib/server/http": { checkOrigin: () => null },
     "@/lib/supabaseOverdueApi": { describeSupabaseError: String, evaluateOverdueAlertsInSupabase: async () => ({}) },
+    "@/lib/documentUploadValidation": { COMPANY_ALIASES: {}, OUTSTANDING_ALIASES: {}, normalize: value => String(value), numberValue: () => null, dateValue: () => null, periodValue: () => null, validateRows: () => ({ errors: [], warnings: [], rows: [], unmatchedCustomerCount: 0 }) },
     "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "STAFF", is_active: true, registration_status: "APPROVED" }), canUpload: () => true },
   }, { performance, File: MockFile });
   const file = new MockFile("sales.csv", "text/csv");
@@ -264,6 +265,108 @@ test("analytics routes authorize before one RPC and keep no-store responses", as
   }, { performance, URL });
   assert.equal((await forbiddenRoute.GET({ url: "https://app.test/api/v1/customers/analytics" })).status, 403);
   assert.equal(forbiddenCalls, 0);
+
+  let detailCalls = 0;
+  const detailRoute = load("app/api/v1/customers/[customerId]/analytics/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/supabaseApi": { fetchCustomerAnalyticsItemFromSupabase: async customerId => { detailCalls += 1; return customerId === "cust-1" ? { id: "cust-1", customer_id: "cust-1", customer_name: "Detail Co" } : null; } },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "PROVISIONED" }), canUseCcr: () => true },
+  }, { performance });
+  const detailResponse = await detailRoute.GET({}, { params: Promise.resolve({ customerId: "cust-1" }) });
+  assert.equal(detailResponse.status, 200);
+  assert.equal(detailCalls, 1);
+  assert.equal(detailResponse.headers.get("cache-control"), "no-store, max-age=0");
+  assert.match(detailResponse.headers.get("server-timing"), /db/);
+  const missingDetail = await detailRoute.GET({}, { params: Promise.resolve({ customerId: "missing" }) });
+  assert.equal(missingDetail.status, 404);
+});
+
+test("customer invoice detail is readable by CCR while payment mutation is Staff-only", async () => {
+  const invoice = { invoice_id: "row-1", invoice_number: "INV-1", amount: 1000, remaining_amount: 1000, paid_amount: 0, payment_status: "UNPAID", bulk_close_status: "PENDING" };
+  const baseMocks = {
+    "next/server": responseMock,
+    "@/lib/server/http": { checkOrigin: () => null, requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/supabaseApi": { fetchInvoicesFromSupabase: async () => [invoice], recordPaymentInSupabase: async () => ({ success: true, payment: { payment_id: "p-1", amount: 100 } }) },
+  };
+  const management = load("app/api/v1/customers/[customerId]/invoices/route.ts", {
+    ...baseMocks,
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", registration_status: "PROVISIONED", is_active: true }), canUseCcr: () => true, canUpload: () => false },
+  }, { performance, URL });
+  const readResponse = await management.GET({ url: "https://app.test/api/v1/customers/cust-1/invoices" }, { params: Promise.resolve({ customerId: "cust-1" }) });
+  assert.equal(readResponse.status, 200);
+  assert.equal(readResponse.headers.get("cache-control"), "no-store, max-age=0");
+  const managementWrite = await management.PATCH({ headers: new Map(), json: async () => ({ action: "RECORD_PAYMENT", invoiceNumber: "INV-1", amount: 100, paymentDate: "2026-10-01", referenceNo: "PAY-1" }) }, { params: Promise.resolve({ customerId: "cust-1" }) });
+  assert.equal(managementWrite.status, 403);
+
+  const staff = load("app/api/v1/customers/[customerId]/invoices/route.ts", {
+    ...baseMocks,
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "STAFF", registration_status: "PROVISIONED", is_active: true }), canUseCcr: () => true, canUpload: () => true },
+  }, { performance, URL });
+  const invalidWrite = await staff.PATCH({ headers: new Map(), json: async () => ({ action: "RECORD_PAYMENT", invoiceNumber: "INV-1", amount: 0, paymentDate: "2026-10-01", referenceNo: "PAY-1" }) }, { params: Promise.resolve({ customerId: "cust-1" }) });
+  assert.equal(invalidWrite.status, 422);
+  const validWrite = await staff.PATCH({ headers: new Map(), json: async () => ({ action: "RECORD_PAYMENT", invoiceNumber: "INV-1", amount: 100, paymentDate: "2026-10-01", referenceNo: "PAY-1" }) }, { params: Promise.resolve({ customerId: "cust-1" }) });
+  assert.equal(validWrite.status, 201);
+});
+
+test("customer invoices resolve legacy CUST ids and tolerate pre-analytics C1 schema", async () => {
+  const canonicalId = "99999999-9999-4999-8999-999999999999";
+  const legacyInvoice = {
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    document_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    invoice_number: "INV-LEGACY-1",
+    customer_name: "Legacy Company",
+    customer_id: "a1-company-id",
+    outstanding_amount: 500,
+    due_date: "2026-10-20",
+    create_date: "2026-10-01",
+    job_number: "JOB-1",
+    mawb: "MAWB-1",
+    created_at: "2026-10-01T00:00:00Z",
+  };
+  const tables = {
+    c1_customer: [{ customer_id: canonicalId, customer_name: "Legacy Company", customer_code: "LEG-001", active_status: true, created_at: "2026-01-01T00:00:00Z" }],
+    c1_document_uploads: [{ id: legacyInvoice.document_id, validation_status: "validated", document_type: "OUTSTANDING_REPORT" }],
+    c1_outstanding_staging_rows: [legacyInvoice],
+  };
+  const makeClient = () => ({
+    from(table) {
+      const state = { filters: [], range: null, forcedError: null };
+      const query = {
+        select(fields) {
+          if (table === "c1_outstanding_staging_rows" && fields.includes("c1_customer_id")) state.forcedError = { message: "column c1_outstanding_staging_rows.c1_customer_id does not exist" };
+          if (table === "c1_payment_transactions") state.forcedError = { message: "relation c1_payment_transactions does not exist" };
+          return query;
+        },
+        eq(column, value) { state.filters.push([column, "eq", value]); return query; },
+        ilike(column, value) { state.filters.push([column, "ilike", value]); return query; },
+        neq(column, value) { state.filters.push([column, "neq", value]); return query; },
+        in(column, values) { state.filters.push([column, "in", values]); return query; },
+        order() { return query; },
+        range(from) { state.range = from; return query; },
+        limit() { return query; },
+        async maybeSingle() { const result = await query; return { data: result.data?.[0] ?? null, error: result.error }; },
+        then(resolve, reject) {
+          if (state.forcedError) return Promise.resolve(state.forcedError).then(() => resolve({ data: null, error: state.forcedError }), reject);
+          let data = (tables[table] ?? []).filter((row) => state.filters.every(([column, operator, value]) => operator === "eq" ? String(row[column]) === String(value) : operator === "ilike" ? String(row[column] ?? "").toLowerCase() === String(value).toLowerCase() : operator === "neq" ? String(row[column]) !== String(value) : operator === "in" ? value.map(String).includes(String(row[column])) : true));
+          if (state.range) data = data.slice(state.range, state.range + 1);
+          return Promise.resolve({ data, error: null }).then(resolve, reject);
+        },
+      };
+      return query;
+    },
+  });
+  const api = load("lib/supabaseApi.ts", {
+    "@/lib/server/admin": { createAdminClient: makeClient },
+    "./customerData": { INITIAL_KPI_SUMMARY: {}, STATEMENT_AURORA_BLUE: {} },
+  });
+  const invoices = await api.fetchInvoicesFromSupabase("CUST-0001");
+  assert.equal(invoices.length, 1);
+  assert.equal(invoices[0].customer_id, canonicalId);
+  assert.equal(invoices[0].invoice_number, "INV-LEGACY-1");
+  assert.equal(invoices[0].payment_status, "UNPAID");
+  assert.equal(invoices[0].payments.length, 0);
+  assert.equal((await api.fetchInvoicesFromSupabase("CUST-9999")).length, 0);
 });
 
 test("overdue route authorizes before a fresh admin read and exposes timing headers", async () => {

@@ -1,133 +1,89 @@
-import { requireSession, checkOrigin } from "@/lib/server/http";
-import { NextRequest, NextResponse } from 'next/server';
-import { AURORA_BLUE_INVOICES } from '@/lib/customerData';
-import { fetchInvoicesFromSupabase, bulkCloseInvoicesInSupabase } from '@/lib/supabaseApi';
-import { InvoiceDetail } from '@/types/customer';
-import { getCcrProfile, canUseCcr } from '@/lib/server/authorization';
+import { checkOrigin, requireSession } from "@/lib/server/http";
+import { NextRequest, NextResponse } from "next/server";
+import { canUpload, canUseCcr, getCcrProfile } from "@/lib/server/authorization";
+import { fetchInvoicesFromSupabase, recordPaymentInSupabase } from "@/lib/supabaseApi";
 
-// In-memory fallback store for pending updates during session execution
-let invoicesStore = [...AURORA_BLUE_INVOICES];
+function timed(response: NextResponse, startedAt: number, phases: Record<string, number>) {
+  const total = Math.round(performance.now() - startedAt);
+  response.headers.set("Cache-Control", "no-store, max-age=0");
+  response.headers.set("Server-Timing", [...Object.entries(phases).map(([name, value]) => `${name};dur=${Math.round(value)}`), `total;dur=${total}`].join(", "));
+  return response;
+}
+
+function errorResponse(code: string, message: string, status: number) {
+  return NextResponse.json({ error: { code, message } }, { status });
+}
+
+async function authorizedProfile(session: Awaited<ReturnType<typeof requireSession>>) {
+  if (session.error) return { error: session.error, profile: null };
+  try {
+    return { error: null, profile: await getCcrProfile(session.client, session.user!.id, { includeOrgDetails: false }) };
+  } catch {
+    return { error: errorResponse("AUTHORIZATION_UNAVAILABLE", "Customer authorization is unavailable.", 503), profile: null };
+  }
+}
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ customerId: string }> }
+  { params }: { params: Promise<{ customerId: string }> },
 ) {
-  const session = await requireSession(); if (session.error) return session.error;
-  if (!canUseCcr(await getCcrProfile(session.client, session.user!.id))) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'CCR access is required.' } }, { status: 403 });
+  const startedAt = performance.now();
+  const authStarted = performance.now();
+  const session = await requireSession();
+  const auth = await authorizedProfile(session);
+  if (auth.error) return timed(auth.error, startedAt, { auth: performance.now() - authStarted });
+  const authDuration = performance.now() - authStarted;
+  if (!canUseCcr(auth.profile)) return timed(errorResponse("FORBIDDEN", "CCR access is required.", 403), startedAt, { auth: authDuration });
+
+  const databaseStarted = performance.now();
   try {
     const { customerId } = await params;
-    const { searchParams } = new URL(req.url);
-    const status = searchParams.get('status');
-    const bulkCloseStatus = searchParams.get('bulk_close_status');
-
-    // Try fetching from Supabase database
-    const dbInvoices = await fetchInvoicesFromSupabase(customerId);
-    let result: InvoiceDetail[] = [];
-
-    if (dbInvoices && dbInvoices.length > 0) {
-      result = dbInvoices;
-    } else {
-      result = invoicesStore.filter((inv) => inv.customer_id === customerId);
-
-      // Default template invoices if customer has no specific invoices
-      if (result.length === 0) {
-        result = [
-          {
-            invoice_id: `${customerId}-inv-1`,
-            customer_id: customerId,
-            invoice_number: `INV-2026/07-98${customerId.slice(-2)}`,
-            bl_number: `BL-JKT-26-88${customerId.slice(-2)}`,
-            description: 'Freight 40ft FCL Container Logistics',
-            due_date: '2026-08-15',
-            amount: 350000000,
-            payment_status: 'UNPAID',
-            bulk_close_status: 'PENDING',
-          },
-          {
-            invoice_id: `${customerId}-inv-2`,
-            customer_id: customerId,
-            invoice_number: `INV-2026/07-99${customerId.slice(-2)}`,
-            bl_number: `BL-JKT-26-89${customerId.slice(-2)}`,
-            description: 'Handling & Terminal Storage Fees',
-            due_date: '2026-08-20',
-            amount: 150000000,
-            payment_status: 'UNPAID',
-            bulk_close_status: 'PENDING',
-          },
-        ];
-      }
-    }
-
-    if (status) {
-      result = result.filter((inv) => inv.payment_status === status);
-    }
-    if (bulkCloseStatus) {
-      result = result.filter((inv) => inv.bulk_close_status === bulkCloseStatus);
-    }
-
-    return NextResponse.json(
-      {
-        customerId,
-        totalInvoices: result.length,
-        invoices: result,
-      },
-      { status: 200 }
-    );
-  } catch {
-    return NextResponse.json(
-      { error: 'Internal Server Error', message: 'Unable to process request.' },
-      { status: 500 }
-    );
+    const mode = new URL(req.url).searchParams.get("mode");
+    const invoices = await fetchInvoicesFromSupabase(customerId, { includeClosed: mode === "all", overdueOnly: mode === "overdue" });
+    return timed(NextResponse.json({ customerId, totalInvoices: invoices.length, invoices }), startedAt, { auth: authDuration, db: performance.now() - databaseStarted });
+  } catch (error) {
+    console.error("Customer invoice query failed:", error);
+    return timed(errorResponse("DATABASE_ERROR", "Unable to process invoice request.", 500), startedAt, { auth: authDuration, db: performance.now() - databaseStarted });
   }
 }
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ customerId: string }> }
+  { params }: { params: Promise<{ customerId: string }> },
 ) {
-  const session = await requireSession(); if (session.error) return session.error;
-  if (!canUseCcr(await getCcrProfile(session.client, session.user!.id))) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'CCR access is required.' } }, { status: 403 });
-  const originError = checkOrigin(req); if (originError) return originError;
+  const startedAt = performance.now();
+  const authStarted = performance.now();
+  const originError = checkOrigin(req);
+  if (originError) return timed(originError, startedAt, { auth: 0 });
+  const session = await requireSession();
+  const auth = await authorizedProfile(session);
+  if (auth.error) return timed(auth.error, startedAt, { auth: performance.now() - authStarted });
+  const authDuration = performance.now() - authStarted;
+  if (!canUseCcr(auth.profile)) return timed(errorResponse("FORBIDDEN", "CCR access is required.", 403), startedAt, { auth: authDuration });
+  if (!canUpload(auth.profile)) return timed(errorResponse("FORBIDDEN", "Only Staff users can record customer payments.", 403), startedAt, { auth: authDuration });
+
   try {
     const { customerId } = await params;
-    const body = await req.json();
-    const { invoiceIds, action } = body; // action: 'BULK_CLOSE'
+    const body = await req.json() as Record<string, unknown>;
+    if (body.action !== "RECORD_PAYMENT") return timed(errorResponse("INVALID_ACTION", "Only RECORD_PAYMENT is supported.", 400), startedAt, { auth: authDuration });
 
-    if (action === 'BULK_CLOSE' || !action) {
-      // Execute bulk close in Supabase database
-      const dbResult = await bulkCloseInvoicesInSupabase(customerId, invoiceIds);
-
-      // Update in-memory fallback store
-      invoicesStore = invoicesStore.map((inv) => {
-        if (
-          inv.customer_id === customerId &&
-          (!invoiceIds || invoiceIds.length === 0 || invoiceIds.includes(inv.invoice_id))
-        ) {
-          return {
-            ...inv,
-            bulk_close_status: 'CLOSED',
-          };
-        }
-        return inv;
-      });
-
-      return NextResponse.json(
-        {
-          success: true,
-          message: `Bulk close operation completed successfully for customer ${customerId}.`,
-          updatedCustomerId: customerId,
-          closedInvoiceIds: invoiceIds || ['ALL_PENDING'],
-          supabaseUpdated: dbResult.success,
-        },
-        { status: 200 }
-      );
+    const invoiceNumber = typeof body.invoiceNumber === "string" ? body.invoiceNumber.trim() : "";
+    const referenceNo = typeof body.referenceNo === "string" ? body.referenceNo.trim() : "";
+    const paymentDate = typeof body.paymentDate === "string" ? body.paymentDate : "";
+    const amount = typeof body.amount === "number" ? body.amount : Number(body.amount);
+    if (!invoiceNumber || !referenceNo || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate) || Number.isNaN(Date.parse(paymentDate)) || !Number.isFinite(amount) || amount <= 0) {
+      return timed(errorResponse("INVALID_PAYMENT", "Invoice, nominal, tanggal, dan referensi pembayaran wajib valid.", 422), startedAt, { auth: authDuration });
     }
 
-    return NextResponse.json({ error: 'Invalid action provided' }, { status: 400 });
-  } catch {
-    return NextResponse.json(
-      { error: 'Failed to perform bulk close operation', message: 'Unable to process request.' },
-      { status: 500 }
-    );
+    const databaseStarted = performance.now();
+    const result = await recordPaymentInSupabase({ customerId, invoiceNumber, amount, paymentDate, referenceNo, enteredBy: session.user!.id });
+    if (!result.success) {
+      const status = result.code === "INVOICE_NOT_FOUND" ? 404 : 422;
+      return timed(errorResponse(result.code, result.message, status), startedAt, { auth: authDuration, db: performance.now() - databaseStarted });
+    }
+    return timed(NextResponse.json({ data: result.payment }, { status: 201 }), startedAt, { auth: authDuration, db: performance.now() - databaseStarted });
+  } catch (error) {
+    console.error("Customer payment write failed:", error);
+    return timed(errorResponse("DATABASE_ERROR", "Unable to record customer payment.", 500), startedAt, { auth: authDuration });
   }
 }
