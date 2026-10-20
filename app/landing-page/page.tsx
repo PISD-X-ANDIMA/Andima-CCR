@@ -16,7 +16,6 @@ import {
   Building2,
   HeartHandshake
 } from "lucide-react";
-import router from "next/dist/shared/lib/router/router";
 
 /* UUID POSISI DIREKTUR & DEPARTEMEN */
 const DIRECTOR_POSITION_ID = "4acac2d4-8441-4cd8-bcd3-cf3ce4ca0ee0";
