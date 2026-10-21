@@ -24,8 +24,8 @@ export interface CustomDropdownProps {
 
 export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   label,
-  placeholder = "Dropdown testing miliki D1",
-  categoryTitle = "TESTING",
+  placeholder = "Select Option",
+  categoryTitle = "Options",
   categoryBadge = "3 Active",
   items = [
     { id: "node", label: "Node.js", subLabel: "v2.3.9" },
@@ -113,7 +113,7 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
           {/* Header Row: Category & Active Count */}
           {(categoryTitle || categoryBadge) && (
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 text-xs">
-              <span className="font-bold tracking-wider text-slate-500 uppercase">
+              <span className="font-semibold text-slate-600">
                 {categoryTitle}
               </span>
               <span className="text-slate-600 font-medium">{categoryBadge}</span>

@@ -40,7 +40,7 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
       <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
         <div className="flex items-center gap-3 bg-white px-6 py-4 rounded-2xl shadow-md border border-slate-200">
           <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-sm font-bold text-slate-700">Memuat Kartu Piutang Pelanggan...</span>
+          <span className="text-sm font-bold text-slate-700">Loading Customer Statement of Account...</span>
         </div>
       </div>
     );
@@ -60,15 +60,15 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
     <div className="min-h-screen bg-[#F8FAFC] font-sans pb-12">
       {/* Top Header Breadcrumb Bar */}
       <div className="bg-white border-b border-slate-200/80 px-8 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 font-heading">
           <div className="flex items-center gap-1.5 text-slate-600">
-            <span>CCR MODULE</span>
+            <span>CCR Module</span>
             <span>&gt;</span>
-            <span>CUSTOMER ANALYTICS</span>
+            <span>Customer Analytics</span>
             <span>&gt;</span>
-            <span>KARTU PIUTANG</span>
+            <span>Statement of Account</span>
             <span>&gt;</span>
-            <span className="font-bold text-slate-900 uppercase">{statementData.legal_entity} ({statementData.customer_id})</span>
+            <span className="font-bold text-slate-900">{statementData.legal_entity} ({statementData.customer_id})</span>
           </div>
         </div>
       </div>
@@ -85,8 +85,8 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                  Kartu Piutang Pelanggan (Statement of Account)
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight font-heading">
+                  Customer Statement of Account
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-md bg-slate-200 text-slate-700 text-xs font-bold">
                   REV-2026.07
@@ -99,29 +99,29 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={onBack}
-              className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-2"
+              className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-2 cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              Analisis Pelanggan
+              Customer Analytics
             </button>
 
-            <button className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5">
+            <button className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
               <Printer className="h-4 w-4" />
-              <span>Cetak PDF</span>
+              <span>Print PDF</span>
             </button>
 
-            <button className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5">
+            <button className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
               <Download className="h-4 w-4" />
-              <span>Unduh .XLSX</span>
+              <span>Download .XLSX</span>
             </button>
 
-            <button className="px-5 py-2.5 bg-[#203d70] hover:bg-[#162a4d] text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2">
+            <button className="px-5 py-2.5 bg-[#203d70] hover:bg-[#162a4d] text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
-              Kirim Tagihan / SP
+              Send Invoice / Warning Letter
             </button>
           </div>
         </div>
@@ -134,7 +134,7 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-3 flex-wrap">
-                <h2 className="text-xl font-extrabold text-slate-900">
+                <h2 className="text-xl font-bold text-slate-900 font-heading">
                   {statementData.customer_name}
                 </h2>
                 <span className="text-xs font-bold text-slate-500">
@@ -156,11 +156,11 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
                   <span className="font-bold text-slate-800">{statementData.npwp}</span>
                 </div>
                 <div>
-                  <span className="font-semibold text-slate-400">Kategori: </span>
+                  <span className="font-semibold text-slate-400">Category: </span>
                   <span className="font-bold text-slate-800">{statementData.category}</span>
                 </div>
                 <div>
-                  <span className="font-semibold text-slate-400">Segmentasi: </span>
+                  <span className="font-semibold text-slate-400">Segmentation: </span>
                   <span className="font-bold text-slate-800">{statementData.segmentation}</span>
                 </div>
               </div>
@@ -170,18 +170,18 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
           {/* Right Contacts Meta */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t lg:border-t-0 lg:border-l border-slate-200 pt-4 lg:pt-0 lg:pl-6 text-xs shrink-0 w-full lg:w-auto">
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">HUB UTAMA KONTRAK</span>
+              <span className="text-[11px] font-bold text-slate-400 block font-heading">Main Contract Hub</span>
               <span className="font-extrabold text-slate-900 block mt-0.5">{statementData.main_hub}</span>
             </div>
 
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">PIC ACCOUNT OFFICER</span>
+              <span className="text-[11px] font-bold text-slate-400 block font-heading">PIC Account Officer</span>
               <span className="font-extrabold text-slate-900 block mt-0.5">{statementData.pic_account_officer.name}</span>
               <span className="text-[11px] text-slate-500 font-medium">{statementData.pic_account_officer.phone}</span>
             </div>
 
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">KONTAK FINANCE KLIEN</span>
+              <span className="text-[11px] font-bold text-slate-400 block font-heading">Client Finance Contact</span>
               <span className="font-extrabold text-slate-900 block mt-0.5">{statementData.client_finance_contact.name}</span>
               <span className="text-[11px] text-blue-600 font-medium">{statementData.client_finance_contact.email}</span>
             </div>
@@ -190,10 +190,10 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
 
         {/* 4 Financial Metric Cards Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Plafon Kredit */}
+          {/* Approved Credit Limit */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider">PLAFON KREDIT DISETUJUI</span>
+              <span className="text-xs font-bold font-heading text-slate-700">Approved Credit Limit</span>
               <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
@@ -202,15 +202,15 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
               {formatRupiah(statementData.credit_limit)}
             </div>
             <div className="mt-2 text-[11px] font-semibold text-slate-500 flex justify-between">
-              <span>Siklus Review: Tahunan</span>
+              <span>Review Cycle:</span>
               <span className="font-bold text-blue-600">{statementData.review_cycle}</span>
             </div>
           </div>
 
-          {/* Piutang Berjalan */}
+          {/* Current Receivables */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider">PIUTANG BERJALAN (OUTSTANDING)</span>
+              <span className="text-xs font-bold font-heading text-slate-700">Current Receivables (Outstanding)</span>
               <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
@@ -220,7 +220,7 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
             </div>
             <div className="mt-2">
               <div className="flex justify-between text-[11px] font-semibold text-slate-500 mb-1">
-                <span>Pemakaian Plafon</span>
+                <span>Credit Usage</span>
                 <span className="font-bold text-slate-800">{statementData.credit_usage_percent}%</span>
               </div>
               <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -232,10 +232,10 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
             </div>
           </div>
 
-          {/* Saldo Lewat Jatuh Tempo */}
+          {/* Overdue Balance */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider">SALDO LEWAT JATUH TEMPO</span>
+              <span className="text-xs font-bold font-heading text-slate-700">Overdue Balance</span>
               <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
               </svg>
@@ -251,20 +251,20 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
             </div>
           </div>
 
-          {/* Ketepatan Bayar & Rata DSO */}
+          {/* Payment Accuracy & Avg DSO */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider">KETEPATAN BAYAR &amp; RATA DSO</span>
+              <span className="text-xs font-bold font-heading text-slate-700">Payment Accuracy &amp; Avg DSO</span>
               <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
             <div className="text-xl font-extrabold text-slate-900">
-              {statementData.payment_accuracy}% <span className="text-xs font-medium text-slate-500">/ {statementData.avg_dso_days} Hari</span>
+              {statementData.payment_accuracy}% <span className="text-xs font-medium text-slate-500">/ {statementData.avg_dso_days} Days</span>
             </div>
             <div className="mt-2 text-[11px] font-semibold text-slate-500 flex justify-between">
-              <span>Kebijakan Kontrak:</span>
-              <span className="font-bold text-slate-900">TOP {statementData.top_days_policy} Hari</span>
+              <span>Contract Policy:</span>
+              <span className="font-bold text-slate-900">TOP {statementData.top_days_policy} Days</span>
             </div>
           </div>
         </div>
@@ -273,18 +273,18 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700">
-              <CalendarDays className="h-4 w-4" /> Periode:
-              <span className="font-bold text-slate-900">Januari 2026 - Juli 2026 (YTD)</span>
+              <CalendarDays className="h-4 w-4" /> Period:
+              <span className="font-bold text-slate-900">January 2026 - July 2026 (YTD)</span>
             </div>
 
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700">
               <span>Status:</span>
-              <span className="font-bold text-slate-900">Semua Status</span>
+              <span className="font-bold text-slate-900">All Statuses</span>
             </div>
 
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700">
-              <span>Rute:</span>
-              <span className="font-bold text-slate-900">Semua Rute Operasional</span>
+              <span>Route:</span>
+              <span className="font-bold text-slate-900">All Operational Routes</span>
             </div>
           </div>
 
@@ -297,14 +297,14 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari No. Faktur, No. B/L, atau PD..."
+                placeholder="Search Invoice No, B/L No, or Cargo..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
           </div>
         </div>
 
-        {/* Buku Mutasi Piutang Table */}
+        {/* Receivables & Payment Mutation Ledger Table */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
           {/* Table Header Subtitle */}
           <div className="bg-slate-50/80 px-6 py-3 border-b border-slate-200 flex items-center justify-between text-xs">
@@ -312,16 +312,16 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
               <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <span className="font-extrabold text-slate-900 uppercase">
-                Buku Mutasi Piutang &amp; Penerimaan Pembayaran
+              <span className="font-bold text-slate-900 font-heading">
+                Receivables &amp; Payment Mutation Ledger
               </span>
               <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[11px]">
-                {filteredMutations.length} Mutasi Ditemukan
+                {filteredMutations.length} Mutations Found
               </span>
             </div>
 
             <div className="text-[11px] font-semibold text-slate-500">
-              Metode Pembukuan: <span className="font-bold text-slate-800">FIFO (First-In, First-Out)</span> | Mata Uang: <span className="font-bold text-slate-800">IDR (Rupiah)</span>
+              Accounting Method: <span className="font-bold text-slate-800">FIFO (First-In, First-Out)</span> | Currency: <span className="font-bold text-slate-800">IDR (Rupiah)</span>
             </div>
           </div>
 
@@ -329,14 +329,14 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-100/60 border-b border-slate-200 text-slate-600 uppercase font-extrabold text-[10px] tracking-wider">
-                  <th className="px-5 py-3.5">TGL TRANSAKSI &amp; REFERENSI</th>
-                  <th className="px-5 py-3.5">DESKRIPSI MUATAN &amp; RUTE LOGISTIK</th>
-                  <th className="px-4 py-3.5">TGL JATUH TEMPO</th>
-                  <th className="px-4 py-3.5 text-right">DEBET / NILAI FAKTUR (IDR)</th>
-                  <th className="px-4 py-3.5 text-right">KREDIT / BAYAR MASUK (IDR)</th>
-                  <th className="px-4 py-3.5 text-right">SALDO KUMULATIF (IDR)</th>
-                  <th className="px-5 py-3.5 text-center">STATUS &amp; DOKUMEN</th>
+                <tr className="bg-slate-100/60 border-b border-slate-200 text-slate-600 font-bold text-[11px] font-heading">
+                  <th className="px-5 py-3.5">Transaction Date &amp; Reference</th>
+                  <th className="px-5 py-3.5">Cargo Description &amp; Logistics Route</th>
+                  <th className="px-4 py-3.5">Due Date</th>
+                  <th className="px-4 py-3.5 text-right">Debit / Invoice (IDR)</th>
+                  <th className="px-4 py-3.5 text-right">Credit / Payment (IDR)</th>
+                  <th className="px-4 py-3.5 text-right">Cumulative Balance (IDR)</th>
+                  <th className="px-5 py-3.5 text-center">Status &amp; Document</th>
                 </tr>
               </thead>
 
@@ -374,9 +374,9 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
                     </td>
 
                     <td className="px-5 py-3.5 align-top text-center">
-                      <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase ${row.status.includes('Lunas')
+                      <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-bold ${row.status.toLowerCase().includes('lunas') || row.status.toLowerCase().includes('paid')
                           ? 'bg-emerald-100 text-emerald-800'
-                          : row.status.includes('Belum Lunas')
+                          : row.status.toLowerCase().includes('belum') || row.status.toLowerCase().includes('unpaid')
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-slate-100 text-slate-700'
                         }`}>
@@ -395,8 +395,8 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
               {/* Table Footer Totals */}
               <tfoot>
                 <tr className="bg-slate-100 font-extrabold text-xs border-t-2 border-slate-300">
-                  <td colSpan={3} className="px-5 py-4 text-slate-900">
-                    TOTAL MUTASI &amp; SALDO AKHIR BERJALAN (NET OUTSTANDING)
+                  <td colSpan={3} className="px-5 py-4 text-slate-900 font-heading">
+                    Total Mutation &amp; Final Net Outstanding Balance
                   </td>
                   <td className="px-4 py-4 text-right text-slate-900">
                     Rp 1,082,000,000
@@ -408,8 +408,8 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
                     {formatRupiah(statementData.outstanding_balance)}
                   </td>
                   <td className="px-5 py-4 text-center">
-                    <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-extrabold tracking-wide uppercase">
-                      <CheckCircle2 className="inline h-4 w-4" /> REKONSILIASI COCOK
+                    <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-md text-[11px] font-bold">
+                      <CheckCircle2 className="inline h-4 w-4" /> Reconciliation Matched
                     </span>
                   </td>
                 </tr>
@@ -420,7 +420,7 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
 
         {/* Bottom 2 Cards Grid Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Card 1: Rekonsiliasi Bank & Mutasi Terakhir */}
+          {/* Card 1: Bank Reconciliation & Recent Mutations */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -431,12 +431,12 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-sm text-slate-900">
-                      Rekonsiliasi Bank &amp; Mutasi Terakhir
+                    <h3 className="font-bold text-sm text-slate-900 font-heading">
+                      Bank Reconciliation &amp; Recent Mutations
                     </h3>
                   </div>
                 </div>
-                <span className="px-2.5 py-0.5 rounded bg-teal-100 text-teal-800 text-[10px] font-extrabold">
+                <span className="px-2.5 py-0.5 rounded bg-teal-100 text-teal-800 text-[10px] font-bold">
                   Auto-Match 100% (Host-to-Host)
                 </span>
               </div>
@@ -459,15 +459,15 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
 
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
               <span className="text-[11px] text-slate-500 font-medium">
-                Semua mutasi telah mendapatkan verifikasi Kasir Pusat &amp; Rekonsiliasi Otomatis ERP.
+                All mutations verified by Central Cashier &amp; ERP Automatic Reconciliation.
               </span>
-              <button className="font-bold text-blue-600 hover:underline text-xs">
-                Audit Trail Penerimaan &gt;
+              <button className="font-bold text-blue-600 hover:underline text-xs cursor-pointer">
+                Receipt Audit Trail &gt;
               </button>
             </div>
           </div>
 
-          {/* Card 2: Klausul Kredit & Perjanjian Termin */}
+          {/* Card 2: Credit Clauses & Term Agreement */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -478,8 +478,8 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-sm text-slate-900">
-                      Klausul Kredit &amp; Perjanjian Termin
+                    <h3 className="font-bold text-sm text-slate-900 font-heading">
+                      Credit Clauses &amp; Term Agreement
                     </h3>
                   </div>
                 </div>
@@ -490,32 +490,32 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
 
               <div className="space-y-3 text-xs">
                 <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
-                  <div className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                  <div className="font-bold text-slate-900 flex items-center gap-1.5 font-heading">
                     <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                    <span>Term of Payment (TOP): 30 Hari Kalender</span>
+                    <span>Term of Payment (TOP): 30 Calendar Days</span>
                   </div>
                   <div className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
-                    Terhitung sejak Surat Tanda Penerimaan Faktur (STPF) ditandatangani atau e-Faktur terbit melalui e-Tax Portal ANDIMA.
+                    Calculated from the date the Invoice Receipt (STPF) is signed or e-Faktur is issued via the ANDIMA e-Tax Portal.
                   </div>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
-                  <div className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                  <div className="font-bold text-slate-900 flex items-center gap-1.5 font-heading">
                     <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                    <span>Klausul Penahanan Bill of Lading (R/L Hold)</span>
+                    <span>Bill of Lading Hold Clause (B/L Hold)</span>
                   </div>
                   <div className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
-                    B/L Original otomatis di-hold jika total tunggakan melampaui 90% plafon kredit atau terdapat invoice jatuh tempo &gt; 14 hari.
+                    Original B/L automatically held if total outstanding exceeds 90% credit limit or overdue invoices exceed 14 days.
                   </div>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
-                  <div className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                  <div className="font-bold text-slate-900 flex items-center gap-1.5 font-heading">
                     <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                    <span>Deposit Kontainer &amp; Bebas Demurrage</span>
+                    <span>Container Deposit &amp; Demurrage Free</span>
                   </div>
                   <div className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
-                    Bebas masa sewa demurrage: 7 hari kalender di pelabuhan muat &amp; bongkar. Jaminan kontainer tertanggung Bank Garansi aktif.
+                    Demurrage-free period: 7 calendar days at loading &amp; discharge ports. Container security covered by active Bank Guarantee.
                   </div>
                 </div>
               </div>
@@ -523,10 +523,10 @@ export const StatementOfAccountView: React.FC<StatementOfAccountViewProps> = ({
 
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
               <span className="text-[11px] text-slate-500 font-medium">
-                Status Legalitas: <span className="font-bold text-emerald-700">PKS Terverifikasi Legal Dept</span>
+                Legal Status: <span className="font-bold text-emerald-700">Agreement Verified by Legal Dept</span>
               </span>
-              <button className="font-bold text-blue-600 hover:underline text-xs">
-                Lihat Surat Perjanjian &gt;
+              <button className="font-bold text-blue-600 hover:underline text-xs cursor-pointer">
+                View Agreement Letter &gt;
               </button>
             </div>
           </div>

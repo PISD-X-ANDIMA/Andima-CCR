@@ -60,12 +60,12 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
     try {
       setSignOutError(null);
       const response = await fetch("/api/auth/logout", { method: "POST" });
-      if (!response.ok) throw new Error("Logout gagal. Silakan coba lagi.");
+      if (!response.ok) throw new Error("Logout failed. Please try again.");
       clearAccount();
       router.replace("/login");
       router.refresh();
     } catch {
-      setSignOutError("Logout gagal. Silakan coba lagi.");
+      setSignOutError("Logout failed. Please try again.");
     } finally {
       setIsInternalSigningOut(false);
     }
@@ -82,8 +82,8 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
       >
         <div className="flex items-center gap-3 px-2">
           <div className="size-9 shrink-0"><Image src="/images/Logo ANDIMA.png" alt="Logo ANDIMA" width={36} height={36} className="h-9 w-9 object-contain" /></div>
-          <div><p className="text-xl font-bold tracking-[-0.5px] text-white">ANDIMA</p><p className="text-xs text-[#d9e2fc]/80">Logistics Suite</p></div>
-          <button type="button" onClick={() => setIsSidebarOpen(false)} className="ml-auto rounded p-1 text-[#d9e2fc] lg:hidden" aria-label="Tutup navigasi"><X size={18} /></button>
+          <div><p className="text-xl font-bold tracking-[-0.5px] text-white font-heading">ANDIMA</p><p className="text-xs text-[#d9e2fc]/80 font-heading">Logistics Suite</p></div>
+          <button type="button" onClick={() => setIsSidebarOpen(false)} className="ml-auto rounded p-1 text-[#d9e2fc] lg:hidden cursor-pointer" aria-label="Close navigation"><X size={18} /></button>
         </div>
 
         <nav className="mt-8 space-y-1.5 text-sm font-semibold">
@@ -91,7 +91,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
             <button
               type="button"
               onClick={() => setIsCcrOpen((value) => !value)}
-              className="flex w-full items-center justify-between rounded-lg bg-[#155cfd] px-3 py-2.5 text-white shadow-sm"
+              className="flex w-full items-center justify-between rounded-lg bg-[#155cfd] px-3 py-2.5 text-white shadow-sm font-heading cursor-pointer"
             >
               <span className="flex items-center gap-3">CCR</span>
               <ChevronDown size={16} className={`transition-transform ${isCcrOpen ? "rotate-0" : "-rotate-90"}`} />
@@ -120,18 +120,15 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
         <div className="mt-auto space-y-3">
           {signOutError && <p role="alert" className="text-xs text-red-400">{signOutError}</p>}
           <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">
-            {/* <span className="grid size-7 place-items-center rounded-full bg-[#16834b] text-[10px] font-bold text-white">{account.initials}</span> */}
-            {/* <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-white">{account.name}</p><p className="text-[10px] text-[#d9e2fc]/75">{account.role}</p></div> */}
             <button
               type="button"
               data-account-role={account.role}
               onClick={() => void handleSignOut()}
               disabled={isSigningOut || isInternalSigningOut}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-red-600 px-3 py-1.5 text-red-500 transition hover:bg-red-500/10 disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-red-600 px-3 py-1.5 text-red-500 transition hover:bg-red-500/10 disabled:opacity-50 cursor-pointer font-heading font-bold"
               aria-label="Logout"
               title="Logout"
             >
-              {/* <LogOut size={16} /> */}
               <span className="text-sm font-bold text-align-center">Logout</span>
             </button>
           </div>
@@ -141,8 +138,8 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
       <button
         type="button"
         onClick={() => setIsSidebarOpen(true)}
-        className="fixed left-4 top-4 z-30 rounded-lg bg-[#203d70] p-2 text-white lg:hidden"
-        aria-label="Buka navigasi"
+        className="fixed left-4 top-4 z-30 rounded-lg bg-[#203d70] p-2 text-white lg:hidden cursor-pointer"
+        aria-label="Open navigation"
       >
         <Menu size={20} />
       </button>
