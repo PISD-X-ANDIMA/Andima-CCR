@@ -2,14 +2,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import Pagination from "@/components/Pagination";
-import { AlertCircle, ArrowLeft, ArrowRight, Calendar, Download, FileUp, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Calendar, Download, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle } from "lucide-react";
 import { ChartAreaStacked } from "./chart";
-import UploadForm, { UploadResult } from "@/components/UploadForm/uploadform";
 import { QUICK_PERIODS, matchingQuickPeriod, quickPeriodRange } from "@/lib/salesOverviewPeriod";
 import { DocumentPreviewModal, RecentDocumentsPanel } from "./DocumentsPanel";
 import type { RecentDocument } from "@/lib/salesOverviewDocuments";
 import type { StaffOption } from "@/types/overdue";
-import { readJsonResponse } from "@/lib/clientHttp";
 
 export type { RecentDocument } from "@/lib/salesOverviewDocuments";
 
@@ -39,7 +37,6 @@ type Props = {
   isLoading: boolean;
   error: string | null;
   alerts?: AlertRow[];
-  canUpload?: boolean;
   documents: RecentDocument[];
   documentsLoading: boolean;
   documentsError: string | null;
@@ -173,17 +170,10 @@ function QuickPeriodFilters({ startPeriod, endPeriod, onStartPeriodChange, onEnd
   </div>;
 }
 
-export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], canUpload = false, documents, documentsLoading, documentsError, staffOptions = [], staffLoading = false, canAssign = false }: Props) {
+export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], documents, documentsLoading, documentsError, staffOptions = [], staffLoading = false, canAssign = false }: Props) {
   const hasMacro = Boolean(summary);
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  function handleUploadCompleted(result: UploadResult) {
-    if (result.validationStatus === "validated") {
-      setIsUploadOpen(false);
-      onRefresh();
-    }
-  }
   async function exportCsv() {
     if (isExporting || isLoading) return;
     setIsExporting(true);
@@ -203,10 +193,8 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
       setIsExporting(false);
     }
   }
-  async function openOriginal(documentId: string) {
-    const response = await fetch(`/api/v1/documents/${documentId}/preview`, { cache: "no-store" });
-    const body = await readJsonResponse<{ data?: { signedUrl?: string | null } }>(response);
-    if (response.ok && body?.data?.signedUrl) window.open(body.data.signedUrl, "_blank", "noopener,noreferrer");
+  function openOriginal(documentId: string) {
+    window.open(`/api/v1/documents/${documentId}/download`, "_blank", "noopener,noreferrer");
   }
   return (
     <main className="min-h-screen bg-slate-50 p-4 font-sans text-slate-800 md:p-8">
@@ -232,11 +220,7 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
         </section>
         <AlertPanel alerts={alerts} loading={isLoading} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />
         <RecentDocumentsPanel documents={documents} loading={documentsLoading} error={documentsError} onPreview={setPreviewDocumentId} onOpenOriginal={(id) => void openOriginal(id)} />
-        <section className="grid grid-cols-1 gap-6">
-          {canUpload && <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-lg font-bold text-slate-900 font-heading">Upload Document</h2><p className="mt-1 text-sm text-slate-500">Upload Company Sales Report or Outstanding Data to update the dashboard.</p><button type="button" onClick={() => setIsUploadOpen(true)} className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#3B6FF5] px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 cursor-pointer"><FileUp className="size-4" />Upload Report File</button></div>}
-        </section>
       </div>
-      {canUpload && <UploadForm open={isUploadOpen} onClose={() => setIsUploadOpen(false)} onCompleted={handleUploadCompleted} />}
       {previewDocumentId && <DocumentPreviewModal documentId={previewDocumentId} onClose={() => setPreviewDocumentId(null)} />}
     </main>
   );

@@ -35,7 +35,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const customersResult = customerIds.length
     ? await admin.from("c1_customer").select("customer_id, customer_code, customer_name, branch, source_type, source_document_id").in("customer_id", customerIds)
     : { data: [], error: null };
-  const signed = await admin.storage.from(document.storage_bucket).createSignedUrl(document.storage_path, 300);
+  const signed = document.validation_status === "rejected"
+    ? { data: null, error: null }
+    : await admin.storage.from(document.storage_bucket).createSignedUrl(document.storage_path, 300);
   const databaseDuration = performance.now() - databaseStarted;
   if (errorsResult.error || rowsResult.error || customersResult.error) return timed(NextResponse.json({ error: { code: "DATABASE_ERROR", message: "Unable to load document preview data." } }, { status: 500 }), startedAt, { auth: authDuration, db: databaseDuration });
   if (signed.error) return timed(NextResponse.json({ error: { code: "STORAGE_ERROR", message: "Unable to create document preview URL." } }, { status: 500 }), startedAt, { auth: authDuration, db: databaseDuration });

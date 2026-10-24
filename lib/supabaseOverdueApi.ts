@@ -53,6 +53,13 @@ type AssignmentRow = {
   follow_up_status: string;
 };
 
+type CustomerIdentity = {
+  customer_id: string;
+  customer_name: string | null;
+  branch: string | null;
+  npwp: string | null;
+};
+
 const MS_PER_DAY = 86_400_000;
 
 function dateOnly(value: Date) {
@@ -150,17 +157,24 @@ export async function evaluateOverdueAlertsInSupabase(currentDate = new Date(), 
   };
 }
 
-function toInvoice(row: AlertRow, staging: StagingOutstanding | undefined, assignment: AssignmentRow | undefined): OverdueInvoiceItem {
+function toInvoice(
+  row: AlertRow,
+  staging: StagingOutstanding | undefined,
+  assignment: AssignmentRow | undefined,
+  customers: Map<string, CustomerIdentity>,
+): OverdueInvoiceItem {
   const days = row.days_overdue;
   const assignedTo = assignment?.assigned_to;
-  const customerId = row.c1_customer_id ?? row.customer_id ?? staging?.c1_customer_id ?? staging?.customer_id ?? null;
+  const customerId = row.c1_customer_id ?? staging?.c1_customer_id ?? row.customer_id ?? staging?.customer_id ?? null;
+  const c1CustomerId = row.c1_customer_id ?? staging?.c1_customer_id ?? null;
+  const customer = c1CustomerId ? customers.get(c1CustomerId) : undefined;
   return {
     id: row.invoice_id,
     invoice_number: row.invoice_id,
     customer_id: customerId ?? "",
-    customer_name: staging?.customer_name ?? "Pelanggan tidak tersedia",
-    npwp: "-",
-    branch: "Tidak tersedia",
+    customer_name: customer?.customer_name?.trim() || staging?.customer_name?.trim() || "Pelanggan tidak tersedia",
+    npwp: customer?.npwp || "-",
+    branch: customer?.branch?.trim() || "Tidak tersedia",
     branch_code: "",
     due_date: row.due_date,
     amount_overdue: Number(staging?.outstanding_amount ?? 0),
@@ -212,8 +226,23 @@ export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOption
     if (!latestAssignments.has(assignment.invoice_id)) latestAssignments.set(assignment.invoice_id, assignment);
   }
 
-  const invoices = ((alerts ?? []) as AlertRow[])
-    .map((alert) => toInvoice(alert, stagingByInvoice.get(alert.invoice_id.trim().toLowerCase()), latestAssignments.get(alert.invoice_id)))
+  const alertsList = (alerts ?? []) as AlertRow[];
+  const customerIds = [...new Set(alertsList.flatMap((alert) => {
+    const staging = stagingByInvoice.get(alert.invoice_id.trim().toLowerCase());
+    return [alert.c1_customer_id, staging?.c1_customer_id].filter((id): id is string => Boolean(id));
+  }))];
+  const customers = new Map<string, CustomerIdentity>();
+  if (customerIds.length) {
+    const { data: customerRows, error: customersError } = await supabase
+      .from("c1_customer")
+      .select("customer_id, customer_name, branch, npwp")
+      .in("customer_id", customerIds);
+    if (customersError) throw customersError;
+    for (const customer of (customerRows ?? []) as CustomerIdentity[]) customers.set(customer.customer_id, customer);
+  }
+
+  const invoices = alertsList
+    .map((alert) => toInvoice(alert, stagingByInvoice.get(alert.invoice_id.trim().toLowerCase()), latestAssignments.get(alert.invoice_id), customers))
     .sort((a, b) => a.due_date.localeCompare(b.due_date) || a.invoice_number.localeCompare(b.invoice_number));
 
   return { invoices, kpi: calculateOverdueKpi(invoices), fromDb: true };

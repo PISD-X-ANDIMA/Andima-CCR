@@ -66,10 +66,12 @@ test("analytics RPCs aggregate validated C1 data and preserve API semantics", as
         ('33333333-3333-4333-8333-333333333333', 'processing', 'COMPANY_SALES_REPORT');
       insert into c1_company_sales_staging_rows(id, document_id, row_number, period_month, customer_name, revenue, total_cost, c1_customer_id) values
         ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 2, '2026-08-01', 'August Co', 1000, 300, '99999999-9999-4999-8999-999999999999'),
-        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '33333333-3333-4333-8333-333333333333', 2, '2026-09-01', 'Unvalidated Co', 9000, 1, null);
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '33333333-3333-4333-8333-333333333333', 2, '2026-09-01', 'Unvalidated Co', 9000, 1, null),
+        ('abababab-abab-4bab-8bab-abababababab', '11111111-1111-4111-8111-111111111111', 4, '2025-12-01', 'December Co', 500, 125, null);
       insert into c1_outstanding_staging_rows(id, document_id, row_number, invoice_number, customer_name, c1_customer_id, outstanding_amount, due_date, created_at) values
         ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '22222222-2222-4222-8222-222222222222', 2, 'INV-SOURCE-1', 'Uploaded Exact Co', '99999999-9999-4999-8999-999999999999', 700, '2026-09-15', '2026-10-01'),
         ('12121212-1212-4121-8121-121212121212', '22222222-2222-4222-8222-222222222222', 3, 'INV-SOURCE-2', 'Uploaded Exact Co', '99999999-9999-4999-8999-999999999999', 0, '2026-09-20', '2026-10-01'),
+        ('cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd', '22222222-2222-4222-8222-222222222222', 4, 'INV-DECEMBER', 'December Co', null, 300, '2025-12-15', '2025-12-31'),
         ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', '11111111-1111-4111-8111-111111111111', 3, 'INV-OUTSIDE', 'Outside Range Co', null, 999, '2026-12-15', '2026-10-01');
       insert into c1_overdue_alert(alert_id, invoice_id, due_date, days_overdue, alert_status) values
         ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'INV-SOURCE-1', '2026-09-15', 45, 'LEGAL'),
@@ -99,6 +101,13 @@ test("analytics RPCs aggregate validated C1 data and preserve API semantics", as
     assert.deepEqual(macro.summary, { revenue: 1000, cost: 300, sales_profit: 700, total_outstanding: 700 });
     assert.equal(macro.alerts.length, 1);
     assert.equal(macro.alerts[0].client, "Uploaded Exact Co");
+
+    const sixMonth = (await db.query("select public.c1_get_sales_overview_analytics('2026-05-01', '2026-11-01') as value")).rows[0].value;
+    const twelveMonth = (await db.query("select public.c1_get_sales_overview_analytics('2025-11-01', '2026-11-01') as value")).rows[0].value;
+    assert.deepEqual(sixMonth.summary, { revenue: 1000, cost: 300, sales_profit: 700, total_outstanding: 700 });
+    assert.deepEqual(twelveMonth.summary, { revenue: 1500, cost: 425, sales_profit: 1075, total_outstanding: 1000 });
+    assert.equal(sixMonth.series.length, 6);
+    assert.equal(twelveMonth.series.length, 12);
 
     const customers = (await db.query("select public.c1_get_customer_analytics('Jakarta', '', '', 'sales_profit', 'desc', 1, 1) as value")).rows[0].value;
     assert.equal(customers.total_items, 1);

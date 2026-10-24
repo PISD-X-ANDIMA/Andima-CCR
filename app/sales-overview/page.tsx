@@ -24,7 +24,6 @@ export default function SalesOverviewPage() {
   const [series, setSeries] = useState<MacroPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [canUpload, setCanUpload] = useState(false);
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [documents, setDocuments] = useState<RecentDocument[]>([]);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
@@ -41,7 +40,7 @@ export default function SalesOverviewPage() {
       const refreshToken = Date.now().toString();
       const [response, documentsResponse, staffResponse] = await Promise.all([
         fetch(`/api/v1/analytics/macro?start_period=${startPeriod}&end_period=${endPeriod}&refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
-        fetch(`/api/v1/documents/recent?limit=10&refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
+        fetch(`/api/v1/documents/recent?view=overview&limit=5&refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
         fetch(`/api/v1/overdue/staff?refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
       ]);
       const body = await readJsonResponse<ResponseBody & { error?: { message?: string } }>(response);
@@ -52,7 +51,6 @@ export default function SalesOverviewPage() {
       setSummary(body.data.summary);
       setSeries(body.data.series);
       setAlerts(body.data.alerts ?? []);
-      setCanUpload(Boolean(body.data.meta?.can_upload));
       setDocuments(documentsResponse.ok ? documentsBody?.data ?? [] : []);
       setDocumentsError(documentsResponse.ok ? null : responseMessage(documentsBody, "Daftar dokumen gagal dimuat."));
       setStaffOptions(staffResponse.ok ? staffBody?.data ?? [] : []);
@@ -62,7 +60,6 @@ export default function SalesOverviewPage() {
       setSummary(null);
       setSeries([]);
       setAlerts([]);
-      setCanUpload(false);
       setDocuments([]);
       setDocumentsError(reason instanceof Error ? reason.message : "Daftar dokumen gagal dimuat.");
       setStaffOptions([]);
@@ -81,7 +78,7 @@ export default function SalesOverviewPage() {
   return (
     <>
       <Header pageName="Sales Overview" />
-      <SalesOverview summary={summary} series={series} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={setStartPeriod} onEndPeriodChange={setEndPeriod} onRefresh={() => void load()} isLoading={isLoading} error={error} alerts={alerts} canUpload={canUpload} documents={documents} documentsLoading={isLoading} documentsError={documentsError} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} />
+      <SalesOverview summary={summary} series={series} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={setStartPeriod} onEndPeriodChange={setEndPeriod} onRefresh={() => void load()} isLoading={isLoading} error={error} alerts={alerts} documents={documents} documentsLoading={isLoading} documentsError={documentsError} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} />
     </>
   );
 }

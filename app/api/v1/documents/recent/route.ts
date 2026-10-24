@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/server/http";
 import { createAdminClient } from "@/lib/server/admin";
-import { canUseCcr, getCcrProfile } from "@/lib/server/authorization";
+import { canUpload, canUseCcr, getCcrProfile } from "@/lib/server/authorization";
 
 function timed(response: NextResponse, startedAt: number, phases: Record<string, number>) {
   const total = Math.round(performance.now() - startedAt);
@@ -19,15 +19,39 @@ export async function GET(request: NextRequest) {
   const authDuration = performance.now() - authStarted;
   if (!canUseCcr(profile)) return timed(NextResponse.json({ error: { code: "FORBIDDEN", message: "CCR access is required." } }, { status: 403 }), startedAt, { auth: authDuration });
 
-  const requestedLimit = Number.parseInt(request.nextUrl.searchParams.get("limit") ?? "10", 10);
-  const limit = Number.isFinite(requestedLimit) ? Math.min(50, Math.max(1, requestedLimit)) : 10;
+  const params = request.nextUrl.searchParams;
+  const pageValue = Number.parseInt(params.get("page") ?? "1", 10);
+  const pageSizeValue = Number.parseInt(params.get("limit") ?? (params.get("view") === "overview" ? "5" : "10"), 10);
+  const page = Number.isFinite(pageValue) ? Math.max(1, pageValue) : 1;
+  const pageSize = Number.isFinite(pageSizeValue) ? Math.min(50, Math.max(1, pageSizeValue)) : 10;
+  const rawType = params.get("document_type")?.trim().toLowerCase() ?? "all";
+  const documentType = rawType === "sales" ? "COMPANY_SALES_REPORT" : rawType === "outstanding" ? "OUTSTANDING_REPORT" : rawType === "all" ? null : undefined;
+  if (documentType === undefined) return timed(NextResponse.json({ error: { code: "INVALID_DOCUMENT_TYPE", message: "Invalid document type filter." } }, { status: 400 }), startedAt, { auth: authDuration });
+  const fileType = params.get("file_type")?.trim().toLowerCase() ?? "all";
+  if (!["all", "xlsx", "xls", "pdf"].includes(fileType)) return timed(NextResponse.json({ error: { code: "INVALID_FILE_TYPE", message: "Invalid file type filter." } }, { status: 400 }), startedAt, { auth: authDuration });
+  const search = params.get("search")?.trim().slice(0, 100) ?? "";
   const databaseStarted = performance.now();
-  const { data, error } = await createAdminClient()
-    .from("c1_document_uploads")
-    .select("id, file_name, document_type, mime_type, file_size_bytes, storage_bucket, uploaded_at, processed_at, validation_status, row_count, valid_row_count, invalid_row_count, error_summary")
-    .order("uploaded_at", { ascending: false })
-    .limit(limit);
+  const { data: result, error } = await createAdminClient().rpc("c1_list_managed_documents", {
+    p_search: search || null,
+    p_document_type: documentType,
+    p_file_type: fileType,
+    p_page: page,
+    p_page_size: pageSize,
+  });
   const databaseDuration = performance.now() - databaseStarted;
-  if (error) return timed(NextResponse.json({ error: { code: "DATABASE_ERROR", message: "Unable to load recent documents." } }, { status: 500 }), startedAt, { auth: authDuration, db: databaseDuration });
-  return timed(NextResponse.json({ data: data ?? [] }), startedAt, { auth: authDuration, db: databaseDuration });
+  if (error) {
+    const missingManagementRpc = error.code === "PGRST202" || error.code === "42883" || String(error.message ?? "").includes("c1_list_managed_documents");
+    if (missingManagementRpc) {
+      return timed(NextResponse.json({ error: { code: "DOCUMENT_MANAGEMENT_NOT_READY", message: "Document management database setup is missing. Apply the latest Supabase migration, then refresh this page." } }, { status: 503 }), startedAt, { auth: authDuration, db: databaseDuration });
+    }
+    console.error("Managed document listing failed", { code: error.code, message: error.message });
+    return timed(NextResponse.json({ error: { code: "DATABASE_ERROR", message: "Unable to load documents. Please retry or contact support." } }, { status: 500 }), startedAt, { auth: authDuration, db: databaseDuration });
+  }
+  const payload = result as { data?: unknown[]; pagination?: unknown; summary?: unknown } | null;
+  return timed(NextResponse.json({
+    data: payload?.data ?? [],
+    pagination: payload?.pagination ?? { page, page_size: pageSize, total_items: 0, total_pages: 1 },
+    summary: payload?.summary ?? { total: 0, validated: 0, rejected: 0 },
+    permissions: { can_manage_documents: canUpload(profile) },
+  }), startedAt, { auth: authDuration, db: databaseDuration });
 }

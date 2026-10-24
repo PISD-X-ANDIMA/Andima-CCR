@@ -118,6 +118,73 @@ test("C1 upload exposes only spreadsheet and PDF formats", () => {
   assert.doesNotMatch(formSource, /\.csv/);
 });
 
+test("managed document listing forwards filters, pagination, and keeps Overview capped at five", async () => {
+  let rpcArgs;
+  const route = load("app/api/v1/documents/recent/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/server/admin": { createAdminClient: () => ({ rpc: async (_name, args) => { rpcArgs = args; return { data: { data: [], summary: { total: 12, validated: 10, rejected: 2 }, pagination: { page: args.p_page, page_size: args.p_page_size, total_items: 12, total_pages: 2 } }, error: null }; } }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "PROVISIONED" }), canUseCcr: () => true, canUpload: () => false },
+  }, { performance });
+  const managedResponse = await route.GET({ nextUrl: new URL("https://app.test/api/v1/documents/recent?search=acme&document_type=outstanding&file_type=pdf&page=2&limit=10") });
+  assert.equal(managedResponse.status, 200);
+  assert.deepEqual(JSON.parse(JSON.stringify(rpcArgs)), { p_search: "acme", p_document_type: "OUTSTANDING_REPORT", p_file_type: "pdf", p_page: 2, p_page_size: 10 });
+  assert.equal((await managedResponse.json()).permissions.can_manage_documents, false);
+
+  await route.GET({ nextUrl: new URL("https://app.test/api/v1/documents/recent?view=overview&limit=5") });
+  assert.equal(rpcArgs.p_page_size, 5);
+
+  const notReadyRoute = load("app/api/v1/documents/recent/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/server/admin": { createAdminClient: () => ({ rpc: async () => ({ data: null, error: { code: "PGRST202", message: "function c1_list_managed_documents not found" } }) }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "PROVISIONED" }), canUseCcr: () => true, canUpload: () => false },
+  }, { performance });
+  const notReady = await notReadyRoute.GET({ nextUrl: new URL("https://app.test/api/v1/documents/recent") });
+  assert.equal(notReady.status, 503);
+  assert.equal((await notReady.json()).error.code, "DOCUMENT_MANAGEMENT_NOT_READY");
+});
+
+test("document delete is Staff-only and maps processing status to conflict", async () => {
+  let rpcCalls = 0;
+  const mocks = {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }), checkOrigin: () => null },
+    "@/lib/server/admin": { createAdminClient: () => ({ rpc: async () => { rpcCalls += 1; return { data: null, error: { message: "DOCUMENT_PROCESSING" } }; } }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "PROVISIONED" }), canUpload: profile => profile.resolved_role === "STAFF" },
+    "@/lib/server/documentStorageCleanup": { cleanupDocumentStorage: async () => ({ complete: true }) },
+  };
+  const route = load("app/api/v1/documents/[id]/route.ts", mocks);
+  const denied = await route.DELETE({ method: "DELETE" }, { params: Promise.resolve({ id: doc1 }) });
+  assert.equal(denied.status, 403);
+  assert.equal(rpcCalls, 0);
+
+  mocks["@/lib/server/authorization"].getCcrProfile = async () => ({ resolved_role: "STAFF", is_active: true, registration_status: "PROVISIONED" });
+  const staffRoute = load("app/api/v1/documents/[id]/route.ts", mocks);
+  const conflict = await staffRoute.DELETE({ method: "DELETE" }, { params: Promise.resolve({ id: doc1 }) });
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).error.code, "DOCUMENT_PROCESSING");
+  assert.equal(rpcCalls, 1);
+});
+
+test("document manager UI exposes read-only review, Staff actions, filters, paging, and delete confirmation details", () => {
+  const page = read("app/uploaded-documents/page.tsx");
+  const previewPanel = read("components/Sales Overview/DocumentsPanel.tsx");
+  assert.match(page, /canManage && <button[\s\S]*Add Document/);
+  assert.match(page, /canManage && row\.validation_status !== "processing"/);
+  assert.match(page, /cleanup-pending/);
+  assert.match(page, /document_type: documentType, file_type: fileType, page: String\(page\), limit: "10"/);
+  assert.match(page, /File: \$\{row\.file_name\}\\nType:/);
+  assert.match(page, /Pending Storage Cleanup/);
+  assert.match(page, /min-h-32 rounded-xl border border-slate-100 bg-white p-5 shadow-sm/);
+  assert.match(page, /row\.validation_status === "rejected"/);
+  assert.match(previewPanel, /The original file was not saved/);
+  assert.match(page, /DocumentStatsSkeleton/);
+  assert.match(page, /Array\.from\(\{ length: 10 \}/);
+  assert.match(page, /aria-busy=\{loading\}/);
+  assert.match(page, /Loading uploaded documents/);
+});
+
 test("C1 upload rejects CSV before persistence", async () => {
   class MockFile {
     constructor(name, type) {
@@ -179,6 +246,80 @@ test("validation detail endpoint enforces CCR access and no-store responses", as
   assert.equal(authorizedResponse.headers.get("cache-control"), "no-store, max-age=0");
   assert.match(authorizedResponse.headers.get("server-timing"), /auth/);
   assert.deepEqual((await authorizedResponse.json()).data.errors[0], { row_number: 2, field_name: "customer", error_code: "REQUIRED", error_message: "Customer wajib diisi." });
+});
+
+test("rejected document preview returns validation details without requesting a Storage URL", async () => {
+  let signedUrlCalls = 0;
+  const document = { id: doc1, file_name: "bad-sales.xlsx", document_type: "COMPANY_SALES_REPORT", mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file_size_bytes: 1024, storage_bucket: "c1-document-uploads", storage_path: "staff/path/bad-sales.xlsx", uploaded_at: "2026-10-24T00:00:00Z", processed_at: "2026-10-24T00:01:00Z", validation_status: "rejected", row_count: 1, valid_row_count: 0, invalid_row_count: 1, error_summary: "Validation failed." };
+  const admin = {
+    from(table) {
+      const query = {
+        select() { return query; },
+        eq() { return query; },
+        order() { return query; },
+        limit() {
+          return Promise.resolve({ data: table === "c1_document_validation_errors" ? [{ row_number: 2, field_name: "customer", error_code: "REQUIRED", error_message: "Customer is required.", raw_value: null, severity: "ERROR" }] : [], error: null });
+        },
+        maybeSingle: async () => ({ data: document, error: null }),
+      };
+      return query;
+    },
+    storage: { from: () => ({ createSignedUrl: async () => { signedUrlCalls += 1; return { data: { signedUrl: "https://storage.test/valid.xlsx" }, error: null }; } }) },
+  };
+  const route = load("app/api/v1/documents/[id]/preview/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "PROVISIONED" }), canUseCcr: () => true },
+    "@/lib/server/admin": { createAdminClient: () => admin },
+  }, { performance });
+  const response = await route.GET({}, { params: Promise.resolve({ id: doc1 }) });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.data.document.validation_status, "rejected");
+  assert.equal(body.data.signedUrl, null);
+  assert.equal(body.data.errors[0].error_message, "Customer is required.");
+  assert.equal(signedUrlCalls, 0);
+
+  document.validation_status = "validated";
+  const validatedResponse = await route.GET({}, { params: Promise.resolve({ id: doc1 }) });
+  assert.equal(validatedResponse.status, 200);
+  assert.equal((await validatedResponse.json()).data.signedUrl, "https://storage.test/valid.xlsx");
+  assert.equal(signedUrlCalls, 1);
+});
+
+test("rejected download reports unavailable original and validated missing object reports not found", async () => {
+  let signedUrlCalls = 0;
+  let storageResult = { data: null, error: { statusCode: "404", message: "Object not found" } };
+  let currentDocument = { storage_bucket: "c1-document-uploads", storage_path: "staff/path/rejected.xlsx", validation_status: "rejected", error_summary: "Validation failed." };
+  const admin = {
+    from() {
+      const query = { select() { return query; }, eq() { return query; }, maybeSingle: async () => ({ data: currentDocument, error: null }) };
+      return query;
+    },
+    storage: { from: () => ({ createSignedUrl: async () => { signedUrlCalls += 1; return storageResult; } }) },
+  };
+  const route = load("app/api/v1/documents/[id]/download/route.ts", {
+    "next/server": { NextResponse: { ...responseMock.NextResponse, redirect: (url, status) => new Response(null, { status, headers: { Location: String(url) } }) } },
+    "@/lib/server/http": { requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "MANAGEMENT", is_active: true, registration_status: "PROVISIONED" }), canUseCcr: () => true },
+    "@/lib/server/admin": { createAdminClient: () => admin },
+  });
+  const rejected = await route.GET({}, { params: Promise.resolve({ id: doc1 }) });
+  assert.equal(rejected.status, 409);
+  assert.equal((await rejected.json()).error.code, "ORIGINAL_FILE_UNAVAILABLE");
+  assert.equal(signedUrlCalls, 0);
+
+  currentDocument = { ...currentDocument, validation_status: "validated", error_summary: null };
+  const missing = await route.GET({}, { params: Promise.resolve({ id: doc1 }) });
+  assert.equal(missing.status, 404);
+  assert.equal((await missing.json()).error.code, "ORIGINAL_FILE_NOT_FOUND");
+  assert.equal(signedUrlCalls, 1);
+
+  storageResult = { data: { signedUrl: "https://storage.test/valid.xlsx" }, error: null };
+  const valid = await route.GET({}, { params: Promise.resolve({ id: doc1 }) });
+  assert.equal(valid.status, 302);
+  assert.equal(valid.headers.get("location"), "https://storage.test/valid.xlsx");
+  assert.equal(signedUrlCalls, 2);
 });
 
 test("legacy data upload route redirects to Sales Overview", () => {
@@ -398,6 +539,59 @@ test("overdue route authorizes before a fresh admin read and exposes timing head
   }, { performance, URL });
   assert.equal((await forbiddenRoute.GET({ url: "https://app.test/api/v1/overdue" })).status, 403);
   assert.equal(forbiddenCalls, 0);
+});
+
+test("overdue invoices resolve C1 customer names and branches in one batch with upload-name fallback", async () => {
+  const alerts = [
+    { invoice_id: "INV-MASTER", customer_id: null, c1_customer_id: "customer-a", due_date: "2026-08-01", evaluation_date: "2026-10-01", days_overdue: 61, overdue_alert: true, alert_status: "LEGAL ESCALATION" },
+    { invoice_id: "INV-FALLBACK", customer_id: null, c1_customer_id: "customer-missing", due_date: "2026-08-02", evaluation_date: "2026-10-01", days_overdue: 60, overdue_alert: true, alert_status: "HIGH RISK" },
+    { invoice_id: "INV-LEGACY", customer_id: "legacy-id", c1_customer_id: null, due_date: "2026-08-03", evaluation_date: "2026-10-01", days_overdue: 59, overdue_alert: true, alert_status: "HIGH RISK" },
+  ];
+  const staging = [
+    { invoice_number: "INV-MASTER", customer_id: null, c1_customer_id: "customer-a", customer_name: "Old Upload Name", outstanding_amount: 100, due_date: "2026-08-01", created_at: "2026-09-01" },
+    { invoice_number: "INV-FALLBACK", customer_id: null, c1_customer_id: "customer-missing", customer_name: "Uploaded Fallback Name", outstanding_amount: 200, due_date: "2026-08-02", created_at: "2026-09-01" },
+    { invoice_number: "INV-LEGACY", customer_id: "legacy-id", c1_customer_id: null, customer_name: "Legacy Upload Name", outstanding_amount: 300, due_date: "2026-08-03", created_at: "2026-09-01" },
+  ];
+  const customerRows = [{ customer_id: "customer-a", customer_name: "Canonical Customer", branch: "Jakarta", npwp: "NPWP-A" }];
+  const customerLookups = [];
+  const tables = { c1_overdue_alert: alerts, c1_outstanding_staging_rows: staging, c1_assignment: [], c1_customer: customerRows };
+  const client = {
+    from(table) {
+      const queryState = { filters: [] };
+      const query = {
+        select(fields) { if (table === "c1_customer") queryState.fields = fields; return query; },
+        gt(column, value) { queryState.filters.push([column, "gt", value]); return query; },
+        gte(column, value) { queryState.filters.push([column, "gte", value]); return query; },
+        lt(column, value) { queryState.filters.push([column, "lt", value]); return query; },
+        eq(column, value) { if (!column.startsWith("c1_document_uploads.")) queryState.filters.push([column, "eq", value]); return query; },
+        in(column, values) { queryState.filters.push([column, "in", values]); if (table === "c1_customer") customerLookups.push(values); return query; },
+        order() { return query; },
+        then(resolve, reject) {
+          const values = (tables[table] ?? []).filter(row => queryState.filters.every(([column, operator, value]) => {
+            if (operator === "gt") return row[column] > value;
+            if (operator === "gte") return row[column] >= value;
+            if (operator === "lt") return row[column] < value;
+            if (operator === "eq") return row[column] === value;
+            if (operator === "in") return value.includes(row[column]);
+            return true;
+          }));
+          return Promise.resolve({ data: values, error: null }).then(resolve, reject);
+        },
+      };
+      return query;
+    },
+  };
+  const api = load("lib/supabaseOverdueApi.ts", { "@/lib/server/admin": { createAdminClient: () => client } });
+  const result = await api.fetchOverdueAlertsFromSupabase({}, client);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(customerLookups)), [["customer-a", "customer-missing"]]);
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").customer_name, "Canonical Customer");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").branch, "Jakarta");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").npwp, "NPWP-A");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").customer_id, "customer-a");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-FALLBACK").customer_name, "Uploaded Fallback Name");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-LEGACY").customer_name, "Legacy Upload Name");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-LEGACY").branch, "Tidak tersedia");
 });
 
 async function database() {

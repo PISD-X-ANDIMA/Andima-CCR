@@ -41,7 +41,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   const router = useRouter();
   const isPublicRoute = pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const isC1Route = ["/sales-overview", "/customer-analytics", "/overdue-alert"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  const isC1Route = ["/sales-overview", "/uploaded-documents", "/customer-analytics", "/overdue-alert"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const isC2Route = ["/dashboard", "/cost-exception", "/priority-exception", "/customer-cost", "/evidence", "/monthly-closing", "/export-report"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const [isCcrOpen, setIsCcrOpen] = useState(true);
   const [isC1Open, setIsC1Open] = useState(isC1Route);
@@ -100,6 +100,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
               <div className="ml-5 mt-2 border-l border-[#d9e2fc]/20 pl-3">
                 <SidebarGroup label="C1" open={isC1Open} active={isC1Route} onToggle={() => setIsC1Open((value) => !value)}>
                   <HrmsLink label="Sales Overview" href="/sales-overview" />
+                  <HrmsLink label="Uploaded Documents" href="/uploaded-documents" />
                   <HrmsLink label="Customer Analytics" href="/customer-analytics" />
                   <HrmsLink label="Overdue Alert" href="/overdue-alert" />
                 </SidebarGroup>
