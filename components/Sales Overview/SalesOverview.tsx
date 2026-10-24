@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Pagination from "@/components/Pagination";
-import { AlertCircle, ArrowLeft, ArrowRight, Calendar, Download, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Calendar, Download, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle, X } from "lucide-react";
 import { ChartAreaStacked } from "./chart";
 import { QUICK_PERIODS, matchingQuickPeriod, quickPeriodRange } from "@/lib/salesOverviewPeriod";
 import { DocumentPreviewModal, RecentDocumentsPanel } from "./DocumentsPanel";
@@ -174,6 +174,7 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
   const hasMacro = Boolean(summary);
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   async function exportCsv() {
     if (isExporting || isLoading) return;
     setIsExporting(true);
@@ -196,8 +197,13 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
   function openOriginal(documentId: string) {
     window.open(`/api/v1/documents/${documentId}/download`, "_blank", "noopener,noreferrer");
   }
+  function showRejectedDownload(message: string) {
+    setDownloadError(message);
+    window.setTimeout(() => setDownloadError((current) => current === message ? null : current), 5000);
+  }
   return (
     <main className="min-h-screen bg-slate-50 p-4 font-sans text-slate-800 md:p-8">
+      {downloadError && <div role="alert" className="fixed right-4 top-4 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900 shadow-xl"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-rose-600" /><span className="flex-1">{downloadError}</span><button type="button" onClick={() => setDownloadError(null)} aria-label="Dismiss notification" className="rounded p-1 text-rose-700 hover:bg-rose-100"><X className="size-4" /></button></div>}
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">Sales Overview</h1>
@@ -219,7 +225,7 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
           <ChartAreaStacked title="Total Outstanding" series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
         </section>
         <AlertPanel alerts={alerts} loading={isLoading} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />
-        <RecentDocumentsPanel documents={documents} loading={documentsLoading} error={documentsError} onPreview={setPreviewDocumentId} onOpenOriginal={(id) => void openOriginal(id)} />
+        <RecentDocumentsPanel documents={documents} loading={documentsLoading} error={documentsError} onPreview={setPreviewDocumentId} onOpenOriginal={(id) => void openOriginal(id)} onRejectedDownload={showRejectedDownload} />
       </div>
       {previewDocumentId && <DocumentPreviewModal documentId={previewDocumentId} onClose={() => setPreviewDocumentId(null)} />}
     </main>

@@ -67,7 +67,7 @@ export default function CustomerAnalyticsPage() {
         <main className="flex-1 space-y-6 p-6 md:p-8">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">CCR: Customer Analytics</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">Customer Analytics</h1>
               <p className="mt-1 text-xs font-medium text-slate-500">Unique company portfolio from validated C1 records.</p>
             </div>
             <button type="button" onClick={() => void loadAnalyticsData()} disabled={isLoading} className="inline-flex items-center gap-2 self-start rounded-xl bg-[#3B6FF5] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-blue-600 disabled:opacity-60 cursor-pointer">

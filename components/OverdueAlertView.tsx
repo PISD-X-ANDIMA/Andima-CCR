@@ -207,8 +207,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
       <main className="mx-auto w-full max-w-[1800px] space-y-5 p-4 sm:p-6 lg:p-7">
         <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-600">Cash Collection &amp; Recovery</p>
-            <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl font-heading">CCR: Overdue Alerts &amp; Receivables Monitoring</h1>
+            <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl font-heading">Overdue Alerts &amp; Receivables Monitoring</h1>
             <p className="mt-1 max-w-2xl text-xs text-slate-500">Monitor invoices past 30-day SLA, prioritize risks, and follow up PIC assignments.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

@@ -28,7 +28,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
   const isSales = document.document_type === "COMPANY_SALES_REPORT";
   const [errorsResult, rowsResult] = await Promise.all([
-    admin.from("c1_document_validation_errors").select("row_number, field_name, error_code, error_message, raw_value, severity").eq("document_id", id).order("row_number", { ascending: true }).limit(500),
+    admin.from("c1_document_validation_errors").select("row_number, field_name, error_code, error_message, raw_value, severity").eq("document_id", id).order("row_number", { ascending: true }),
     admin.from(isSales ? "c1_company_sales_staging_rows" : "c1_outstanding_staging_rows").select("*").eq("document_id", id).order("row_number", { ascending: true }).limit(1000),
   ]);
   const customerIds = [...new Set((rowsResult.data ?? []).map((row: { c1_customer_id?: string | null }) => row.c1_customer_id).filter((value): value is string => Boolean(value)))];

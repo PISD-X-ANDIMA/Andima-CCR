@@ -83,9 +83,8 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
     const customerValue = String(value("customer") ?? "").trim();
     const customerCode = String(value("customerCode") ?? "").trim();
     const customer = customerValue;
-    const customerId = customerMap.get(normalize(customerValue)) ?? customerMap.get(normalize(customerCode));
+    const customerId = customerMap.get(normalize(customerCode)) ?? customerMap.get(normalize(customerValue)) ?? null;
     if (!customerValue) errors.push({ row, field: "customer", code: "REQUIRED", message: "Customer wajib diisi." });
-    else if (!customerId) errors.push({ row, field: "customer", code: "UNKNOWN_CUSTOMER", message: "Customer belum terhubung ke master customer.", rawValue: customerValue });
     if (type === "COMPANY_SALES_REPORT") {
       const revenue = numberValue(value("revenue"));
       const period = periodValue(value("period"));
@@ -96,7 +95,7 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
       parsedCosts.forEach((cost, costIndex) => {
         if (cost === null || cost < 0) errors.push({ row, field: costs[costIndex], code: "INVALID_NUMBER", message: "Komponen biaya harus berupa angka tidak negatif." });
       });
-      if (period && customerId && revenue !== null && revenue >= 0 && parsedCosts.every((cost) => cost !== null && cost >= 0)) valid.push({ row_number: row, period_month: period, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId, revenue, trucking_cost: parsedCosts[0], handling_cost: parsedCosts[1], storage_cost: parsedCosts[2], other_operational_cost: parsedCosts[3] });
+      if (period && customerValue && revenue !== null && revenue >= 0 && parsedCosts.every((cost) => cost !== null && cost >= 0)) valid.push({ row_number: row, period_month: period, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId, revenue, trucking_cost: parsedCosts[0], handling_cost: parsedCosts[1], storage_cost: parsedCosts[2], other_operational_cost: parsedCosts[3] });
     } else {
       const amount = numberValue(value("amount"));
       const dueDate = dateValue(value("dueDate"));
@@ -104,17 +103,17 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
       if (!invoice) errors.push({ row, field: "invoice", code: "REQUIRED", message: "Invoice wajib diisi." });
       if (amount === null || amount < 0) errors.push({ row, field: "amount", code: "INVALID_NUMBER", message: "Nominal harus berupa angka tidak negatif." });
       if (!dueDate) errors.push({ row, field: "dueDate", code: "INVALID_DATE", message: "Due date tidak valid." });
-      if (invoice && customerId && amount !== null && amount >= 0 && dueDate) valid.push({ row_number: row, invoice_number: invoice, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId, outstanding_amount: amount, due_date: dueDate, create_date: dateValue(value("createDate")), job_number: String(value("job") ?? "").trim() || null, mawb: String(value("mawb") ?? "").trim() || null });
+      if (invoice && customerValue && amount !== null && amount >= 0 && dueDate) valid.push({ row_number: row, invoice_number: invoice, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId, outstanding_amount: amount, due_date: dueDate, create_date: dateValue(value("createDate")), job_number: String(value("job") ?? "").trim() || null, mawb: String(value("mawb") ?? "").trim() || null });
     }
   });
   if (type === "OUTSTANDING_REPORT") {
     const seenInvoices = new Set<string>();
-    for (const row of rows.slice(1)) {
+    for (const [index, row] of rows.slice(1).entries()) {
       const invoiceIndex = indexes.invoice;
       if (invoiceIndex < 0) break;
       const invoice = String(row[invoiceIndex] ?? "").trim().toLowerCase();
       if (!invoice) continue;
-      if (seenInvoices.has(invoice)) errors.push({ field: "invoice", code: "DUPLICATE_INVOICE", message: "Invoice duplikat ditemukan." });
+      if (seenInvoices.has(invoice)) errors.push({ row: index + 2, field: "invoice", code: "DUPLICATE_INVOICE", message: "Invoice duplikat ditemukan.", rawValue: invoice });
       seenInvoices.add(invoice);
     }
     if (errors.some((error) => error.code === "DUPLICATE_INVOICE")) return { errors, warnings, rows: [] as Record<string, unknown>[], unmatchedCustomerCount: 0 };

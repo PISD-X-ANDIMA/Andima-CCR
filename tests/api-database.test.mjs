@@ -47,7 +47,7 @@ test("CCR authorization matrix allows chart access for management and staff", ()
   }
 });
 
-test("document uploads reject missing or unmatched customers before staging", () => {
+test("document uploads require a customer name but allow names outside the A1 customer list", () => {
   const uploadRoute = load("lib/documentUploadValidation.ts", {
     "node:crypto": { createHash: () => ({ update() { return this; }, digest: () => "checksum" }) },
     "node:path": { join: (...parts) => parts.join("/") },
@@ -73,11 +73,11 @@ test("document uploads reject missing or unmatched customers before staging", ()
     ["2026-09", "Different Name", "CODE-42", "300", "30", "40", "50", "60"],
     ["2026-09", "", "", "400", "40", "50", "60", "70"],
   ], "COMPANY_SALES_REPORT", customerMap);
-  assert.equal(sales.errors.filter(error => error.field === "customer").length, 2);
-  assert.equal(sales.errors.some(error => error.code === "UNKNOWN_CUSTOMER" && error.rawValue === "File Only Co"), true);
+  assert.equal(sales.errors.filter(error => error.field === "customer").length, 1);
+  assert.equal(sales.errors.some(error => error.code === "UNKNOWN_CUSTOMER"), false);
   assert.equal(sales.errors.some(error => error.code === "UNKNOWN_CUSTOMER" && error.rawValue === "Different Name"), false);
   assert.equal(sales.errors.some(error => error.code === "REQUIRED" && error.row === 5), true);
-  assert.equal(sales.rows.length, 2);
+  assert.equal(sales.rows.length, 3);
   assert.equal(JSON.stringify(sales.rows[0]), JSON.stringify({
     row_number: 2,
     period_month: "2026-09-01",
@@ -89,15 +89,18 @@ test("document uploads reject missing or unmatched customers before staging", ()
     storage_cost: 30,
     other_operational_cost: 40,
   }));
+  assert.equal(sales.rows[1].customer_name, "File Only Co");
+  assert.equal(sales.rows[1].customer_id, null);
+  assert.equal(sales.rows[2].customer_id, "customer-by-code");
   assert.equal(sales.unmatchedCustomerCount, 0);
 
   const outstanding = uploadRoute.validateRows([
     ["invoice", "customer", "amount", "due date"],
     ["INV-UNKNOWN", "File Outstanding Co", "500", "2026-10-15"],
   ], "OUTSTANDING_REPORT", customerMap);
-  assert.equal(outstanding.errors.length, 1);
-  assert.equal(outstanding.errors[0].code, "UNKNOWN_CUSTOMER");
-  assert.equal(outstanding.rows.length, 0);
+  assert.equal(outstanding.errors.length, 0);
+  assert.equal(outstanding.rows.length, 1);
+  assert.equal(outstanding.rows[0].customer_id, null);
   assert.equal(outstanding.unmatchedCustomerCount, 0);
 
   const missingCustomerColumn = uploadRoute.validateRows([
@@ -107,6 +110,170 @@ test("document uploads reject missing or unmatched customers before staging", ()
   assert.equal(missingCustomerColumn.errors.length, 1);
   assert.equal(missingCustomerColumn.errors[0].code, "MISSING_HEADER");
   assert.equal(missingCustomerColumn.rows.length, 0);
+});
+
+test("upload resolver migration creates and cleans C1 upload customers without requiring A1", () => {
+  const migration = read("supabase/migrations/20261024010000_resolve_uploaded_customers_without_a1.sql");
+  assert.match(migration, /where lower\(trim\(c\.customer_code\)\) = lower\(item\.customer_code\)/);
+  assert.match(migration, /where lower\(trim\(c\.customer_name\)\) = lower\(item\.customer_name\)/);
+  assert.match(migration, /source_type, source_document_id\)[\s\S]*'UPLOAD', p_document_id/);
+  assert.match(migration, /create or replace function public\.c1_cleanup_unreferenced_upload_customers/);
+  assert.match(read("app/api/v1/documents/upload/route.ts"), /c1_resolve_uploaded_customers/);
+  assert.match(read("app/api/v1/documents/upload/route.ts"), /c1_cleanup_unreferenced_upload_customers/);
+});
+
+test("uploaded customer resolver prioritizes code, falls back to name, and cleans unused inserts", async () => {
+  const db = new PGlite();
+  await db.exec(`create role anon; create role authenticated; create role service_role;
+    create table c1_customer (
+      customer_id uuid primary key default gen_random_uuid(), customer_code text, customer_name text not null,
+      branch text not null, active_status boolean not null, source_type text not null,
+      source_document_id uuid, created_at timestamptz not null default now()
+    );
+    create table c1_company_sales_staging_rows (c1_customer_id uuid);
+    create table c1_outstanding_staging_rows (c1_customer_id uuid);
+    create table c1_overdue_alert (c1_customer_id uuid);
+    create table c1_customer_monthly_metrics (customer_id uuid);
+    insert into c1_customer (customer_code, customer_name, branch, active_status, source_type)
+      values ('CODE-1', 'Master Canonical Name', 'Jakarta', true, 'MASTER');`);
+  await db.exec(read("supabase/migrations/20261024010000_resolve_uploaded_customers_without_a1.sql"));
+  const result = await db.query("select public.c1_resolve_uploaded_customers($1::uuid, $2::jsonb) as resolved", [doc1, JSON.stringify([
+    { customer_name: "Different Name", customer_code: "CODE-1" },
+    { customer_name: "Master Canonical Name", customer_code: "OTHER-CODE" },
+    { customer_name: "Fresh Upload Co", customer_code: null },
+  ])]);
+  const items = result.rows[0].resolved.items;
+  assert.equal(items.find(item => item.requested_customer_code === "CODE-1").customer_name, "Master Canonical Name");
+  assert.equal(items.find(item => item.requested_customer_code === "OTHER-CODE").customer_code, "CODE-1");
+  assert.equal(items.find(item => item.requested_customer_name === "Fresh Upload Co").customer_code.startsWith("UPLOAD-"), true);
+  const cleanup = await db.query("select public.c1_cleanup_unreferenced_upload_customers($1::uuid) as deleted", [doc1]);
+  assert.equal(cleanup.rows[0].deleted, 1);
+  const remaining = await db.query("select customer_name from c1_customer order by customer_name");
+  assert.deepEqual(remaining.rows.map(row => row.customer_name), ["Master Canonical Name"]);
+  await db.close();
+});
+
+test("document preview exposes all validation findings for client-side paging", () => {
+  const source = read("app/api/v1/documents/[id]/preview/route.ts");
+  assert.match(source, /select\("row_number, field_name, error_code, error_message, raw_value, severity"\)/);
+  assert.doesNotMatch(source, /c1_document_validation_errors[\s\S]{0,200}\.limit\(500\)/);
+  const panel = read("components/Sales Overview/DocumentsPanel.tsx");
+  assert.match(panel, /errorPageSize = 25/);
+  assert.match(panel, /Pagination currentPage=\{errorPage\}/);
+  assert.match(panel, /Validation Warnings &amp; Errors[\s\S]*Source value/);
+});
+
+test("rejected download actions use an error toast and CCR page titles omit the prefix", () => {
+  const overview = read("components/Sales Overview/SalesOverview.tsx");
+  const documents = read("app/uploaded-documents/page.tsx");
+  assert.match(overview, /role="alert"[\s\S]*bg-rose-50[\s\S]*onRejectedDownload/);
+  assert.match(documents, /role="alert"[\s\S]*bg-rose-50/);
+  assert.match(documents, /File asli tidak tersedia karena dokumen ditolak/);
+  assert.match(read("app/customer-analytics/page.tsx"), /<h1[^>]*>Customer Analytics<\/h1>/);
+  assert.match(read("components/OverdueAlertView.tsx"), /<h1[^>]*>Overdue Alerts &amp; Receivables Monitoring<\/h1>/);
+});
+
+test("upload preflight returns extracted rows and validation findings without persistence", async () => {
+  class MockFile {
+    constructor(name, type) { this.name = name; this.type = type; this.size = 32; }
+  }
+  const parsedRows = [
+    ["period", "customer", "revenue"],
+    ["2026-09", "Valid Co", "100"],
+    ["bad-period", "Invalid Co", "200"],
+    ["", "", ""],
+    ["", "Ignored Co", ""],
+  ];
+  const route = load("app/api/v1/documents/preview/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { checkOrigin: () => null, requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "STAFF", is_active: true, registration_status: "PROVISIONED" }), canUpload: () => true },
+    "@/lib/server/documentUploadParser": { parseDocumentRows: async () => parsedRows, parseFailureMessage: () => "Parse failed." },
+    "@/lib/documentUploadValidation": { validateRows: () => ({
+      rows: [{ row_number: 2, customer_name: "Valid Co" }],
+      errors: [{ row: 3, field: "period", code: "INVALID_PERIOD", message: "Period invalid.", rawValue: "bad-period" }],
+      warnings: [{ row: 2, field: "customer", code: "CUSTOMER_ALIAS", message: "Alias matched." }],
+    }) },
+  }, { performance, File: MockFile, Buffer, crypto: { randomUUID: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } });
+  const file = new MockFile("sales.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  const request = { formData: async () => ({ get: key => key === "file" ? file : "COMPANY_SALES_REPORT" }) };
+  const response = await route.POST(request);
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store, max-age=0");
+  assert.deepEqual(body.data.rows.map(row => row.status), ["valid", "invalid", "ignored"]);
+  assert.equal(body.data.errors[0].row, 3);
+  assert.equal(body.data.warnings.length, 1);
+  assert.equal(body.data.canFinalize, true);
+});
+
+test("upload preflight parse failures are non-finalizable and rejected documents return their record id", () => {
+  const form = read("components/UploadForm/uploadform.tsx");
+  const upload = read("app/api/v1/documents/upload/route.ts");
+  assert.match(form, /\/api\/v1\/documents\/preview/);
+  assert.match(form, /\/api\/v1\/documents\/upload/);
+  assert.match(form, /error\?\.code === "PARSE_FAILED"/);
+  assert.match(form, /disabled={!review\?\.canFinalize/);
+  assert.match(upload, /"VALIDATION_FAILED", validationErrors, \{ documentId: document\.id \}\)/);
+});
+
+test("upload preflight reports parser failure without creating an upload record", async () => {
+  class MockFile {
+    constructor(name) { this.name = name; this.type = "application/pdf"; this.size = 32; }
+  }
+  const route = load("app/api/v1/documents/preview/route.ts", {
+    "next/server": responseMock,
+    "@/lib/server/http": { checkOrigin: () => null, requireSession: async () => ({ client: {}, user: { id: user1 }, error: null }) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "STAFF", is_active: true, registration_status: "PROVISIONED" }), canUpload: () => true },
+    "@/lib/server/documentUploadParser": { parseDocumentRows: async () => { throw new Error("PDF_TEXT_NOT_EXTRACTABLE"); }, parseFailureMessage: code => `${code} reason.` },
+    "@/lib/documentUploadValidation": { validateRows: () => { throw new Error("must not validate parse failure"); } },
+  }, { performance, File: MockFile, crypto: { randomUUID: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } });
+  const file = new MockFile("scan.pdf");
+  const response = await route.POST({ formData: async () => ({ get: key => key === "file" ? file : "OUTSTANDING_REPORT" }) });
+  const body = await response.json();
+  assert.equal(response.status, 422);
+  assert.equal(body.error.code, "PARSE_FAILED");
+  assert.equal(body.error.errors[0].code, "PDF_TEXT_NOT_EXTRACTABLE");
+  assert.equal(body.data, undefined);
+});
+
+test("finalizing a validation failure creates a Rejected document without storing the original file", async () => {
+  class MockFile {
+    constructor(name) { this.name = name; this.type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; this.size = 32; }
+    async arrayBuffer() { return new Uint8Array([1, 2, 3]).buffer; }
+  }
+  let rejectedUpdate = false;
+  let storageUploadCalls = 0;
+  const admin = {
+    from(table) {
+      if (table === "c1_document_uploads") return {
+        insert: () => ({ select: () => ({ single: async () => ({ data: { id: doc1 }, error: null }) }) }),
+        update: values => ({ eq: async () => { rejectedUpdate ||= values.validation_status === "rejected"; return { error: null }; } }),
+      };
+      return { insert: async () => ({ error: null }) };
+    },
+    storage: { from: () => ({ upload: async () => { storageUploadCalls += 1; return { error: null }; } }) },
+  };
+  const route = load("app/api/v1/documents/upload/route.ts", {
+    "node:crypto": { createHash: () => ({ update() { return this; }, digest: () => "checksum" }) },
+    "next/server": responseMock,
+    "next/headers": { cookies: async () => ({}) },
+    "@/utils/supabase/server": { createClient: () => ({ auth: { getUser: async () => ({ data: { user: { id: user1 } } }) }, from: () => ({ select: async () => ({ data: [], error: null }) }) }) },
+    "@/lib/server/admin": { createAdminClient: () => admin },
+    "@/lib/server/http": { checkOrigin: () => null },
+    "@/lib/supabaseOverdueApi": { describeSupabaseError: String, evaluateOverdueAlertsInSupabase: async () => ({}) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "STAFF", is_active: true, registration_status: "PROVISIONED" }), canUpload: () => true },
+    "@/lib/server/documentUploadParser": { parseDocumentRows: async () => [["period", "customer"], ["2026-09", "Bad Row"]], parseFailureMessage: () => "Parse failed." },
+    "@/lib/documentUploadValidation": { normalize: value => String(value).toLowerCase(), validateRows: () => ({ rows: [], errors: [{ row: 2, field: "revenue", code: "INVALID_NUMBER", message: "Invalid number." }], warnings: [] }) },
+  }, { performance, File: MockFile, Buffer, crypto: { randomUUID: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } });
+  const file = new MockFile("bad-sales.xlsx");
+  const response = await route.POST({ formData: async () => ({ get: key => key === "file" ? file : "COMPANY_SALES_REPORT" }) });
+  const body = await response.json();
+  assert.equal(response.status, 422);
+  assert.equal(body.error.code, "VALIDATION_FAILED");
+  assert.equal(body.error.documentId, doc1);
+  assert.equal(rejectedUpdate, true);
+  assert.equal(storageUploadCalls, 0);
 });
 
 test("C1 upload exposes only spreadsheet and PDF formats", () => {
@@ -174,7 +341,10 @@ test("document manager UI exposes read-only review, Staff actions, filters, pagi
   assert.match(page, /canManage && row\.validation_status !== "processing"/);
   assert.match(page, /cleanup-pending/);
   assert.match(page, /document_type: documentType, file_type: fileType, page: String\(page\), limit: "10"/);
-  assert.match(page, /File: \$\{row\.file_name\}\\nType:/);
+  assert.match(page, /role="alertdialog"[\s\S]*Delete document\?/);
+  assert.match(page, /deleteTarget\.file_name/);
+  assert.match(page, /deleteTarget\.document_type === "OUTSTANDING_REPORT"/);
+  assert.doesNotMatch(page, /window\.confirm/);
   assert.match(page, /Pending Storage Cleanup/);
   assert.match(page, /min-h-32 rounded-xl border border-slate-100 bg-white p-5 shadow-sm/);
   assert.match(page, /row\.validation_status === "rejected"/);
@@ -206,6 +376,7 @@ test("C1 upload rejects CSV before persistence", async () => {
     "@/lib/supabaseOverdueApi": { describeSupabaseError: String, evaluateOverdueAlertsInSupabase: async () => ({}) },
     "@/lib/documentUploadValidation": { COMPANY_ALIASES: {}, OUTSTANDING_ALIASES: {}, normalize: value => String(value), numberValue: () => null, dateValue: () => null, periodValue: () => null, validateRows: () => ({ errors: [], warnings: [], rows: [], unmatchedCustomerCount: 0 }) },
     "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "STAFF", is_active: true, registration_status: "APPROVED" }), canUpload: () => true },
+    "@/lib/server/documentUploadParser": { parseDocumentRows: async () => [], parseFailureMessage: () => "Parse failed." },
   }, { performance, File: MockFile });
   const file = new MockFile("sales.csv", "text/csv");
   const response = await uploadRoute.POST({ formData: async () => ({ get: key => key === "file" ? file : "COMPANY_SALES_REPORT" }) });
@@ -251,15 +422,15 @@ test("validation detail endpoint enforces CCR access and no-store responses", as
 test("rejected document preview returns validation details without requesting a Storage URL", async () => {
   let signedUrlCalls = 0;
   const document = { id: doc1, file_name: "bad-sales.xlsx", document_type: "COMPANY_SALES_REPORT", mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file_size_bytes: 1024, storage_bucket: "c1-document-uploads", storage_path: "staff/path/bad-sales.xlsx", uploaded_at: "2026-10-24T00:00:00Z", processed_at: "2026-10-24T00:01:00Z", validation_status: "rejected", row_count: 1, valid_row_count: 0, invalid_row_count: 1, error_summary: "Validation failed." };
+  const validationErrors = [{ row_number: 2, field_name: "customer", error_code: "REQUIRED", error_message: "Customer is required.", raw_value: null, severity: "ERROR" }, ...Array.from({ length: 500 }, (_, index) => ({ row_number: index + 3, field_name: "revenue", error_code: "INVALID_NUMBER", error_message: "Revenue is invalid.", raw_value: "x", severity: index % 2 ? "WARNING" : "ERROR" }))];
   const admin = {
     from(table) {
       const query = {
         select() { return query; },
         eq() { return query; },
         order() { return query; },
-        limit() {
-          return Promise.resolve({ data: table === "c1_document_validation_errors" ? [{ row_number: 2, field_name: "customer", error_code: "REQUIRED", error_message: "Customer is required.", raw_value: null, severity: "ERROR" }] : [], error: null });
-        },
+        limit() { return query; },
+        then(resolve, reject) { return Promise.resolve({ data: table === "c1_document_validation_errors" ? validationErrors : [], error: null }).then(resolve, reject); },
         maybeSingle: async () => ({ data: document, error: null }),
       };
       return query;
@@ -278,6 +449,7 @@ test("rejected document preview returns validation details without requesting a 
   assert.equal(body.data.document.validation_status, "rejected");
   assert.equal(body.data.signedUrl, null);
   assert.equal(body.data.errors[0].error_message, "Customer is required.");
+  assert.equal(body.data.errors.length, 501);
   assert.equal(signedUrlCalls, 0);
 
   document.validation_status = "validated";
