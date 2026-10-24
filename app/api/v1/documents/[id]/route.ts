@@ -23,11 +23,20 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     p_deleted_by: session.user!.id,
   });
   if (error) {
-    const message = String(error.message ?? "");
+    const details = error && typeof error === "object"
+      ? error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown }
+      : { message: String(error) };
+    const message = typeof details.message === "string" ? details.message : "";
     if (message.includes("DOCUMENT_NOT_FOUND")) return response(404, { error: { code: "DOCUMENT_NOT_FOUND", message: "Document not found." } });
     if (message.includes("DOCUMENT_PROCESSING")) return response(409, { error: { code: "DOCUMENT_PROCESSING", message: "A document cannot be deleted while it is processing." } });
     if (message.includes("DOCUMENT_STATUS_NOT_DELETABLE")) return response(409, { error: { code: "DOCUMENT_STATUS_NOT_DELETABLE", message: "This document status cannot be deleted." } });
-    console.error("Document database deletion failed", { documentId: id, error: message });
+    console.error("Document database deletion failed", {
+      documentId: id,
+      code: details.code ?? null,
+      message: details.message ?? null,
+      details: details.details ?? null,
+      hint: details.hint ?? null,
+    });
     return response(500, { error: { code: "DOCUMENT_DELETE_FAILED", message: "Unable to delete document data." } });
   }
 

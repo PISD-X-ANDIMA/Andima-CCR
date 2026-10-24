@@ -332,6 +332,100 @@ test("document delete is Staff-only and maps processing status to conflict", asy
   assert.equal(conflict.status, 409);
   assert.equal((await conflict.json()).error.code, "DOCUMENT_PROCESSING");
   assert.equal(rpcCalls, 1);
+
+  let loggedDetails;
+  mocks["@/lib/server/admin"].createAdminClient = () => ({ rpc: async () => ({ data: null, error: { code: "23503", message: "foreign key violation", details: "constraint name", hint: "check references" } }) });
+  const genericFailure = load("app/api/v1/documents/[id]/route.ts", mocks, { console: { error: (_message, details) => { loggedDetails = details; } } });
+  const failed = await genericFailure.DELETE({ method: "DELETE" }, { params: Promise.resolve({ id: doc1 }) });
+  assert.equal(failed.status, 500);
+  assert.deepEqual(await failed.json(), { error: { code: "DOCUMENT_DELETE_FAILED", message: "Unable to delete document data." } });
+  assert.deepEqual(JSON.parse(JSON.stringify(loggedDetails)), { documentId: doc1, code: "23503", message: "foreign key violation", details: "constraint name", hint: "check references" });
+});
+
+test("document deletion recalculates macro metrics without legacy refresh and remains atomic", async () => {
+  const db = new PGlite();
+  const sharedCustomer = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const unusedCustomer = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const remainingCustomer = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  try {
+    await db.exec(`create role anon; create role authenticated; create role service_role;
+      create table c1_document_uploads (
+        id uuid primary key, file_name text not null, document_type text not null,
+        validation_status text not null, uploader_user_id uuid not null,
+        storage_bucket text not null default 'c1-document-uploads', storage_path text not null
+      );
+      create table c1_document_deletion_audit (
+        audit_id uuid primary key default gen_random_uuid(), document_id uuid not null, file_name text not null,
+        document_type text not null, validation_status text not null, uploader_user_id uuid,
+        deleted_by uuid not null, storage_bucket text not null, storage_path text not null
+      );
+      create table c1_customer (
+        customer_id uuid primary key, source_type text not null, source_document_id uuid references c1_document_uploads(id) on delete set null
+      );
+      create table c1_company_sales_staging_rows (
+        id uuid primary key default gen_random_uuid(), document_id uuid not null references c1_document_uploads(id) on delete cascade,
+        row_number integer not null, period_month date not null, revenue numeric not null, total_cost numeric not null, c1_customer_id uuid
+      );
+      create table c1_outstanding_staging_rows (
+        id uuid primary key default gen_random_uuid(), document_id uuid not null references c1_document_uploads(id) on delete cascade,
+        due_date date not null, outstanding_amount numeric not null, c1_customer_id uuid
+      );
+      create table c1_overdue_alert (c1_customer_id uuid);
+      create table c1_payment_transactions (customer_id uuid);
+      create table c1_invoice_detail (customer_id uuid);
+      create table c1_customer_monthly_metrics (customer_id uuid);
+      create table c1_macro_metric (
+        period_month date primary key, revenue numeric not null, cost numeric not null, total_outstanding numeric not null,
+        validation_status text not null, updated_at timestamptz not null default now()
+      );
+      create table overdue_refresh_calls (evaluation_date date);
+      create function c1_refresh_overdue_alerts(date) returns void language plpgsql as $$ begin insert into overdue_refresh_calls values ($1); end; $$;
+      create function refresh_c1_macro_metrics() returns void language plpgsql as $$ begin raise exception 'legacy refresh must not run'; end; $$;
+      insert into c1_document_uploads(id,file_name,document_type,validation_status,uploader_user_id,storage_path) values
+        ('${doc1}','company_sales_report_2026-06 (1).pdf','COMPANY_SALES_REPORT','validated','${user1}','target.pdf'),
+        ('${doc2}','sales-shared.xlsx','COMPANY_SALES_REPORT','validated','${user1}','shared.xlsx'),
+        ('${doc2.replaceAll("4", "5")}','sales-july.xlsx','COMPANY_SALES_REPORT','validated','${user1}','july.xlsx');
+      insert into c1_customer(customer_id,source_type,source_document_id) values
+        ('${sharedCustomer}','UPLOAD','${doc1}'), ('${unusedCustomer}','UPLOAD','${doc1}'), ('${remainingCustomer}','MASTER',null);
+      insert into c1_company_sales_staging_rows(document_id,row_number,period_month,revenue,total_cost,c1_customer_id) values
+        ('${doc1}',2,'2026-06-01',1500,300,'${sharedCustomer}'),
+        ('${doc1}',3,'2026-06-01',0,0,'${unusedCustomer}'),
+        ('${doc2}',2,'2026-06-01',200,40,'${sharedCustomer}'),
+        ('${doc2.replaceAll("4", "5")}',2,'2026-07-01',700,100,'${remainingCustomer}');
+      insert into c1_macro_metric(period_month,revenue,cost,total_outstanding,validation_status) values
+        ('2026-05-01',10,2,0,'validated'), ('2026-06-01',1700,340,0,'validated'), ('2026-07-01',700,100,0,'validated');`);
+    const migration = read("supabase/migrations/20261024020000_delete_document_without_legacy_macro_refresh.sql");
+    const start = migration.indexOf("create or replace function public.c1_delete_uploaded_document");
+    const end = migration.indexOf("$function$;", start) + "$function$;".length;
+    await db.exec(migration.slice(start, end));
+
+    const deleted = await db.query("select public.c1_delete_uploaded_document($1::uuid,$2::uuid) as result", [doc1, user1]);
+    assert.equal(deleted.rows[0].result.file_name, "company_sales_report_2026-06 (1).pdf");
+    assert.equal((await db.query("select count(*)::int as count from c1_document_uploads where id = $1", [doc1])).rows[0].count, 0);
+    assert.equal((await db.query("select count(*)::int as count from c1_document_deletion_audit where document_id = $1", [doc1])).rows[0].count, 1);
+    assert.deepEqual((await db.query("select period_month::text,revenue::float,cost::float,total_outstanding::float from c1_macro_metric order by period_month")).rows, [
+      { period_month: "2026-06-01", revenue: 200, cost: 40, total_outstanding: 0 },
+      { period_month: "2026-07-01", revenue: 700, cost: 100, total_outstanding: 0 },
+    ]);
+    assert.deepEqual((await db.query("select customer_id::text from c1_customer order by customer_id")).rows, [{ customer_id: sharedCustomer }, { customer_id: remainingCustomer }]);
+
+    const outstandingDoc = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    await db.exec(`insert into c1_document_uploads(id,file_name,document_type,validation_status,uploader_user_id,storage_path) values ('${outstandingDoc}','outstanding.xlsx','OUTSTANDING_REPORT','validated','${user1}','outstanding.xlsx');
+      insert into c1_outstanding_staging_rows(document_id,due_date,outstanding_amount,c1_customer_id) values ('${outstandingDoc}','2026-10-15',80,'${remainingCustomer}');`);
+    await db.query("select public.c1_delete_uploaded_document($1::uuid,$2::uuid)", [outstandingDoc, user1]);
+    assert.equal((await db.query("select count(*)::int as count from overdue_refresh_calls")).rows[0].count, 1);
+    assert.equal((await db.query("select count(*)::int as count from c1_macro_metric where period_month = '2026-10-01'")).rows[0].count, 0);
+
+    const failingDoc = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    await db.exec(`insert into c1_document_uploads(id,file_name,document_type,validation_status,uploader_user_id,storage_path) values ('${failingDoc}','failure.xlsx','COMPANY_SALES_REPORT','validated','${user1}','failure.xlsx');
+      insert into c1_company_sales_staging_rows(document_id,row_number,period_month,revenue,total_cost,c1_customer_id) values ('${failingDoc}',2,'2026-08-01',50,5,'${remainingCustomer}');
+      create function reject_metric_write() returns trigger language plpgsql as $$ begin raise exception 'metric write rejected'; end; $$;
+      create trigger reject_metric_write before insert or update on c1_macro_metric for each row execute function reject_metric_write();`);
+    await assert.rejects(db.query("select public.c1_delete_uploaded_document($1::uuid,$2::uuid)", [failingDoc, user1]));
+    assert.equal((await db.query("select validation_status from c1_document_uploads where id = $1", [failingDoc])).rows[0].validation_status, "validated");
+    assert.equal((await db.query("select count(*)::int as count from c1_document_deletion_audit where document_id = $1", [failingDoc])).rows[0].count, 0);
+    assert.equal((await db.query("select count(*)::int as count from c1_company_sales_staging_rows where document_id = $1", [failingDoc])).rows[0].count, 1);
+  } finally { await db.close(); }
 });
 
 test("document manager UI exposes read-only review, Staff actions, filters, paging, and delete confirmation details", () => {
