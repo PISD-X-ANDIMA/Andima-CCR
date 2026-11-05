@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import Pagination from "@/components/Pagination";
 import { AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Calendar, Download, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle, X } from "lucide-react";
 import { ChartAreaStacked } from "./chart";
@@ -244,20 +245,30 @@ function AlertPanel({ alerts, loading, staffOptions, staffLoading, canAssign, on
   return <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-lg font-bold text-slate-900 font-heading">Overdue Alerts List</h2><p className="mb-4 text-xs text-slate-500">Validated invoices exceeding 30 days, sorted by oldest due date.</p>{loading ? <AlertSkeleton /> : ordered.length ? <><div className="space-y-3">{visible.map((alert, index) => <AlertCard key={`alert-row-${alert.id}-${alert.due}-${(currentPage - 1) * pageSize + index}`} alert={alert} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />)}</div>{totalPages > 1 && <div className="mt-5 flex min-w-0 justify-center overflow-hidden"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })} /></div>}</> : <PanelEmpty text="No overdue alert data found." />}</section>;
 }
 
-function AlertCard({ alert, staffOptions, staffLoading, canAssign, onRefresh }: { alert: AlertRow; staffOptions: StaffOption[]; staffLoading: boolean; canAssign: boolean; onRefresh: () => void }) {
-  const [selectedStaff, setSelectedStaff] = useState("");
-  const [saving, setSaving] = useState(false);
-  async function assign() {
-    if (!selectedStaff || !canAssign) return;
-    setSaving(true);
-    try {
-      const response = await fetch(`/api/v1/overdue/${encodeURIComponent(alert.id)}/assign`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assignedTo: selectedStaff }) });
-      if (!response.ok) throw new Error("Assignment failed.");
-      setSelectedStaff("");
-      onRefresh();
-    } finally { setSaving(false); }
-  }
-  return <div className="rounded-lg bg-slate-50 p-3"><div className="flex justify-between text-xs font-bold"><span>{alert.id}</span><span className="text-red-600">{alert.days} Days</span></div><p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p><p className="text-[10px] text-slate-500">Due: {alert.due} · {money.format(alert.amount)}</p><div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500"><span>{alert.branch || "Branch unavailable"}</span>{alert.picAssigned && <span>PIC: {alert.picAssigned}</span>}{alert.riskStatus && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">{alert.riskStatus}</span>}</div>{!alert.picAssigned && <div className="mt-2 flex gap-2"><select value={selectedStaff} onChange={(event) => setSelectedStaff(event.target.value)} disabled={!canAssign || staffLoading || !staffOptions.length} className="min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]" aria-label={`Select PIC for ${alert.id}`}><option value="">{staffLoading ? "Loading staff..." : !canAssign ? "Unauthorized" : "Select PIC"}</option>{staffOptions.map((staff) => <option key={staff.employee_id} value={staff.employee_id}>{staff.full_name} ({staff.employee_id})</option>)}</select><button type="button" onClick={() => void assign()} disabled={!selectedStaff || saving || !canAssign} className="rounded bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white disabled:opacity-50 cursor-pointer">{saving ? "..." : "Assign PIC"}</button></div>}</div>;
+function AlertCard({ alert }: { alert: AlertRow; staffOptions?: StaffOption[]; staffLoading?: boolean; canAssign?: boolean; onRefresh?: () => void }) {
+  return (
+    <div className="rounded-lg bg-slate-50 p-3">
+      <div className="flex justify-between text-xs font-bold">
+        <span>{alert.id}</span>
+        <span className="text-red-600">{alert.days} Days</span>
+      </div>
+      <p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p>
+      <p className="text-[10px] text-slate-500">Due: {alert.due} · {money.format(alert.amount)}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+        <span>{alert.branch || "Branch unavailable"}</span>
+        {alert.picAssigned && <span className="font-semibold text-slate-700">PIC: {alert.picAssigned}</span>}
+        {alert.riskStatus && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">{alert.riskStatus}</span>}
+      </div>
+      <div className="mt-3 flex justify-end">
+        <Link
+          href="/overdue-alert"
+          className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-xs hover:bg-blue-700 transition cursor-pointer"
+        >
+          Assign PIC
+        </Link>
+      </div>
+    </div>
+  );
 }
 function PeakMetrics({ series, startPeriod, endPeriod, loading, error }: { series: MacroPoint[]; startPeriod: string; endPeriod: string; loading: boolean; error: string | null }) {
   const selected = series.filter(point => point.period_month >= startPeriod && point.period_month <= endPeriod).sort((a, b) => b.period_month.localeCompare(a.period_month));

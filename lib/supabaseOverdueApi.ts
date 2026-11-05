@@ -269,7 +269,49 @@ export async function assignPicInSupabase(invoiceId: string, assignedTo: string,
     assigned_by: assignedBy,
     follow_up_status: "ASSIGNED",
     notes: notes?.trim() || null,
-  }).select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes").single();
+  }).select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at").single();
+  if (error) throw error;
+  return { success: true, record: data };
+}
+
+export async function recordFollowUpProgressInSupabase(params: {
+  invoiceId: string;
+  followUpStatus: string;
+  followUpAction?: string | null;
+  promiseDate?: string | null;
+  notes?: string | null;
+  attachmentUrl?: string | null;
+  updatedBy: string;
+  assignedTo?: string | null;
+}) {
+  const cleanInvoiceId = params.invoiceId.trim();
+  if (!cleanInvoiceId) return { success: false, error: "Invoice ID wajib diisi." };
+
+  const supabase = getSupabaseClient();
+  let assignedTo = params.assignedTo?.trim();
+  if (!assignedTo) {
+    const { data: latest } = await supabase
+      .from("c1_assignment")
+      .select("assigned_to")
+      .eq("invoice_id", cleanInvoiceId)
+      .order("assigned_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    assignedTo = latest?.assigned_to || "STAFF";
+  }
+
+  const { data, error } = await supabase.from("c1_assignment").insert({
+    invoice_id: cleanInvoiceId,
+    assigned_to: assignedTo,
+    assigned_by: params.updatedBy,
+    follow_up_status: params.followUpStatus || "IN_PROGRESS",
+    follow_up_action: params.followUpAction || null,
+    promise_date: params.promiseDate || null,
+    notes: params.notes?.trim() || null,
+    attachment_url: params.attachmentUrl || null,
+    updated_by: params.updatedBy,
+  }).select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at").single();
+
   if (error) throw error;
   return { success: true, record: data };
 }
@@ -277,7 +319,7 @@ export async function assignPicInSupabase(invoiceId: string, assignedTo: string,
 export async function fetchAssignmentHistoryInSupabase(invoiceId: string) {
   const { data, error } = await getSupabaseClient()
     .from("c1_assignment")
-    .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes")
+    .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at")
     .eq("invoice_id", invoiceId)
     .order("assigned_at", { ascending: false });
   if (error) throw error;

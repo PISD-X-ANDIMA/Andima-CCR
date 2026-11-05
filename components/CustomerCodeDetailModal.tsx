@@ -100,64 +100,64 @@ export default function CustomerCodeDetailModal({ customerId, code, onClose }: P
                     ["Total Cost", salesSummary.cost],
                     ["Sales Profit", salesSummary.profit],
                   ].map(([label, value]) => (
-                    <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-xs font-semibold text-slate-500 font-heading">{label}</p>
-                      <p className="mt-2 text-xs font-bold text-slate-900 font-heading">{money(Number(value))}</p>
+                    <div key={label} className="rounded-xl border border-slate-300 bg-slate-50 p-3 shadow-xs">
+                      <p className="text-xs font-bold text-slate-950 font-heading">{label}</p>
+                      <p className="mt-2 text-xs font-extrabold text-black font-heading">{money(Number(value))}</p>
                     </div>
                   ))}
                 </div>
               </section>
               <section>
-                <h3 className="text-sm font-bold text-slate-800 font-heading">All Sales Report Rows</h3>
-                <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
+                <h3 className="text-sm font-bold text-slate-900 font-heading">All Sales Report Rows</h3>
+                <div className="mt-3 overflow-x-auto rounded-xl border border-slate-300">
                   <table className="min-w-[1180px] w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
+                    <thead className="bg-slate-100 text-xs font-bold text-slate-950 border-b border-slate-200">
                       <tr>
                         {["Period", "Source Name", "Revenue", "Sub Total", "VAT (PPN)", "PPh 23", "Others / DIP", "Total Cost", "Sales Profit"].map((label) => (
-                          <th key={label} className="whitespace-nowrap px-3 py-3">{label}</th>
+                          <th key={label} className="whitespace-nowrap px-3 py-3 text-slate-950 font-bold">{label}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-200">
                       {detail.sales_rows.map((row) => (
-                        <tr key={row.id}>
-                          <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-700">{row.period_month.slice(0, 7)}</td>
-                          <td className="min-w-64 px-3 py-3 text-slate-600">{row.customer_name}</td>
-                          <td className="whitespace-nowrap px-3 py-3">{money(row.revenue)}</td>
-                          <td className="whitespace-nowrap px-3 py-3">{money(row.sub_total ?? row.trucking_cost)}</td>
-                          <td className="whitespace-nowrap px-3 py-3">{money(row.vat ?? row.handling_cost)}</td>
-                          <td className="whitespace-nowrap px-3 py-3">{money(row.pph_23 ?? row.storage_cost)}</td>
-                          <td className="whitespace-nowrap px-3 py-3">{money(row.others_dip_cost ?? row.other_operational_cost)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 font-semibold">{money(row.total_cost)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 font-bold text-emerald-700">{money(row.sales_profit)}</td>
+                        <tr key={row.id} className="hover:bg-slate-50">
+                          <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-900">{row.period_month.slice(0, 7)}</td>
+                          <td className="min-w-64 px-3 py-3 font-semibold text-slate-900">{row.customer_name}</td>
+                          <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">{money(row.revenue)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">{money(row.sub_total ?? row.trucking_cost)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">{money(row.vat ?? row.handling_cost)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">{money(row.pph_23 ?? row.storage_cost)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">{money(row.others_dip_cost ?? row.other_operational_cost)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 font-bold text-black">{money(row.total_cost)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 font-extrabold text-emerald-800">{money(row.sales_profit)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {!detail.sales_rows.length && <p className="p-6 text-center text-xs font-medium text-slate-400">No validated Sales Report rows for this code.</p>}
+                  {!detail.sales_rows.length && <p className="p-6 text-center text-xs font-medium text-slate-500">No validated Sales Report rows for this code.</p>}
                 </div>
               </section>
               <section>
-                <h3 className="text-sm font-bold text-slate-800 font-heading">Outstanding Report Due Dates</h3>
-                <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
+                <h3 className="text-sm font-bold text-slate-900 font-heading">Outstanding Report Due Dates</h3>
+                <div className="mt-3 overflow-x-auto rounded-xl border border-slate-300">
                   <table className="min-w-[980px] w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
+                    <thead className="bg-slate-100 text-xs font-bold text-slate-950 border-b border-slate-200">
                       <tr>
                         {["Invoice", "Source Name", "Amount", "Due Date", "Job", "MAWB", "Bulk Close"].map((label) => (
-                          <th key={label} className="whitespace-nowrap px-3 py-3">{label}</th>
+                          <th key={label} className="whitespace-nowrap px-3 py-3 text-slate-950 font-bold">{label}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-200">
                       {detail.outstanding_rows.map((row) => (
-                        <tr key={row.id}>
+                        <tr key={row.id} className="hover:bg-slate-50">
                           <td className="whitespace-nowrap px-3 py-3 font-bold text-blue-700">{row.invoice_number}</td>
-                          <td className="px-3 py-3 text-slate-600">{row.customer_name}</td>
-                          <td className="whitespace-nowrap px-3 py-3">{money(row.outstanding_amount)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-700">{row.due_date}</td>
-                          <td className="px-3 py-3">{row.job_number ?? "-"}</td>
-                          <td className="px-3 py-3">{row.mawb ?? "-"}</td>
-                          <td className="px-3 py-3 font-semibold">{row.bulk_close_status}</td>
+                          <td className="px-3 py-3 font-semibold text-slate-900">{row.customer_name}</td>
+                          <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-900">{money(row.outstanding_amount)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 font-bold text-slate-900">{row.due_date}</td>
+                          <td className="px-3 py-3 font-medium text-slate-900">{row.job_number ?? "-"}</td>
+                          <td className="px-3 py-3 font-medium text-slate-900">{row.mawb ?? "-"}</td>
+                          <td className="px-3 py-3 font-bold text-slate-900">{row.bulk_close_status}</td>
                         </tr>
                       ))}
                     </tbody>

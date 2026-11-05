@@ -43,6 +43,19 @@ export interface InvoiceDetail {
   created_at?: string;
 }
 
+export interface InvoicePayment {
+  payment_id: string;
+  amount: number;
+  payment_date: string;
+  reference_no: string;
+}
+
+export type CustomerInvoice = InvoiceDetail & {
+  job_number?: string | null;
+  mawb?: string | null;
+  payments?: InvoicePayment[];
+};
+
 export interface PaymentTrendPoint {
   period_month: string;
   amount: number;

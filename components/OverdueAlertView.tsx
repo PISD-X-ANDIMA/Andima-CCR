@@ -1,18 +1,30 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   AlertTriangle,
   ArrowDownUp,
+  Calendar,
   Check,
+  CheckCircle2,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
+  Clock,
   Download,
+  ExternalLink,
+  FileText,
   FileWarning,
   History,
+  MessageSquare,
+  Paperclip,
   Phone,
   RefreshCw,
   Search,
+  Send,
+  Upload,
+  UserCheck,
   UserRound,
   X,
 } from "lucide-react";
@@ -23,7 +35,7 @@ import type { AssignmentRecord, OverdueInvoiceItem, OverdueKpiSummary, StaffOpti
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 
 interface OverdueAlertViewProps {
-  onOpenWarningLetter: (item: OverdueInvoiceItem) => void;
+  onOpenWarningLetter?: (item: OverdueInvoiceItem) => void;
 }
 
 const EMPTY_KPI: OverdueKpiSummary = {
@@ -49,7 +61,7 @@ function formatRupiah(value: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value || 0);
 }
 
-function formatDate(value: string) {
+function formatDate(value?: string | null) {
   if (!value || value === "-") return "-";
   const date = new Date(`${value.slice(0, 10)}T00:00:00`);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
@@ -71,6 +83,15 @@ function agingClasses(days: number) {
   if (days > 60) return "bg-red-100 text-red-700";
   if (days > 30) return "bg-orange-50 text-orange-700";
   return "bg-blue-50 text-blue-700";
+}
+
+function followUpStatusBadge(status: string) {
+  const s = status.toUpperCase();
+  if (s === "COMPLETED") return "bg-emerald-100 text-emerald-800 border-emerald-300";
+  if (s === "PROMISE_TO_PAY") return "bg-amber-100 text-amber-800 border-amber-300";
+  if (s === "DISPUTE") return "bg-purple-100 text-purple-800 border-purple-300";
+  if (s === "IN_PROGRESS") return "bg-blue-100 text-blue-800 border-blue-300";
+  return "bg-slate-100 text-slate-700 border-slate-300";
 }
 
 export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarningLetter }) => {
@@ -149,14 +170,25 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
     return () => { active = false; };
   }, []);
 
-  const selectedInvoiceId = selectedInvoice?.id;
-  useEffect(() => {
-    if (!selectedInvoiceId) { setAssignmentHistory([]); return; }
-    fetch(`/api/v1/overdue/${encodeURIComponent(selectedInvoiceId)}/assign?refresh=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
+  const refreshAssignmentHistory = useCallback((invoiceId: string) => {
+    fetch(`/api/v1/overdue/${encodeURIComponent(invoiceId)}/assign?refresh=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
       .then(async (response) => ({ ok: response.ok, body: await readJsonResponse<{ data?: AssignmentRecord[]; error?: { message?: string } }>(response) }))
       .then((result) => { if (!result.ok) throw new Error(responseMessage(result.body, "Failed to load assignment history.")); setAssignmentHistory(result.body?.data ?? []); })
       .catch(() => setAssignmentHistory([]));
-  }, [selectedInvoiceId]);
+  }, []);
+
+  const selectedInvoiceId = selectedInvoice?.id;
+  useEffect(() => {
+    if (!selectedInvoiceId) { setAssignmentHistory([]); return; }
+    refreshAssignmentHistory(selectedInvoiceId);
+  }, [selectedInvoiceId, refreshAssignmentHistory]);
+
+  const handleProgressSaved = useCallback(() => {
+    if (selectedInvoice?.id) {
+      refreshAssignmentHistory(selectedInvoice.id);
+    }
+    loadOverdueData();
+  }, [selectedInvoice?.id, refreshAssignmentHistory, loadOverdueData]);
 
   const handleEvaluate = async () => {
     setLoading(true);
@@ -192,6 +224,9 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
       setAssignModalInvoice(null);
       setAssignTargetPic("");
       loadOverdueData();
+      if (selectedInvoice?.id === assignModalInvoice.id) {
+        refreshAssignmentHistory(assignModalInvoice.id);
+      }
     } catch (error) { showToast(error instanceof Error ? error.message : "Assignment failed."); }
   };
 
@@ -202,13 +237,18 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      {toastMessage && <div role="status" className="fixed right-4 top-20 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span>{toastMessage}</span></div>}
+      {toastMessage && (
+        <div role="status" className="fixed right-4 top-20 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl">
+          <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
       <Header pageName="Overdue Alert" />
       <main className="mx-auto w-full max-w-[1800px] space-y-5 p-4 sm:p-6 lg:p-7">
         <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl font-heading">Overdue Alerts &amp; Receivables Monitoring</h1>
-            <p className="mt-1 max-w-2xl text-xs text-slate-500">Monitor invoices past 30-day SLA, prioritize risks, and follow up PIC assignments.</p>
+            <p className="mt-1 max-w-2xl text-xs text-slate-500">Monitor overdue receivables, coordinate collection staff, and record follow-up progress.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={handleEvaluate} disabled={loading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-wait disabled:opacity-60 cursor-pointer">
@@ -220,12 +260,14 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
           </div>
         </section>
 
-        {loading ? <KpiSkeleton /> : <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Total Overdue Value" value={formatRupiah(kpi.totalOverdueValue)} detail={`${kpi.affectedInvoicesCount} invoices affected`} />
-          <KpiCard label="Critical Aging (>60 Days)" value={formatRupiah(kpi.criticalAgingValue)} detail={`${kpi.criticalAgingPercent.toFixed(1)}% of portfolio`} accent="text-red-600" />
-          <KpiCard label="Average DSO Delay" value={`${kpi.avgDsoDelay} days`} detail={`+${kpi.slaDiff} days above 30-day SLA`} />
-          <KpiCard label="Unassigned PIC" value={`${kpi.unassignedPicCount} invoices`} detail={`Floating value ${formatRupiah(kpi.unassignedFloatingValue)}`} accent="text-blue-700" />
-        </section>}
+        {loading ? <KpiSkeleton /> : (
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard label="Total Overdue Value" value={formatRupiah(kpi.totalOverdueValue)} detail={`${kpi.affectedInvoicesCount} invoices affected`} />
+            <KpiCard label="Critical Aging (>60 Days)" value={formatRupiah(kpi.criticalAgingValue)} detail={`${kpi.criticalAgingPercent.toFixed(1)}% of portfolio`} accent="text-red-600" />
+            <KpiCard label="Average DSO Delay" value={`${kpi.avgDsoDelay} days`} detail={`+${kpi.slaDiff} days above 30-day SLA`} />
+            <KpiCard label="Unassigned PIC" value={`${kpi.unassignedPicCount} invoices`} detail={`Floating value ${formatRupiah(kpi.unassignedFloatingValue)}`} accent="text-blue-700" />
+          </section>
+        )}
 
         <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -266,13 +308,48 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
           </div>
         </section>
 
-        <section className="grid min-w-0 grid-cols-1 items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <InvoiceTable loading={loading} errorMessage={errorMessage} invoices={paginatedInvoices} allVisibleChecked={allVisibleChecked} checkedIds={checkedIds} selectedInvoice={selectedInvoice} currentPage={currentPage} totalPages={totalPages} totalItems={invoices.length} onRetry={loadOverdueData} onSelect={(invoice) => { setSelectedInvoice(invoice); setCheckedIds((current) => current.includes(invoice.id) ? current.filter((id) => id === invoice.id) : [invoice.id]); }} onToggle={(id, checked) => setCheckedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id))} onSelectAll={(checked) => setCheckedIds(checked ? invoices.map((invoice) => invoice.id) : [])} onAssign={setAssignModalInvoice} onPageChange={setCurrentPage} />
-          <InvoiceDetail invoice={selectedInvoice} assignmentHistory={assignmentHistory} staffOptions={staffOptions} onOpenWarningLetter={onOpenWarningLetter} />
+        <section className="grid min-w-0 grid-cols-1 items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <InvoiceTable
+            loading={loading}
+            errorMessage={errorMessage}
+            invoices={paginatedInvoices}
+            allVisibleChecked={allVisibleChecked}
+            checkedIds={checkedIds}
+            selectedInvoice={selectedInvoice}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={invoices.length}
+            onRetry={loadOverdueData}
+            onSelect={(invoice) => { setSelectedInvoice(invoice); setCheckedIds((current) => current.includes(invoice.id) ? current.filter((id) => id === invoice.id) : [invoice.id]); }}
+            onToggle={(id, checked) => setCheckedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id))}
+            onSelectAll={(checked) => setCheckedIds(checked ? invoices.map((invoice) => invoice.id) : [])}
+            onAssign={setAssignModalInvoice}
+            onPageChange={setCurrentPage}
+          />
+          <InvoiceDetail
+            invoice={selectedInvoice}
+            assignmentHistory={assignmentHistory}
+            staffOptions={staffOptions}
+            onAssign={setAssignModalInvoice}
+            onProgressSaved={handleProgressSaved}
+            showToast={showToast}
+            onOpenWarningLetter={onOpenWarningLetter}
+          />
         </section>
       </main>
 
-      {assignModalInvoice && <AssignmentModal invoice={assignModalInvoice} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} value={assignTargetPic} onChange={setAssignTargetPic} onClose={() => { setAssignModalInvoice(null); setAssignTargetPic(""); }} onSubmit={() => void handleAssignPicSubmit()} />}
+      {assignModalInvoice && (
+        <AssignmentModal
+          invoice={assignModalInvoice}
+          staffOptions={staffOptions}
+          staffLoading={staffLoading}
+          canAssign={canAssign}
+          value={assignTargetPic}
+          onChange={setAssignTargetPic}
+          onClose={() => { setAssignModalInvoice(null); setAssignTargetPic(""); }}
+          onSubmit={() => void handleAssignPicSubmit()}
+        />
+      )}
     </div>
   );
 };
@@ -288,10 +365,52 @@ function KpiCard({ label, value, detail, accent = "text-slate-950" }: { label: s
 }
 
 function KpiSkeleton() {
-  return <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Loading overdue KPIs" aria-busy="true">{[1, 2, 3, 4].map((item) => <div key={item} className="h-32 animate-pulse rounded-lg border border-slate-200 bg-white p-4"><div className="h-3 w-32 rounded bg-slate-200" /><div className="mt-5 h-7 w-40 rounded bg-slate-200" /><div className="mt-3 h-3 w-28 rounded bg-slate-200" /></div>)}</section>;
+  return (
+    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Loading overdue KPIs" aria-busy="true">
+      {[1, 2, 3, 4].map((item) => (
+        <div key={item} className="h-32 animate-pulse rounded-lg border border-slate-200 bg-white p-4">
+          <div className="h-3 w-32 rounded bg-slate-200" />
+          <div className="mt-5 h-7 w-40 rounded bg-slate-200" />
+          <div className="mt-3 h-3 w-28 rounded bg-slate-200" />
+        </div>
+      ))}
+    </section>
+  );
 }
 
-function InvoiceTable({ loading, errorMessage, invoices, allVisibleChecked, checkedIds, selectedInvoice, currentPage, totalPages, totalItems, onRetry, onSelect, onToggle, onSelectAll, onAssign, onPageChange }: { loading: boolean; errorMessage: string | null; invoices: OverdueInvoiceItem[]; allVisibleChecked: boolean; checkedIds: string[]; selectedInvoice: OverdueInvoiceItem | null; currentPage: number; totalPages: number; totalItems: number; onRetry: () => void; onSelect: (invoice: OverdueInvoiceItem) => void; onToggle: (id: string, checked: boolean) => void; onSelectAll: (checked: boolean) => void; onAssign: (invoice: OverdueInvoiceItem) => void; onPageChange: (page: number) => void }) {
+function InvoiceTable({
+  loading,
+  errorMessage,
+  invoices,
+  allVisibleChecked,
+  checkedIds,
+  selectedInvoice,
+  currentPage,
+  totalPages,
+  totalItems,
+  onRetry,
+  onSelect,
+  onToggle,
+  onSelectAll,
+  onAssign,
+  onPageChange,
+}: {
+  loading: boolean;
+  errorMessage: string | null;
+  invoices: OverdueInvoiceItem[];
+  allVisibleChecked: boolean;
+  checkedIds: string[];
+  selectedInvoice: OverdueInvoiceItem | null;
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  onRetry: () => void;
+  onSelect: (invoice: OverdueInvoiceItem) => void;
+  onToggle: (id: string, checked: boolean) => void;
+  onSelectAll: (checked: boolean) => void;
+  onAssign: (invoice: OverdueInvoiceItem) => void;
+  onPageChange: (page: number) => void;
+}) {
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3">
@@ -303,7 +422,7 @@ function InvoiceTable({ loading, errorMessage, invoices, allVisibleChecked, chec
           <ArrowDownUp className="h-3.5 w-3.5" />Sort
         </button>
       </div>
-      <div className="max-h-[590px] overflow-auto">
+      <div className="max-h-[640px] overflow-auto">
         <table className="w-full min-w-[940px] border-collapse text-left text-xs">
           <thead className="sticky top-0 z-10 bg-slate-100 text-xs font-semibold text-slate-600">
             <tr className="border-b border-slate-200">
@@ -391,94 +510,359 @@ function InvoiceTable({ loading, errorMessage, invoices, allVisibleChecked, chec
   );
 }
 
-function InvoiceDetail({ invoice, assignmentHistory, staffOptions, onOpenWarningLetter }: { invoice: OverdueInvoiceItem | null; assignmentHistory: AssignmentRecord[]; staffOptions: StaffOption[]; onOpenWarningLetter: (invoice: OverdueInvoiceItem) => void }) {
+function InvoiceDetail({
+  invoice,
+  assignmentHistory,
+  staffOptions,
+  onAssign,
+  onProgressSaved,
+  showToast,
+  onOpenWarningLetter,
+}: {
+  invoice: OverdueInvoiceItem | null;
+  assignmentHistory: AssignmentRecord[];
+  staffOptions: StaffOption[];
+  onAssign: (invoice: OverdueInvoiceItem) => void;
+  onProgressSaved: () => void;
+  showToast: (msg: string) => void;
+  onOpenWarningLetter?: (invoice: OverdueInvoiceItem) => void;
+}) {
+  const [followUpStatus, setFollowUpStatus] = useState("IN_PROGRESS");
+  const [followUpAction, setFollowUpAction] = useState("WhatsApp");
+  const [promiseDate, setPromiseDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const assignedStaff = invoice?.pic_assigned ? staffOptions.find((staff) => staff.employee_id === invoice.pic_assigned) : undefined;
   const picName = assignedStaff?.full_name || invoice?.pic_assigned || "-";
   const picInitials = invoice?.pic_initials || (picName === "-" ? "-" : initials(picName));
-  const warningInvoice = invoice && assignedStaff ? { ...invoice, pic_display_name: assignedStaff.full_name, pic_role: "Credit Controller" } : invoice;
+
+  const cleanPhone = invoice?.contact_person?.phone ? invoice.contact_person.phone.replace(/[^0-9]/g, "") : "";
+  const waPhone = cleanPhone.startsWith("0") ? `62${cleanPhone.slice(1)}` : cleanPhone;
+
+  const handleSubmitProgress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invoice) return;
+    if (!notes.trim() && !evidenceFile) {
+      showToast("Tuliskan catatan progress atau unggah file bukti.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append("followUpStatus", followUpStatus);
+      formData.append("followUpAction", followUpAction);
+      if (promiseDate) formData.append("promiseDate", promiseDate);
+      if (notes.trim()) formData.append("notes", notes.trim());
+      if (evidenceFile) formData.append("file", evidenceFile);
+
+      const response = await fetch(`/api/v1/overdue/${encodeURIComponent(invoice.id)}/progress`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const body = await readJsonResponse<{ success?: boolean; error?: { message?: string } }>(response);
+      if (!response.ok) throw new Error(responseMessage(body, "Gagal menyimpan progress follow-up."));
+
+      showToast("Progress follow-up berhasil dicatat!");
+      setNotes("");
+      setPromiseDate("");
+      setEvidenceFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      onProgressSaved();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Gagal menyimpan progress follow-up.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <aside className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:sticky xl:top-5">
-      <div className="space-y-6 overflow-y-auto p-4 sm:p-5">
+      <div className="space-y-5 overflow-y-auto p-4 sm:p-5 max-h-[calc(100vh-100px)]">
         {invoice ? (
           <>
             <div>
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 font-heading">
-                  <AlertTriangle className="h-4 w-4" />Escalation Target
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 font-heading">
+                  <AlertTriangle className="h-4 w-4" />Internal Overdue Alert
                 </span>
                 <span className={`shrink-0 rounded px-2 py-1 text-[10px] font-semibold ${agingClasses(invoice.days_overdue)}`}>
                   Aging: {invoice.days_overdue} Days
                 </span>
               </div>
-              <h2 className="text-lg font-bold text-slate-950 font-heading">{invoice.customer_name}</h2>
-              <p className="mt-1 text-xs text-slate-500">NPWP / Tax ID: {invoice.npwp || "-"}</p>
-              <div className="mt-4 flex items-end justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 p-3">
-                <span className="text-xs font-medium text-slate-500">Total Overdue Balance</span>
+              <h2 className="text-base font-bold text-slate-950 font-heading">{invoice.customer_name}</h2>
+              <p className="mt-0.5 text-xs text-slate-500 font-mono">Invoice: {invoice.invoice_number}</p>
+              <p className="text-[11px] text-slate-500">Tax ID: {invoice.npwp || "-"}</p>
+
+              <div className="mt-3 flex items-end justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 p-3">
+                <span className="text-xs font-medium text-slate-500">Total Outstanding</span>
                 <strong className="text-base text-red-600 font-heading">{formatRupiah(invoice.amount_overdue)}</strong>
               </div>
-              <div className="mt-4 flex items-center gap-3">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${picName === "-" ? "bg-slate-100 text-slate-400" : "bg-blue-100 text-blue-700"}`}>
-                  {picInitials}
+
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-slate-100 p-2.5">
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${picName === "-" ? "bg-slate-100 text-slate-400" : "bg-blue-100 text-blue-700"}`}>
+                    {picInitials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-slate-900">{picName}</p>
+                    <p className="truncate text-[10px] text-slate-500">{picName === "-" ? "Unassigned PIC" : "Assigned Staff"}{assignedStaff ? ` · ${assignedStaff.employee_id}` : ""}</p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-slate-900">{picName}</p>
-                  <p className="truncate text-[11px] text-slate-500">{picName === "-" ? "Unassigned PIC" : "Collection PIC"}{assignedStaff ? ` · ${assignedStaff.employee_id}` : ""}</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => onAssign(invoice)}
+                  className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                >
+                  {picName === "-" ? "Assign PIC" : "Change PIC"}
+                </button>
               </div>
-              <div className="mt-4 rounded-r-md border-l-4 border-amber-400 bg-amber-50 p-3">
-                <div className="mb-1 flex justify-between gap-3 text-[10px] font-semibold text-amber-800">
-                  <span>Latest Collection Note</span>
-                  <span className="shrink-0 font-medium normal-case text-amber-600">{invoice.last_log.date} {invoice.last_log.time}</span>
+
+              {/* Overdue threshold callout (invoice.days_overdue >= 30) */}
+              {invoice.days_overdue >= 30 ? (
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                    <span>Overdue Threshold Active (&ge; 30 Days)</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-amber-700">
+                    Invoice melewati SLA 30 hari. Koordinasikan dengan customer dan perbarui progress follow-up di bawah.
+                  </p>
                 </div>
-                <p className="text-xs italic leading-relaxed text-amber-950">&quot;{invoice.last_log.text || "No collection logs recorded yet."}&quot;</p>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                {invoice.days_overdue >= 30 ? (
-                  <button type="button" onClick={() => warningInvoice && onOpenWarningLetter(warningInvoice)} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md bg-red-600 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 cursor-pointer">
-                    <FileWarning className="h-4 w-4" />Send Warning Letter ({getLetterAction(invoice.days_overdue)})
-                  </button>
+              ) : null}
+
+              {/* Contact Actions */}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {waPhone ? (
+                  <a
+                    href={`https://wa.me/${waPhone}?text=${encodeURIComponent(`Halo, konfirmasi tagihan ${invoice.invoice_number} PT Andima Transportindo.`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition cursor-pointer"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />WhatsApp
+                  </a>
                 ) : (
-                  <span className="col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-center text-[11px] font-semibold text-amber-700">Does not meet warning letter threshold</span>
+                  <button type="button" disabled className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed">
+                    <MessageSquare className="h-3.5 w-3.5" />WhatsApp
+                  </button>
                 )}
-                <button type="button" disabled={!invoice.contact_person.phone || invoice.contact_person.phone === "-"} onClick={() => { if (invoice.contact_person.phone && invoice.contact_person.phone !== "-") window.location.href = `tel:${invoice.contact_person.phone}`; }} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer">
-                  <Phone className="h-3.5 w-3.5" />Call Contact
+                <button
+                  type="button"
+                  disabled={!invoice.contact_person.phone || invoice.contact_person.phone === "-"}
+                  onClick={() => { if (invoice.contact_person.phone && invoice.contact_person.phone !== "-") window.location.href = `tel:${invoice.contact_person.phone}`; }}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                >
+                  <Phone className="h-3.5 w-3.5 text-slate-600" />Call Contact
                 </button>
               </div>
             </div>
-            <div className="border-t border-slate-100 pt-5">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-slate-900 font-heading">Today&apos;s Activity Log</h3>
+
+            {/* Follow-up Progress Form for Assigned Staff */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3.5">
+              <div className="flex items-center justify-between border-b border-blue-100 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-blue-600" />
+                  <h3 className="text-xs font-bold text-slate-900 font-heading">Update Follow-up Progress</h3>
+                </div>
+                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">Internal Form</span>
+              </div>
+              <form onSubmit={(e) => void handleSubmitProgress(e)} className="mt-3 space-y-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700">Status Kondisi Invoice</label>
+                  <select
+                    value={followUpStatus}
+                    onChange={(e) => setFollowUpStatus(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
+                  >
+                    <option value="IN_PROGRESS">Dalam Proses (In Progress)</option>
+                    <option value="PROMISE_TO_PAY">Janji Bayar (Promise to Pay)</option>
+                    <option value="COMPLETED">Selesai / Lunas (Completed)</option>
+                    <option value="DISPUTE">Sengketa / Penyesuaian (Dispute)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700">Tindakan / Action</label>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {["WhatsApp", "Call", "Email", "Visit", "Negotiation"].map((act) => (
+                      <button
+                        type="button"
+                        key={act}
+                        onClick={() => setFollowUpAction(act)}
+                        className={`rounded-md px-2 py-1 text-[11px] font-semibold transition cursor-pointer ${
+                          followUpAction === act
+                            ? "bg-blue-600 text-white shadow-xs"
+                            : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {act}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700">Tanggal Janji Bayar (Opsional)</label>
+                  <input
+                    type="date"
+                    value={promiseDate}
+                    onChange={(e) => setPromiseDate(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700">Catatan Follow-up</label>
+                  <textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Hasil komunikasi dengan customer, kendala, komitmen..."
+                    className="mt-1 w-full rounded-md border border-slate-200 bg-white p-2 text-xs font-medium outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700">Lampiran Bukti (Screenshot / Dokumen)</label>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
+                    accept="image/*,.pdf,.doc,.docx"
+                    className="hidden"
+                    id="evidence-file-input"
+                  />
+                  <div className="mt-1 flex items-center gap-2">
+                    <label
+                      htmlFor="evidence-file-input"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-xs"
+                    >
+                      <Upload className="h-3.5 w-3.5 text-slate-500" />
+                      {evidenceFile ? "Ubah File" : "Pilih File Bukti"}
+                    </label>
+                    {evidenceFile && (
+                      <span className="flex items-center gap-1 text-[11px] text-slate-600 truncate max-w-[180px]">
+                        <Paperclip className="h-3 w-3 shrink-0 text-blue-600" />
+                        <span className="truncate">{evidenceFile.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEvidenceFile(null);
+                            if (fileInputRef.current) fileInputRef.current.value = "";
+                          }}
+                          className="ml-1 text-slate-400 hover:text-red-500 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-600 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 cursor-pointer transition"
+                >
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-3.5 w-3.5" />
+                      <span>Simpan Progress Follow-up</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+
+            {/* Activity Log & History */}
+            <div className="border-t border-slate-100 pt-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-900 font-heading">Activity &amp; Follow-up History</h3>
                 <History className="h-4 w-4 text-slate-400" />
               </div>
-              <div className="relative ml-2 space-y-4 border-l border-slate-200 pb-1">
+              <div className="relative ml-2 space-y-3.5 border-l border-slate-200 pb-1">
                 {assignmentHistory.map((assignment) => (
                   <div key={assignment.assignment_id} className="relative pl-4">
                     <span className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-blue-500 ring-4 ring-white" />
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-[11px] font-bold text-slate-900">PIC Assigned: {assignment.assigned_to}</p>
-                      <span className="shrink-0 text-[10px] text-slate-400">{new Date(assignment.assigned_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                      <p className="text-[11px] font-bold text-slate-900">
+                        {assignment.assigned_to}
+                      </p>
+                      <span className="shrink-0 text-[10px] text-slate-400">
+                        {new Date(assignment.assigned_at).toLocaleDateString("id-ID", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-slate-500">Follow-up status: {assignment.follow_up_status}</p>
+
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-bold ${followUpStatusBadge(assignment.follow_up_status)}`}>
+                        {assignment.follow_up_status}
+                      </span>
+                      {assignment.follow_up_action && (
+                        <span className="inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                          Via {assignment.follow_up_action}
+                        </span>
+                      )}
+                    </div>
+
+                    {assignment.promise_date && (
+                      <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-amber-700">
+                        <Calendar className="h-3 w-3" />
+                        <span>Janji Bayar: {formatDate(assignment.promise_date)}</span>
+                      </p>
+                    )}
+
+                    {assignment.notes && (
+                      <p className="mt-1 rounded bg-slate-50 p-1.5 text-[11px] italic leading-relaxed text-slate-700">
+                        &quot;{assignment.notes}&quot;
+                      </p>
+                    )}
+
+                    {assignment.attachment_url && (
+                      <a
+                        href={assignment.attachment_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 transition"
+                      >
+                        <Paperclip className="h-3 w-3" />
+                        <span>Lihat Bukti Lampiran</span>
+                        <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                      </a>
+                    )}
                   </div>
                 ))}
-                <div className="relative pl-4">
-                  <span className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-slate-300 ring-4 ring-white" />
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-[11px] font-bold text-slate-900">{invoice.last_log.logged_by || "System"}</p>
-                    <span className="shrink-0 text-[10px] text-slate-400">{invoice.last_log.time}</span>
+
+                {invoice.last_log?.text && (
+                  <div className="relative pl-4">
+                    <span className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-slate-300 ring-4 ring-white" />
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[11px] font-bold text-slate-700">{invoice.last_log.logged_by || "System"}</p>
+                      <span className="shrink-0 text-[10px] text-slate-400">{invoice.last_log.time}</span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-slate-500 italic">&quot;{invoice.last_log.text}&quot;</p>
                   </div>
-                  <p className="mt-0.5 text-[11px] text-slate-500">{invoice.last_log.text || "No collection logs recorded yet."}</p>
-                </div>
+                )}
               </div>
-              <button type="button" disabled className="mt-3 inline-flex w-full items-center justify-center gap-1 text-[11px] font-semibold text-blue-600 disabled:cursor-not-allowed disabled:opacity-70">
-                View full history<ChevronRight className="h-3.5 w-3.5" />
-              </button>
             </div>
           </>
         ) : (
           <div className="py-12 text-center">
             <UserRound className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-            <p className="text-xs font-semibold text-slate-500">Select an invoice to view details.</p>
+            <p className="text-xs font-semibold text-slate-500">Pilih salah satu invoice untuk melihat detail &amp; mencatat progress.</p>
           </div>
         )}
       </div>
@@ -486,13 +870,25 @@ function InvoiceDetail({ invoice, assignmentHistory, staffOptions, onOpenWarning
   );
 }
 
-function getLetterAction(days: number) {
-  if (days > 90) return "Warning Letter 3";
-  if (days >= 60) return "Warning Letter 2";
-  return "Warning Letter 1";
-}
-
-function AssignmentModal({ invoice, staffOptions, staffLoading, canAssign, value, onChange, onClose, onSubmit }: { invoice: OverdueInvoiceItem; staffOptions: StaffOption[]; staffLoading: boolean; canAssign: boolean; value: string; onChange: (value: string) => void; onClose: () => void; onSubmit: () => void }) {
+function AssignmentModal({
+  invoice,
+  staffOptions,
+  staffLoading,
+  canAssign,
+  value,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  invoice: OverdueInvoiceItem;
+  staffOptions: StaffOption[];
+  staffLoading: boolean;
+  canAssign: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4">
       <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-2xl">

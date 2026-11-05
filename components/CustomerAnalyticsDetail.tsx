@@ -2,10 +2,12 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, ChevronDown, Loader2, Receipt, RefreshCw, Wallet } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronRight, FileText, Loader2, Receipt, RefreshCw, Wallet } from "lucide-react";
 import { CustomerAnalyticsItem, InvoiceDetail } from "@/types/customer";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import CustomerCodeDetailModal from "@/components/CustomerCodeDetailModal";
+import InvoiceDetailModal from "@/components/InvoiceDetailModal";
+import CustomerPaymentTrendChart from "@/components/CustomerPaymentTrendChart";
 
 type CustomerInvoice = InvoiceDetail & { job_number?: string | null; mawb?: string | null; payments?: Array<{ payment_id: string; amount: number; payment_date: string; reference_no: string }> };
 type Props = { customerId: string; returnTo: string };
@@ -20,6 +22,8 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const [selectedInvoiceDetail, setSelectedInvoiceDetail] = useState<CustomerInvoice | null>(null);
+  const [codeFilter, setCodeFilter] = useState<"ALL" | "OVERDUE" | "CURRENT">("ALL");
   const [openInvoice, setOpenInvoice] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -49,12 +53,32 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
   const codeRows = useMemo(() => {
     if (!customer) return [];
     const aliases = customer.customer_aliases ?? [];
-    return (customer.customer_codes ?? (customer.customer_code ? [customer.customer_code] : [])).map((code) => {
-      const normalized = code.toLowerCase();
+    const codes = customer.customer_codes ?? (customer.customer_code ? [customer.customer_code] : []);
+    return codes.map((code) => {
+      const normalized = code.toLowerCase().trim();
       const alias = aliases.find((item) => item.customer_code?.toLowerCase() === normalized || item.customer_name.toLowerCase().includes(normalized));
-      return { code, customer_name: alias?.customer_name ?? customer.customer_name, customer_id: alias?.customer_id ?? customer.customer_id ?? customer.id };
+      const hasOverdueInvoice = invoices.some((inv) => {
+        const remaining = inv.remaining_amount ?? inv.amount;
+        if (remaining <= 0) return false;
+        const mawb = inv.mawb?.toLowerCase().trim();
+        const job = inv.job_number?.toLowerCase().trim();
+        const invNum = inv.invoice_number?.toLowerCase().trim();
+        return mawb === normalized || job === normalized || invNum === normalized;
+      });
+      return {
+        code,
+        customer_name: alias?.customer_name ?? customer.customer_name,
+        customer_id: alias?.customer_id ?? customer.customer_id ?? customer.id,
+        is_overdue: hasOverdueInvoice,
+      };
     });
-  }, [customer]);
+  }, [customer, invoices]);
+
+  const filteredCodeRows = useMemo(() => {
+    if (codeFilter === "OVERDUE") return codeRows.filter((r) => r.is_overdue);
+    if (codeFilter === "CURRENT") return codeRows.filter((r) => !r.is_overdue);
+    return codeRows;
+  }, [codeRows, codeFilter]);
   const metrics = useMemo(() => customer ? [["Sales Profit", customer.sales_profit], ["Current Month Cost", customer.current_month_cost ?? customer.cost], ["Total Outstanding", customer.total_outstanding]] as const : [], [customer]);
   const overdueSummary = useMemo(() => {
     const today = Date.parse(new Date().toISOString().slice(0, 10));
@@ -91,29 +115,75 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
       </button>
     </div>
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-sm font-bold text-slate-800 font-heading">Customer Codes</h2>
-          <p className="mt-1 text-xs text-slate-500">Click a code to view all associated Sales Overview and due dates.</p>
+          <p className="mt-1 text-xs text-slate-500">Click any row to view associated Sales Overview and due dates.</p>
         </div>
-        <span className="text-xs font-semibold text-slate-400">{codeRows.length} codes</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 text-[11px] font-semibold">
+            <button
+              type="button"
+              onClick={() => setCodeFilter("ALL")}
+              className={`rounded-md px-2.5 py-1 transition cursor-pointer ${
+                codeFilter === "ALL" ? "bg-white text-blue-700 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All ({codeRows.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setCodeFilter("OVERDUE")}
+              className={`rounded-md px-2.5 py-1 transition cursor-pointer ${
+                codeFilter === "OVERDUE" ? "bg-rose-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-600"
+              }`}
+            >
+              Overdue ({codeRows.filter((r) => r.is_overdue).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setCodeFilter("CURRENT")}
+              className={`rounded-md px-2.5 py-1 transition cursor-pointer ${
+                codeFilter === "CURRENT" ? "bg-emerald-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-emerald-600"
+              }`}
+            >
+              Lancar ({codeRows.filter((r) => !r.is_overdue).length})
+            </button>
+          </div>
+        </div>
       </div>
       <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-slate-200">
         <table className="w-full min-w-[640px] text-left text-xs">
-          <thead className="sticky top-0 bg-slate-50 text-xs font-semibold text-slate-600">
+          <thead className="sticky top-0 bg-slate-50 text-xs font-bold text-slate-800 border-b border-slate-200">
             <tr>
               <th className="px-4 py-3">Customer Code</th>
               <th className="px-4 py-3">Source Name</th>
+              <th className="px-4 py-3 text-center">Overdue Status</th>
               <th className="px-4 py-3">Customer ID</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {codeRows.map((row) => (
-              <tr key={row.code} className="hover:bg-blue-50/50">
-                <td className="px-4 py-3">
-                  <button type="button" onClick={() => setSelectedCode(row.code)} className="font-bold text-blue-700 underline-offset-2 hover:underline cursor-pointer" aria-label={`Open code details for ${row.code}`}>{row.code}</button>
+            {filteredCodeRows.map((row) => (
+              <tr
+                key={row.code}
+                onClick={() => setSelectedCode(row.code)}
+                className="hover:bg-blue-50/60 cursor-pointer transition"
+              >
+                <td className="px-4 py-3 font-bold text-blue-700 underline-offset-2 hover:underline">
+                  {row.code}
                 </td>
-                <td className="max-w-[420px] px-4 py-3 text-slate-600">{row.customer_name}</td>
+                <td className="max-w-[420px] px-4 py-3 text-slate-800 font-medium">{row.customer_name}</td>
+                <td className="px-4 py-3 text-center">
+                  {row.is_overdue ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                      ✓ Overdue
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                      ✕ Lancar
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 font-mono text-[11px] text-slate-500">{row.customer_id ?? "-"}</td>
               </tr>
             ))}
@@ -140,50 +210,41 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
         <p className="mt-2 text-xs font-medium text-slate-500">Average customer DSO</p>
       </section>
     </div>
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-bold text-slate-800 font-heading">3-Month Payment Trend</h2>
-          <p className="mt-1 text-xs text-slate-500">Total payments across the three latest data periods.</p>
-        </div>
-        <Wallet className="h-5 w-5 text-blue-600" />
-      </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {(customer.payment_trend ?? []).map((point) => (
-          <div key={point.period_month} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-            <p className="text-xs font-semibold text-slate-500">{point.period_month.slice(0, 7)}</p>
-            <p className="mt-2 text-sm font-bold text-slate-900 font-heading">{formatRupiah(point.amount)}</p>
-          </div>
-        ))}
-        {!customer.payment_trend?.length && <p className="sm:col-span-3 py-4 text-center text-xs font-medium text-slate-400">No payment transactions recorded.</p>}
-      </div>
-      {!!customer.payment_changes?.length && (
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {customer.payment_changes.map((change) => (
-            <p key={`${change.from_period}-${change.to_period}`} className={`text-xs font-semibold ${change.direction === "up" ? "text-emerald-600" : change.direction === "down" ? "text-rose-600" : "text-slate-500"}`}>
-              {change.direction === "up" ? "+" : change.direction === "down" ? "-" : "="} {formatRupiah(Math.abs(change.amount))} · {change.to_period.slice(0, 7)}
-            </p>
-          ))}
-        </div>
-      )}
-    </section>
+    {/* Customer Payment Trend visualization (replaces static 3-Month Payment grid with dynamic monthly collection trend) */}
+    <CustomerPaymentTrendChart data={customer.payment_trend ?? []} />
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-sm font-bold text-slate-800 font-heading">Overdue Invoices</h2>
-          <p className="mt-1 text-xs text-slate-500">{invoices.length} invoices past due date from validated C1 records.</p>
+          <p className="mt-1 text-xs text-slate-500">Click any invoice to view detailed report and linked customer code.</p>
         </div>
         <Receipt className="h-5 w-5 text-slate-400" />
       </div>
       <div className="mt-4 space-y-3">
         {invoices.map((invoice) => (
-          <article key={invoice.invoice_id} className="rounded-xl border border-slate-200 p-4">
+          <article
+            key={invoice.invoice_id}
+            onClick={() => setSelectedInvoiceDetail(invoice)}
+            className="rounded-xl border border-slate-200 p-4 hover:border-blue-400 hover:shadow-xs transition cursor-pointer bg-white"
+          >
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
               <div>
-                <p className="text-sm font-bold text-blue-700">{invoice.invoice_number}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-bold text-blue-700">{invoice.invoice_number}</p>
+                  {(invoice.mawb || invoice.job_number) && (
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-700">
+                      Code: {invoice.mawb || invoice.job_number}
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 text-xs text-slate-500">Due {invoice.due_date}{invoice.description ? ` · ${invoice.description}` : ""}</p>
               </div>
-              <span className={`w-fit rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusClass(invoice.payment_status)}`}>{invoice.payment_status}</span>
+              <div className="flex items-center gap-2">
+                <span className={`w-fit rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusClass(invoice.payment_status)}`}>{invoice.payment_status}</span>
+                <span className="text-xs font-semibold text-blue-600 inline-flex items-center">
+                  View Detail <ChevronRight className="h-4 w-4" />
+                </span>
+              </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
               <div>
@@ -218,11 +279,26 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
             )}
             {canRecordPayment && invoice.payment_status !== "PAID" && (
               <>
-                <button type="button" onClick={() => { setOpenInvoice(openInvoice === invoice.invoice_id ? null : invoice.invoice_id); setPaymentError(null); }} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900 cursor-pointer">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenInvoice(openInvoice === invoice.invoice_id ? null : invoice.invoice_id);
+                    setPaymentError(null);
+                  }}
+                  className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900 cursor-pointer"
+                >
                   <ChevronDown className="h-4 w-4" />Record Payment
                 </button>
                 {openInvoice === invoice.invoice_id && (
-                  <form onSubmit={(event) => void submitPayment(event, invoice)} className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                  <form
+                    onSubmit={(event) => {
+                      event.stopPropagation();
+                      void submitPayment(event, invoice);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3"
+                  >
                     <input aria-label="Payment amount" value={amount} onChange={(event) => setAmount(event.target.value)} type="number" min="1" step="0.01" placeholder="Payment amount" className="rounded-md border border-slate-200 px-3 py-2 text-xs" required />
                     <input aria-label="Payment date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} type="date" className="rounded-md border border-slate-200 px-3 py-2 text-xs" required />
                     <input aria-label="Payment reference" value={referenceNo} onChange={(event) => setReferenceNo(event.target.value)} placeholder="Reference number" className="rounded-md border border-slate-200 px-3 py-2 text-xs" required />
@@ -243,6 +319,41 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
     </section>
     </DetailShell>
     {selectedCode && <CustomerCodeDetailModal customerId={companyGroupId} code={selectedCode} onClose={() => setSelectedCode(null)} />}
+    {selectedInvoiceDetail && (
+      <InvoiceDetailModal
+        invoice={selectedInvoiceDetail}
+        canRecordPayment={canRecordPayment}
+        onClose={() => setSelectedInvoiceDetail(null)}
+        onOpenCodeDetail={(code) => setSelectedCode(code)}
+        onSubmitPayment={async (event, inv, form) => {
+          setSaving(true);
+          setPaymentError(null);
+          try {
+            const response = await fetch(`/api/v1/customers/${encodeURIComponent(customerId)}/invoices`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "RECORD_PAYMENT",
+                invoiceNumber: inv.invoice_number,
+                amount: Number(form.amount),
+                paymentDate: form.paymentDate,
+                referenceNo: form.referenceNo,
+              }),
+            });
+            const body = await readJsonResponse<{ error?: { message?: string }; message?: string }>(response);
+            if (!response.ok) throw new Error(responseMessage(body, "Payment failed to save."));
+            setSelectedInvoiceDetail(null);
+            await loadData();
+          } catch (saveError) {
+            setPaymentError(saveError instanceof Error ? saveError.message : "Payment failed to save.");
+          } finally {
+            setSaving(false);
+          }
+        }}
+        savingPayment={saving}
+        paymentError={paymentError}
+      />
+    )}
   </>;
 }
 

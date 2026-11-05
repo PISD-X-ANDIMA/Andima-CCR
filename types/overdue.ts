@@ -20,7 +20,11 @@ export interface AssignmentRecord {
   assigned_by: string;
   assigned_at: string;
   follow_up_status: string;
-  notes?: string;
+  notes?: string | null;
+  follow_up_action?: string | null;
+  promise_date?: string | null;
+  attachment_url?: string | null;
+  updated_by?: string | null;
   created_at?: string;
 }
 

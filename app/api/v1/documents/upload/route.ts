@@ -118,12 +118,48 @@ export async function POST(request: NextRequest) {
       p_customers: sourceRows.map((row) => ({ customer_name: row.customer_name, customer_code: row.customer_code ?? null })),
     });
     if (resolveError) throw resolveError;
-    const resolvedItems = (resolvedCustomers?.items ?? []) as Array<{ requested_customer_name: string; requested_customer_code: string | null; customer_name: string; customer_code: string | null; c1_customer_id: string }>;
+    const resolvedItems = (resolvedCustomers?.items ?? []) as Array<{ requested_customer_name?: string; requested_customer_code?: string | null; customer_name: string; customer_code?: string | null; c1_customer_id: string }>;
     const customerByCode = new Map<string, (typeof resolvedItems)[number]>();
     const customerByName = new Map<string, (typeof resolvedItems)[number]>();
     for (const customer of resolvedItems) {
-      if (customer.requested_customer_code) customerByCode.set(normalize(customer.requested_customer_code), customer);
-      customerByName.set(normalize(customer.requested_customer_name), customer);
+      const codeKey = customer.requested_customer_code ?? customer.customer_code;
+      const nameKey = customer.requested_customer_name ?? customer.customer_name;
+      if (codeKey) customerByCode.set(normalize(codeKey), customer);
+      if (nameKey) customerByName.set(normalize(nameKey), customer);
+      if (customer.customer_name) customerByName.set(normalize(customer.customer_name), customer);
+      if (customer.customer_code) customerByCode.set(normalize(customer.customer_code), customer);
+    }
+
+    for (const row of sourceRows) {
+      const name = String(row.customer_name ?? "").trim();
+      const code = row.customer_code ? String(row.customer_code).trim() : null;
+      let resolved = (code ? customerByCode.get(normalize(code)) : null) ?? customerByName.get(normalize(name));
+      if (!resolved?.c1_customer_id && name) {
+        const generatedCode = code || `UPLOAD-${document.id.slice(0, 8)}-${normalize(name).slice(0, 20)}`;
+        const { data: insertedCust } = await persistenceClient
+          .from("c1_customer")
+          .insert({
+            customer_code: generatedCode,
+            customer_name: name,
+            branch: "Tidak tersedia",
+            active_status: true,
+            source_type: "UPLOAD",
+            source_document_id: document.id,
+          })
+          .select("customer_id, customer_name, customer_code")
+          .maybeSingle();
+        if (insertedCust) {
+          resolved = {
+            requested_customer_name: name,
+            requested_customer_code: code,
+            customer_name: insertedCust.customer_name,
+            customer_code: insertedCust.customer_code,
+            c1_customer_id: insertedCust.customer_id,
+          };
+          customerByName.set(normalize(name), resolved);
+          if (code) customerByCode.set(normalize(code), resolved);
+        }
+      }
     }
     const stagingRows = sourceRows.map((row) => {
       const { customer_code: sourceCustomerCode, ...persistedRow } = row;
