@@ -52,13 +52,17 @@ export default function CustomerCodeDetailModal({ customerId, code, onClose }: P
 
   const salesSummary = useMemo(() => (detail?.sales_rows ?? []).reduce((summary, row) => ({
     revenue: summary.revenue + row.revenue,
+    sub_total: summary.sub_total + (row.sub_total ?? row.trucking_cost),
+    vat: summary.vat + (row.vat ?? row.handling_cost),
+    pph_23: summary.pph_23 + (row.pph_23 ?? row.storage_cost),
+    others_dip: summary.others_dip + (row.others_dip_cost ?? row.other_operational_cost),
     trucking: summary.trucking + row.trucking_cost,
     handling: summary.handling + row.handling_cost,
     storage: summary.storage + row.storage_cost,
     other: summary.other + row.other_operational_cost,
     cost: summary.cost + row.total_cost,
     profit: summary.profit + row.sales_profit,
-  }), { revenue: 0, trucking: 0, handling: 0, storage: 0, other: 0, cost: 0, profit: 0 }), [detail]);
+  }), { revenue: 0, sub_total: 0, vat: 0, pph_23: 0, others_dip: 0, trucking: 0, handling: 0, storage: 0, other: 0, cost: 0, profit: 0 }), [detail]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
@@ -89,10 +93,10 @@ export default function CustomerCodeDetailModal({ customerId, code, onClose }: P
                 <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
                   {[
                     ["Revenue", salesSummary.revenue],
-                    ["Trucking", salesSummary.trucking],
-                    ["Handling", salesSummary.handling],
-                    ["Storage", salesSummary.storage],
-                    ["Other Cost", salesSummary.other],
+                    ["Sub Total", salesSummary.sub_total],
+                    ["VAT (PPN)", salesSummary.vat],
+                    ["PPh 23", salesSummary.pph_23],
+                    ["Others / DIP", salesSummary.others_dip],
                     ["Total Cost", salesSummary.cost],
                     ["Sales Profit", salesSummary.profit],
                   ].map(([label, value]) => (
@@ -109,7 +113,7 @@ export default function CustomerCodeDetailModal({ customerId, code, onClose }: P
                   <table className="min-w-[1180px] w-full text-left text-xs">
                     <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
                       <tr>
-                        {["Period", "Source Name", "Revenue", "Trucking", "Handling", "Storage", "Other Cost", "Total Cost", "Sales Profit"].map((label) => (
+                        {["Period", "Source Name", "Revenue", "Sub Total", "VAT (PPN)", "PPh 23", "Others / DIP", "Total Cost", "Sales Profit"].map((label) => (
                           <th key={label} className="whitespace-nowrap px-3 py-3">{label}</th>
                         ))}
                       </tr>
@@ -120,10 +124,10 @@ export default function CustomerCodeDetailModal({ customerId, code, onClose }: P
                           <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-700">{row.period_month.slice(0, 7)}</td>
                           <td className="min-w-64 px-3 py-3 text-slate-600">{row.customer_name}</td>
                           <td className="whitespace-nowrap px-3 py-3">{money(row.revenue)}</td>
-                          <td className="whitespace-nowrap px-3 py-3">{money(row.trucking_cost)}</td>
-                          <td className="whitespace-nowrap px-3 py-3">{money(row.handling_cost)}</td>
-                          <td className="whitespace-nowrap px-3 py-3">{money(row.storage_cost)}</td>
-                          <td className="whitespace-nowrap px-3 py-3">{money(row.other_operational_cost)}</td>
+                          <td className="whitespace-nowrap px-3 py-3">{money(row.sub_total ?? row.trucking_cost)}</td>
+                          <td className="whitespace-nowrap px-3 py-3">{money(row.vat ?? row.handling_cost)}</td>
+                          <td className="whitespace-nowrap px-3 py-3">{money(row.pph_23 ?? row.storage_cost)}</td>
+                          <td className="whitespace-nowrap px-3 py-3">{money(row.others_dip_cost ?? row.other_operational_cost)}</td>
                           <td className="whitespace-nowrap px-3 py-3 font-semibold">{money(row.total_cost)}</td>
                           <td className="whitespace-nowrap px-3 py-3 font-bold text-emerald-700">{money(row.sales_profit)}</td>
                         </tr>

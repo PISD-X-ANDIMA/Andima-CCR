@@ -147,7 +147,10 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 function companyNameKey(value: unknown) {
   return String(value ?? "")
-    .replace(/\b\d{2,4}-\d{6,12}\b|\b[A-Z]{2,6}\d{6,}\b/gi, " ")
+    .replace(/\b\d{2,4}[-\s]+\d{3,6}(?:[-\s]*\d{3,6})?\b/gi, " ")
+    .replace(/\b(?=[a-z0-9]*[a-z])(?=[a-z0-9]*\d)[a-z0-9]{4,}\b/gi, " ")
+    .replace(/\b\d{4,}\b/gi, " ")
+    .replace(/[-/ ]+$|^[-/ ]+/g, "")
     .replace(/[^a-z0-9]+/gi, " ")
     .trim()
     .replace(/\s+/g, " ")
@@ -188,7 +191,7 @@ async function resolveCanonicalCustomer(supabase: ReturnType<typeof getSupabaseC
   };
 }
 
-const CUSTOMER_IDENTIFIER_PATTERN = /\b(?:\d{2,4}-\d{6,12}|[A-Z]{2,6}\d{6,})\b/gi;
+const CUSTOMER_IDENTIFIER_PATTERN = /\b(?:\d{2,4}[-\s]+\d{3,6}(?:[-\s]*\d{3,6})?|[A-Za-z0-9]*\d[A-Za-z0-9]*|\d{4,})\b/gi;
 
 function codeMatchesMember(code: string, member: CustomerMasterRow) {
   const normalizedCode = code.trim().toLowerCase();
@@ -259,9 +262,13 @@ export async function fetchCustomerCodeDetailFromSupabase(customerId: string, co
         customer_id: row.customer_id ? String(row.customer_id) : null,
         c1_customer_id: row.c1_customer_id ? String(row.c1_customer_id) : null,
         revenue: numeric(row.revenue),
+        sub_total: numeric(row.trucking_cost),
         trucking_cost: numeric(row.trucking_cost),
+        vat: numeric(row.handling_cost),
         handling_cost: numeric(row.handling_cost),
+        pph_23: numeric(row.storage_cost),
         storage_cost: numeric(row.storage_cost),
+        others_dip_cost: numeric(row.other_operational_cost),
         other_operational_cost: numeric(row.other_operational_cost),
         total_cost: totalCost,
         sales_profit: numeric(row.revenue) - totalCost,

@@ -18,7 +18,7 @@ test("Customer Analytics list contains company identities and links to detail", 
   assert.match(customerPage, /customer\.customer_codes/);
   assert.match(customerPage, /customer codes|kode customer/i);
   assert.match(customerPage, /Branch|CABANG/i);
-  assert.match(readFileSync(new URL("../components/KpiSummaryCards.tsx", import.meta.url), "utf8"), /Total customers? ?\/? ?compan(?:y|ies)|Total customer\/company/i);
+  assert.match(readFileSync(new URL("../components/KpiSummaryCards.tsx", import.meta.url), "utf8"), /Total customers?(?: ?\/? ?compan(?:y|ies))?|Total customer\/company/i);
 });
 
 test("Customer detail is a separate full-page route with payment history", () => {

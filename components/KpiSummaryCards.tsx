@@ -17,7 +17,7 @@ const displayRupiah = (value: number | null | undefined) => value == null ? "-" 
 
 export default function KpiSummaryCards({ kpi }: KpiSummaryCardsProps) {
   const cards = [
-    { label: "Total Customers / Companies", value: (kpi.totalActiveCustomers ?? kpi.totalCustomers ?? 0).toLocaleString("en-US"), detail: "Unique customers and companies from validated C1 data", color: "text-blue-700", icon: "01" },
+    { label: "Total Customer", value: (kpi.totalActiveCustomers ?? kpi.totalCustomers ?? 0).toLocaleString("en-US"), detail: "Unique customers from validated C1 data", color: "text-blue-700", icon: "01" },
     { label: `Sales Profit${kpi.period ? ` · ${kpi.period.slice(0, 7)}` : ""}`, value: displayRupiah(kpi.currentMonthSalesProfit ?? ((kpi.totalRevenue ?? 0) - (kpi.totalCost ?? 0))), detail: "Profit across the latest period", color: "text-emerald-700", icon: "02" },
     { label: `Cost${kpi.period ? ` · ${kpi.period.slice(0, 7)}` : ""}`, value: displayRupiah(kpi.currentMonthCost ?? kpi.totalCost), detail: "Operational cost across the latest period", color: "text-amber-700", icon: "03" },
     { label: "Total Outstanding", value: displayRupiah(kpi.totalOutstanding), detail: "Outstanding balance from validated uploads", color: "text-slate-800", icon: "04" },

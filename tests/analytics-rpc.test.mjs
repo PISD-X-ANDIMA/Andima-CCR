@@ -6,6 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 const migration = readFileSync(new URL("../supabase/migrations/20261016000000_optimize_analytics_queries.sql", import.meta.url), "utf8");
 const companyAnalyticsMigration = readFileSync(new URL("../supabase/migrations/20261020000000_company_customer_analytics.sql", import.meta.url), "utf8");
 const companyAliasMigration = readFileSync(new URL("../supabase/migrations/20261021000000_company_alias_grouping.sql", import.meta.url), "utf8");
+const companyDeduplicationMigration = readFileSync(new URL("../supabase/migrations/20261105000000_deduplicate_company_mawb_names.sql", import.meta.url), "utf8");
 
 async function setup() {
   const db = new PGlite();
@@ -53,6 +54,7 @@ async function setup() {
   await db.exec(readFileSync(new URL("../supabase/migrations/20261018000000_fix_customer_analytics_kpi.sql", import.meta.url), "utf8"));
   await db.exec(companyAnalyticsMigration);
   await db.exec(companyAliasMigration);
+  await db.exec(companyDeduplicationMigration);
   return db;
 }
 
@@ -235,6 +237,47 @@ test("analytics groups company aliases, preserves codes, and aggregates their tr
     assert.equal(Number(ceva.total_outstanding), 230);
     assert.equal(ceva.active_invoices_count, 3);
     assert.equal(ceva.customer_aliases.length, 4);
+  } finally {
+    await db.close();
+  }
+});
+
+test("analytics deduplicates company names with embedded MAWB or numbers (e.g. Perusahaan A vs Perusahaan A 17278941)", async () => {
+  const db = await setup();
+  try {
+    await db.exec(`
+      insert into c1_document_uploads(id, validation_status, document_type) values
+        ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'validated', 'COMPANY_SALES_REPORT'),
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'validated', 'OUTSTANDING_REPORT');
+      insert into c1_customer(customer_id, customer_code, customer_name, branch, source_type, created_at) values
+        ('11111111-1111-4111-8111-111111111111', 'PERUS-BASE', 'Perusahaan A', 'Jakarta', 'MASTER', '2026-01-01'),
+        ('22222222-2222-4222-8222-222222222222', 'PERUS-MAWB', 'Perusahaan A 17278941', 'Jakarta', 'UPLOAD', '2026-02-01'),
+        ('33333333-3333-4333-8333-333333333333', 'DSV-BASE', 'PT DSV TRANSPORT INDONESIA', 'Jakarta', 'MASTER', '2026-01-02'),
+        ('44444444-4444-4444-8444-444444444444', 'DSV-MAWB', 'PT DSV TRANSPORT 065-4498 1930 INDONESIA', 'Jakarta', 'UPLOAD', '2026-02-02');
+      insert into c1_company_sales_staging_rows(id, document_id, row_number, period_month, customer_name, c1_customer_id, revenue, total_cost) values
+        ('55555555-5555-4555-8555-555555555555', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 2, '2026-10-01', 'Perusahaan A', '11111111-1111-4111-8111-111111111111', 1000, 300),
+        ('66666666-6666-4666-8666-666666666666', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 3, '2026-10-01', 'Perusahaan A 17278941', '22222222-2222-4222-8222-222222222222', 500, 150);
+      insert into c1_outstanding_staging_rows(id, document_id, row_number, invoice_number, customer_name, c1_customer_id, outstanding_amount, due_date) values
+        ('77777777-7777-4777-8777-777777777777', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 2, 'INV-A-1', 'Perusahaan A', '11111111-1111-4111-8111-111111111111', 200, '2026-12-01'),
+        ('88888888-8888-4888-8888-888888888888', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 3, 'INV-A-2', 'Perusahaan A 17278941', '22222222-2222-4222-8222-222222222222', 300, '2026-12-01'),
+        ('99999999-9999-4999-8999-999999999999', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 4, 'INV-DSV-1', 'PT DSV TRANSPORT 065-4498 1930 INDONESIA', '44444444-4444-4444-8444-444444444444', 400, '2026-12-01');
+    `);
+
+    const result = (await db.query("select public.c1_get_customer_analytics('', '', '', 'sales_profit', 'desc', 1, 10) as value")).rows[0].value;
+    assert.equal(result.kpi.totalCustomers, 2);
+    assert.equal(result.total_items, 2);
+
+    const perusA = result.customers.find((item) => item.customer_name === "Perusahaan A");
+    assert.ok(perusA, "Perusahaan A should be canonical customer");
+    assert.equal(Number(perusA.sales_profit), 1050);
+    assert.equal(Number(perusA.total_outstanding), 500);
+    assert.ok(perusA.customer_codes.includes("17278941"), "Embedded number 17278941 should be captured in customer_codes");
+    assert.equal(perusA.customer_aliases.length, 2);
+
+    const dsv = result.customers.find((item) => item.customer_name === "PT DSV TRANSPORT INDONESIA");
+    assert.ok(dsv, "PT DSV TRANSPORT INDONESIA should be canonical customer");
+    assert.equal(Number(dsv.total_outstanding), 400);
+    assert.ok(dsv.customer_codes.some((code) => code.includes("065-4498 1930") || code.includes("1930")), "MAWB with space should be in codes");
   } finally {
     await db.close();
   }

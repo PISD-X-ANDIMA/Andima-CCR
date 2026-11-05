@@ -70,9 +70,13 @@ export interface CustomerCodeSalesRow {
   customer_id: string | null;
   c1_customer_id: string | null;
   revenue: number;
+  sub_total?: number;
   trucking_cost: number;
+  vat?: number;
   handling_cost: number;
+  pph_23?: number;
   storage_cost: number;
+  others_dip_cost?: number;
   other_operational_cost: number;
   total_cost: number;
   sales_profit: number;

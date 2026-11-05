@@ -68,7 +68,7 @@ export default function CustomerAnalyticsPage() {
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">Customer Analytics</h1>
-              <p className="mt-1 text-xs font-medium text-slate-500">Unique company portfolio from validated C1 records.</p>
+              <p className="mt-1 text-xs font-medium text-slate-500">Unique customer portfolio from validated C1 records.</p>
             </div>
             <button type="button" onClick={() => void loadAnalyticsData()} disabled={isLoading} className="inline-flex items-center gap-2 self-start rounded-xl bg-[#3B6FF5] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-blue-600 disabled:opacity-60 cursor-pointer">
               <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />Refresh
@@ -80,7 +80,7 @@ export default function CustomerAnalyticsPage() {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="relative w-full lg:w-96">
                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input type="search" value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1); }} placeholder="Search company name or code..." className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20" />
+                <input type="search" value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1); }} placeholder="Search customer name or code..." className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20" />
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">

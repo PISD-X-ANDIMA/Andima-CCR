@@ -5,11 +5,11 @@ export const COMPANY_ALIASES = {
   period: ["period", "period month", "bulan", "month"],
   customer: ["customer", "customer name", "company", "company name", "nama customer", "client", "nama pelanggan"],
   customerCode: ["customer code", "customer id", "company code", "company id", "kode customer", "kode pelanggan"],
-  revenue: ["revenue", "sales", "sales value", "nilai penjualan", "nilai sales"],
-  trucking: ["trucking cost", "trucking", "biaya trucking"],
-  handling: ["handling cost", "handling", "biaya handling"],
-  storage: ["storage cost", "storage", "biaya storage"],
-  otherCost: ["other operational cost", "other cost", "operational cost", "biaya operasional lain"],
+  revenue: ["revenue", "sales", "sales value", "nilai penjualan", "nilai sales", "invoice nominal", "nominal invoice"],
+  trucking: ["trucking cost", "trucking", "biaya trucking", "sub total", "subtotal", "cost sub total"],
+  handling: ["handling cost", "handling", "biaya handling", "vat", "vat ppn", "ppn"],
+  storage: ["storage cost", "storage", "biaya storage", "pph 23", "pph", "pph23"],
+  otherCost: ["other operational cost", "other cost", "operational cost", "biaya operasional lain", "others", "dip iata", "dip", "others dip iata"],
 };
 
 export const OUTSTANDING_ALIASES = {
