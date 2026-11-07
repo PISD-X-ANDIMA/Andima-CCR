@@ -198,10 +198,10 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
               onClick={() => setIsExportModalOpen(true)}
               disabled={isLoading}
               className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer shadow-xs"
-              aria-label="Export dashboard report PDF"
+              aria-label="Sales Overview Export"
             >
-              <FileText className="size-4 text-rose-600" />
-              Export PDF
+              <FileText className="size-4 text-blue-600" />
+              Sales Overview Export
             </button>
             <button type="button" onClick={onRefresh} disabled={isLoading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-60 cursor-pointer"><RefreshCw className={isLoading ? "size-4 animate-spin" : "size-4"} />Refresh</button>
           </div>

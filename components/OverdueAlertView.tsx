@@ -12,7 +12,6 @@ import {
   ChevronRight,
   ChevronUp,
   Clock,
-  Download,
   ExternalLink,
   FileText,
   FileWarning,
@@ -204,15 +203,6 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
     }
   };
 
-  const handleExportReport = async () => {
-    try {
-      const response = await fetch("/api/v1/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ format: "XLSX", requestedBy: "CCR", periodFilter: { agingBucket } }) });
-      const body = await readJsonResponse<{ error?: { message?: string } }>(response);
-      if (!response.ok) throw new Error(responseMessage(body, "Export failed."));
-      showToast("Report export generated successfully.");
-    } catch (error) { showToast(error instanceof Error ? error.message : "Export failed."); }
-  };
-
   const handleAssignPicSubmit = async () => {
     if (!assignModalInvoice || !assignTargetPic || !canAssign) { showToast("PIC must be selected."); return; }
     try {
@@ -253,9 +243,6 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={handleEvaluate} disabled={loading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-wait disabled:opacity-60 cursor-pointer">
               <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />Refresh
-            </button>
-            <button type="button" onClick={handleExportReport} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-600 cursor-pointer">
-              <Download className="h-3.5 w-3.5" />Export Report
             </button>
           </div>
         </section>
