@@ -19,7 +19,7 @@ export type Metric = "revenue" | "cost" | "total_outstanding";
 const chartConfig: Record<Metric, { label: string; color: string; fill: string }> = {
   revenue: { label: "Revenue", color: "#2563eb", fill: "#60a5fa" },
   cost: { label: "Cost", color: "#d97706", fill: "#fbbf24" },
-  total_outstanding: { label: "Total Outstanding", color: "#0f766e", fill: "#2dd4bf" },
+  total_outstanding: { label: "Outstanding", color: "#0f766e", fill: "#2dd4bf" },
 };
 
 const money = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });

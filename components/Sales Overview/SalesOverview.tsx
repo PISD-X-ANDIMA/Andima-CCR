@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Pagination from "@/components/Pagination";
-import { AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Calendar, Download, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Calendar, FileText, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle, X } from "lucide-react";
 import { ChartAreaStacked } from "./chart";
 import { QUICK_PERIODS, matchingQuickPeriod, quickPeriodRange } from "@/lib/salesOverviewPeriod";
 import { DocumentPreviewModal, RecentDocumentsPanel } from "./DocumentsPanel";
+import SalesOverviewExportModal from "./SalesOverviewExportModal";
 import type { RecentDocument } from "@/lib/salesOverviewDocuments";
 import type { StaffOption } from "@/types/overdue";
 
@@ -174,27 +175,9 @@ function QuickPeriodFilters({ startPeriod, endPeriod, onStartPeriodChange, onEnd
 export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], documents, documentsLoading, documentsError, staffOptions = [], staffLoading = false, canAssign = false }: Props) {
   const hasMacro = Boolean(summary);
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  async function exportCsv() {
-    if (isExporting || isLoading) return;
-    setIsExporting(true);
-    try {
-      const response = await fetch(`/api/v1/analytics/macro/export?start_period=${startPeriod}&end_period=${endPeriod}`, { cache: "no-store" });
-      if (!response.ok) throw new Error("Failed to export CSV.");
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `sales-overview-${startPeriod}-${endPeriod}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } finally {
-      setIsExporting(false);
-    }
-  }
+
   function openOriginal(documentId: string) {
     window.open(`/api/v1/documents/${documentId}/download`, "_blank", "noopener,noreferrer");
   }
@@ -210,7 +193,16 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">Sales Overview</h1>
           <div className="flex flex-wrap items-center gap-3">
             <QuickPeriodFilters startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={isLoading} />
-            <button type="button" onClick={() => void exportCsv()} disabled={isLoading || isExporting} className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer" aria-label="Export analytics summary"><Download className="size-4" />{isExporting ? "Exporting..." : "Export CSV"}</button>
+            <button
+              type="button"
+              onClick={() => setIsExportModalOpen(true)}
+              disabled={isLoading}
+              className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer shadow-xs"
+              aria-label="Export dashboard report PDF"
+            >
+              <FileText className="size-4 text-rose-600" />
+              Export PDF
+            </button>
             <button type="button" onClick={onRefresh} disabled={isLoading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-60 cursor-pointer"><RefreshCw className={isLoading ? "size-4 animate-spin" : "size-4"} />Refresh</button>
           </div>
         </header>
@@ -218,17 +210,28 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
           <div className="mb-3 flex items-center justify-between"><h2 className="text-xs font-semibold text-slate-500 font-heading">Monthly Macro Analytics</h2></div>
           {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label="Sales Profit Period" value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail="Total Revenue - Cost" formula="Sales Profit = Revenue - Cost" icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label="Cost Requirement Period" value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail="Total operational costs" icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label="Outstanding Period" value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail="Total uncollected invoices" icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label="Net Margin Ratio" value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail="Ratio across selected period" formula="Net Margin Ratio = (Sales Profit / Revenue) x 100" icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
         </section>
-        <PeakMetrics series={series} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
         <section aria-label="Sales Overview Charts" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ChartAreaStacked title="Sales & Cost Performance Trend" series={series} metrics={["revenue", "cost", "total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
           <ChartAreaStacked title="Revenue" series={series} metrics={["revenue"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
           <ChartAreaStacked title="Cost" series={series} metrics={["cost"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
-          <ChartAreaStacked title="Total Outstanding" series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
+          <ChartAreaStacked title="Outstanding" series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
         </section>
         <AlertPanel alerts={alerts} loading={isLoading} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />
         <RecentDocumentsPanel documents={documents} loading={documentsLoading} error={documentsError} onPreview={setPreviewDocumentId} onOpenOriginal={(id) => void openOriginal(id)} onRejectedDownload={showRejectedDownload} />
       </div>
       {previewDocumentId && <DocumentPreviewModal documentId={previewDocumentId} onClose={() => setPreviewDocumentId(null)} />}
+      {isExportModalOpen && (
+        <SalesOverviewExportModal
+          open={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          summary={summary}
+          series={series}
+          startPeriod={startPeriod}
+          endPeriod={endPeriod}
+          alerts={alerts}
+          documents={documents}
+        />
+      )}
     </main>
   );
 }
@@ -245,7 +248,7 @@ function AlertPanel({ alerts, loading, staffOptions, staffLoading, canAssign, on
   return <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-lg font-bold text-slate-900 font-heading">Overdue Alerts List</h2><p className="mb-4 text-xs text-slate-500">Validated invoices exceeding 30 days, sorted by oldest due date.</p>{loading ? <AlertSkeleton /> : ordered.length ? <><div className="space-y-3">{visible.map((alert, index) => <AlertCard key={`alert-row-${alert.id}-${alert.due}-${(currentPage - 1) * pageSize + index}`} alert={alert} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />)}</div>{totalPages > 1 && <div className="mt-5 flex min-w-0 justify-center overflow-hidden"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })} /></div>}</> : <PanelEmpty text="No overdue alert data found." />}</section>;
 }
 
-function AlertCard({ alert }: { alert: AlertRow; staffOptions?: StaffOption[]; staffLoading?: boolean; canAssign?: boolean; onRefresh?: () => void }) {
+function AlertCard({ alert, canAssign = false }: { alert: AlertRow; staffOptions?: StaffOption[]; staffLoading?: boolean; canAssign?: boolean; onRefresh?: () => void }) {
   return (
     <div className="rounded-lg bg-slate-50 p-3">
       <div className="flex justify-between text-xs font-bold">
@@ -259,25 +262,18 @@ function AlertCard({ alert }: { alert: AlertRow; staffOptions?: StaffOption[]; s
         {alert.picAssigned && <span className="font-semibold text-slate-700">PIC: {alert.picAssigned}</span>}
         {alert.riskStatus && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">{alert.riskStatus}</span>}
       </div>
-      <div className="mt-3 flex justify-end">
-        <Link
-          href="/overdue-alert"
-          className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-xs hover:bg-blue-700 transition cursor-pointer"
-        >
-          Assign PIC
-        </Link>
-      </div>
+      {canAssign && (
+        <div className="mt-3 flex justify-end">
+          <Link
+            href="/overdue-alert"
+            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-xs hover:bg-blue-700 transition cursor-pointer"
+          >
+            Assign PIC
+          </Link>
+        </div>
+      )}
     </div>
   );
-}
-function PeakMetrics({ series, startPeriod, endPeriod, loading, error }: { series: MacroPoint[]; startPeriod: string; endPeriod: string; loading: boolean; error: string | null }) {
-  const selected = series.filter(point => point.period_month >= startPeriod && point.period_month <= endPeriod).sort((a, b) => b.period_month.localeCompare(a.period_month));
-  const metrics = [{ key: "revenue", label: "Peak Revenue", icon: <Wallet className="size-4" /> }, { key: "cost", label: "Peak Cost", icon: <Receipt className="size-4" /> }, { key: "total_outstanding", label: "Peak Outstanding", icon: <AlertCircle className="size-4" /> }] as const;
-  return <section aria-label="Peak metrics" className="space-y-3"><div className="text-xs font-semibold text-slate-500">{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</div><div className="grid grid-cols-1 gap-4 md:grid-cols-3">{metrics.map(metric => {
-    const maximum = selected.length ? Math.max(...selected.map(point => point[metric.key])) : null;
-    const matching = selected.filter(point => point[metric.key] === maximum);
-    return <article key={metric.key} aria-label={metric.label} aria-busy={loading} className="min-w-0 rounded-xl border border-slate-100 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-700 font-heading">{metric.label}</h3><span className="rounded bg-blue-50 p-1.5 text-blue-600">{metric.icon}</span></div>{loading ? <div className="mt-4 animate-pulse space-y-3" aria-label={`Loading ${metric.label}`}><div className="h-7 w-3/4 rounded bg-slate-200" /><div className="h-3 w-1/2 rounded bg-slate-200" /><div className="h-3 w-2/3 rounded bg-slate-200" /></div> : error ? <p role="alert" className="mt-4 text-sm text-red-700">Data could not be loaded.</p> : maximum === null ? <p className="mt-4 text-sm text-slate-500">No data yet</p> : <><p className="mt-4 break-words text-2xl font-bold text-slate-900 font-heading">{money.format(maximum)}</p><p className="mt-2 text-sm text-slate-500">{periodLabel(matching[0].period_month)}</p>{matching.length > 1 && <p className="mt-2 text-xs text-slate-500">The same value was also reached in {matching.length - 1} other months.</p>}</>}</article>;
-  })}</div></section>;
 }
 function MetricSkeleton() { return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">{[1, 2, 3, 4].map((item) => <div key={item} className="h-32 animate-pulse rounded-xl bg-white p-5"><div className="h-3 w-32 rounded bg-slate-200" /><div className="mt-6 h-7 w-40 rounded bg-slate-200" /><div className="mt-3 h-3 w-24 rounded bg-slate-200" /></div>)}</div>; }
 function AlertSkeleton() { return <div className="space-y-3" aria-label="Loading alerts">{[1, 2, 3, 4, 5].map((item) => <div key={item} className="animate-pulse rounded-lg bg-slate-50 p-3"><div className="flex justify-between"><div className="h-3 w-24 rounded bg-slate-200" /><div className="h-3 w-14 rounded bg-slate-200" /></div><div className="mt-3 h-4 w-36 rounded bg-slate-200" /><div className="mt-2 h-3 w-48 rounded bg-slate-200" /><div className="mt-3 h-5 w-20 rounded bg-slate-200" /></div>)}</div>; }
