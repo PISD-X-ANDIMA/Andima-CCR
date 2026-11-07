@@ -33,6 +33,8 @@ type StagingOutstanding = {
   customer_name: string;
   outstanding_amount: number | string;
   due_date: string;
+  job_number?: string | null;
+  mawb?: string | null;
 };
 
 type AlertRow = {
@@ -127,18 +129,63 @@ export function calculateOverdueKpi(invoices: OverdueInvoiceItem[]): OverdueKpiS
 async function readValidatedOutstanding(client: SupabaseClient) {
   const { data: stagingRows, error: stagingError } = await client
     .from("c1_outstanding_staging_rows")
-    .select("invoice_number, customer_id, c1_customer_id, customer_name, outstanding_amount, due_date, created_at, c1_document_uploads!inner(validation_status)")
+    .select("invoice_number, customer_id, c1_customer_id, customer_name, outstanding_amount, due_date, created_at, job_number, mawb, c1_document_uploads!inner(validation_status)")
     .eq("c1_document_uploads.validation_status", "validated")
     .gt("outstanding_amount", 0)
     .order("due_date", { ascending: true });
   if (stagingError) throw stagingError;
 
   const rows = (stagingRows ?? []) as StagingOutstanding[];
-  const latestByInvoice = new Map<string, StagingOutstanding>();
+  // Build lookup index of valid customer names prioritizing job_number -> mawb -> invoice_number
+  const validByJob = new Map<string, { customer_name: string; customer_id: string | null; c1_customer_id: string | null }>();
+  const validByMawb = new Map<string, { customer_name: string; customer_id: string | null; c1_customer_id: string | null }>();
   for (const row of rows) {
+    const hasValidCustomer = Boolean(row.customer_name && row.customer_name.trim().toLowerCase() !== "tidak ditemukan");
+    if (!hasValidCustomer) continue;
+    const jobKey = row.job_number?.trim().toLowerCase();
+    const mawbKey = row.mawb?.trim().toLowerCase();
+    if (jobKey && jobKey !== "-") validByJob.set(jobKey, { customer_name: row.customer_name, customer_id: row.customer_id, c1_customer_id: row.c1_customer_id });
+    if (mawbKey && mawbKey !== "-") validByMawb.set(mawbKey, { customer_name: row.customer_name, customer_id: row.customer_id, c1_customer_id: row.c1_customer_id });
+  }
+
+  const latestByInvoice = new Map<string, StagingOutstanding>();
+  for (const rawRow of rows) {
+    // Fill customer identity using hierarchy: Job Number -> MAWB Number -> existing
+    let row = rawRow;
+    const hasValidCustomer = Boolean(row.customer_name && row.customer_name.trim().toLowerCase() !== "tidak ditemukan");
+    if (!hasValidCustomer) {
+      const jobKey = row.job_number?.trim().toLowerCase();
+      const mawbKey = row.mawb?.trim().toLowerCase();
+      const match = (jobKey && validByJob.get(jobKey)) || (mawbKey && validByMawb.get(mawbKey));
+      if (match) {
+        row = {
+          ...row,
+          customer_name: match.customer_name,
+          customer_id: row.customer_id ?? match.customer_id,
+          c1_customer_id: row.c1_customer_id ?? match.c1_customer_id,
+        };
+      }
+    }
+
     const key = row.invoice_number.trim().toLowerCase();
     const previous = latestByInvoice.get(key);
-    if (!previous || row.created_at > previous.created_at) latestByInvoice.set(key, row);
+    const rowHasValid = Boolean(row.customer_name && row.customer_name.trim().toLowerCase() !== "tidak ditemukan");
+    const prevHasValid = Boolean(previous?.customer_name && previous.customer_name.trim().toLowerCase() !== "tidak ditemukan");
+
+    if (!previous) {
+      latestByInvoice.set(key, row);
+    } else if (rowHasValid && !prevHasValid) {
+      latestByInvoice.set(key, row);
+    } else if (!rowHasValid && prevHasValid) {
+      latestByInvoice.set(key, {
+        ...row,
+        customer_name: previous.customer_name,
+        customer_id: row.customer_id ?? previous.customer_id,
+        c1_customer_id: row.c1_customer_id ?? previous.c1_customer_id,
+      });
+    } else if (row.created_at > previous.created_at) {
+      latestByInvoice.set(key, row);
+    }
   }
   return [...latestByInvoice.values()];
 }
@@ -172,7 +219,9 @@ function toInvoice(
     id: row.invoice_id,
     invoice_number: row.invoice_id,
     customer_id: customerId ?? "",
-    customer_name: customer?.customer_name?.trim() || staging?.customer_name?.trim() || "Pelanggan tidak tersedia",
+    customer_name: customer?.customer_name?.trim()
+      || (staging?.customer_name && staging.customer_name.trim().toLowerCase() !== "tidak ditemukan" ? staging.customer_name.trim() : null)
+      || "Pelanggan tidak tersedia",
     npwp: customer?.npwp || "-",
     branch: customer?.branch?.trim() || "Tidak tersedia",
     branch_code: "",
@@ -263,13 +312,31 @@ export async function assignPicInSupabase(invoiceId: string, assignedTo: string,
   if (!alert) return { success: false, error: "Invoice overdue tidak ditemukan." };
   if (!alert.overdue_alert) return { success: false, error: "Invoice belum melewati batas overdue 30 hari." };
 
+  // Check if already assigned to this staff recently (within 60s) with ASSIGNED status to prevent double-click duplicates
+  const { data: existingAssignment } = await supabase
+    .from("c1_assignment")
+    .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
+    .eq("invoice_id", cleanInvoiceId)
+    .order("assigned_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (
+    existingAssignment &&
+    existingAssignment.assigned_to === cleanAssignedTo &&
+    existingAssignment.follow_up_status === "ASSIGNED" &&
+    Date.now() - new Date(existingAssignment.assigned_at).getTime() < 60_000
+  ) {
+    return { success: true, record: existingAssignment };
+  }
+
   const { data, error } = await supabase.from("c1_assignment").insert({
     invoice_id: cleanInvoiceId,
     assigned_to: cleanAssignedTo,
     assigned_by: assignedBy,
     follow_up_status: "ASSIGNED",
     notes: notes?.trim() || null,
-  }).select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at").single();
+  }).select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount").single();
   if (error) throw error;
   return { success: true, record: data };
 }
@@ -281,6 +348,7 @@ export async function recordFollowUpProgressInSupabase(params: {
   promiseDate?: string | null;
   notes?: string | null;
   attachmentUrl?: string | null;
+  paymentAmount?: number | null;
   updatedBy: string;
   assignedTo?: string | null;
 }) {
@@ -300,7 +368,7 @@ export async function recordFollowUpProgressInSupabase(params: {
     assignedTo = latest?.assigned_to || "STAFF";
   }
 
-  const { data, error } = await supabase.from("c1_assignment").insert({
+  const insertData: Record<string, unknown> = {
     invoice_id: cleanInvoiceId,
     assigned_to: assignedTo,
     assigned_by: params.updatedBy,
@@ -310,7 +378,14 @@ export async function recordFollowUpProgressInSupabase(params: {
     notes: params.notes?.trim() || null,
     attachment_url: params.attachmentUrl || null,
     updated_by: params.updatedBy,
-  }).select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at").single();
+    payment_amount: params.paymentAmount ? Number(params.paymentAmount) : 0,
+  };
+
+  const { data, error } = await supabase
+    .from("c1_assignment")
+    .insert(insertData)
+    .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
+    .single();
 
   if (error) throw error;
   return { success: true, record: data };
@@ -319,11 +394,28 @@ export async function recordFollowUpProgressInSupabase(params: {
 export async function fetchAssignmentHistoryInSupabase(invoiceId: string) {
   const { data, error } = await getSupabaseClient()
     .from("c1_assignment")
-    .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at")
+    .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
     .eq("invoice_id", invoiceId)
     .order("assigned_at", { ascending: false });
   if (error) throw error;
-  return data ?? [];
+
+  // Deduplicate consecutive identical entries (e.g. rapid double-assignments)
+  const rows = (data ?? []) as any[];
+  const deduplicated: any[] = [];
+  for (const row of rows) {
+    const prev = deduplicated[deduplicated.length - 1];
+    if (
+      prev &&
+      prev.assigned_to === row.assigned_to &&
+      prev.follow_up_status === row.follow_up_status &&
+      Math.abs(new Date(prev.assigned_at).getTime() - new Date(row.assigned_at).getTime()) < 60_000
+    ) {
+      continue;
+    }
+    deduplicated.push(row);
+  }
+
+  return deduplicated;
 }
 
 export async function triggerBatchMidFeedEscalationInSupabase(invoiceIds: string[], exportedBy: string) {

@@ -10,6 +10,8 @@ export const COMPANY_ALIASES = {
   handling: ["handling cost", "handling", "biaya handling", "vat", "vat ppn", "ppn"],
   storage: ["storage cost", "storage", "biaya storage", "pph 23", "pph", "pph23"],
   otherCost: ["other operational cost", "other cost", "operational cost", "biaya operasional lain", "others", "dip iata", "dip", "others dip iata"],
+  job: ["job", "job number", "nomor job"],
+  mawb: ["mawb", "mawb no", "mawb number"],
 };
 
 export const OUTSTANDING_ALIASES = {
@@ -95,7 +97,22 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
       parsedCosts.forEach((cost, costIndex) => {
         if (cost === null || cost < 0) errors.push({ row, field: costs[costIndex], code: "INVALID_NUMBER", message: "Komponen biaya harus berupa angka tidak negatif." });
       });
-      if (period && customerValue && revenue !== null && revenue >= 0 && parsedCosts.every((cost) => cost !== null && cost >= 0)) valid.push({ row_number: row, period_month: period, customer_name: customer, ...(customerCode ? { customer_code: customerCode } : {}), customer_id: customerId, revenue, trucking_cost: parsedCosts[0], handling_cost: parsedCosts[1], storage_cost: parsedCosts[2], other_operational_cost: parsedCosts[3] });
+      const job = String(value("job") ?? "").trim();
+      const mawb = String(value("mawb") ?? "").trim();
+      if (period && customerValue && revenue !== null && revenue >= 0 && parsedCosts.every((cost) => cost !== null && cost >= 0)) valid.push({
+        row_number: row,
+        period_month: period,
+        customer_name: customer,
+        ...(customerCode ? { customer_code: customerCode } : {}),
+        customer_id: customerId,
+        revenue,
+        trucking_cost: parsedCosts[0],
+        handling_cost: parsedCosts[1],
+        storage_cost: parsedCosts[2],
+        other_operational_cost: parsedCosts[3],
+        ...(job ? { job_number: job } : {}),
+        ...(mawb ? { mawb } : {}),
+      });
     } else {
       const amount = numberValue(value("amount"));
       const dueDate = dateValue(value("dueDate"));

@@ -19,7 +19,47 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ invoic
     if (profile?.resolved_role === "STAFF" && !history.some((item) => item.assigned_to === profile.employee_id || item.assigned_to === profile.full_name)) {
       return apiError("Assignment not found in your scope.", 404, "NOT_FOUND");
     }
-    return NextResponse.json({ data: history });
+
+    // Enrich history with user full names and roles from b2_register
+    const admin = createAdminClient();
+    const assignedByUuids = [...new Set(history.map((h) => h.assigned_by).filter(Boolean))];
+    const assignedToIds = [...new Set(history.map((h) => h.assigned_to).filter(Boolean))];
+
+    const orClauses: string[] = [];
+    if (assignedByUuids.length) {
+      orClauses.push(`auth_user_id.in.(${assignedByUuids.join(",")})`);
+      orClauses.push(`id.in.(${assignedByUuids.join(",")})`);
+    }
+    if (assignedToIds.length) {
+      orClauses.push(`employee_id.in.(${assignedToIds.join(",")})`);
+    }
+
+    let profileMap = new Map<string, { full_name: string; resolved_role: string; employee_id: string }>();
+    if (orClauses.length) {
+      const { data: profiles } = await admin
+        .from("b2_register")
+        .select("auth_user_id, id, employee_id, full_name, resolved_role")
+        .or(orClauses.join(","));
+
+      for (const p of profiles ?? []) {
+        if (p.auth_user_id) profileMap.set(p.auth_user_id, p);
+        if (p.id) profileMap.set(p.id, p);
+        if (p.employee_id) profileMap.set(p.employee_id, p);
+      }
+    }
+
+    const enrichedHistory = history.map((item) => {
+      const assignedByProf = profileMap.get(item.assigned_by);
+      const assignedToProf = profileMap.get(item.assigned_to);
+      return {
+        ...item,
+        assigned_by_name: assignedByProf?.full_name || "Manajemen CCR",
+        assigned_by_role: assignedByProf?.resolved_role || "MANAGEMENT",
+        assigned_to_name: assignedToProf?.full_name || item.assigned_to,
+      };
+    });
+
+    return NextResponse.json({ data: enrichedHistory });
   } catch (error) {
     console.error("Failed to read assignment history", error);
     return apiError("Unable to read assignment history.", 500, "ASSIGNMENT_HISTORY_FAILED");

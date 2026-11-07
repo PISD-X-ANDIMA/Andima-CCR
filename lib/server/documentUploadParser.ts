@@ -79,14 +79,15 @@ async function parsePdf(buffer: Buffer, type: DocumentType) {
       }
       if (type === "COMPANY_SALES_REPORT") {
         for (const job of items.filter((item) => item.x < 75 && /\/[0-9]{2,}/.test(item.str))) {
-          const customer = columnText(items, job.y, 75, 165);
+          const customer = columnText(items, job.y, 75, 150);
+          const mawb = nearest(items, job.y, 150, 220);
           const revenue = nearest(items, job.y, 300, 390);
           const subTotal = nearest(items, job.y, 390, 470);
           const vat = nearest(items, job.y, 465, 530);
           const pph = nearest(items, job.y, 530, 590);
           const others = nearest(items, job.y, 590, 650);
           const dip = nearest(items, job.y, 650, 710);
-          if (revenue) rows.push([reportPeriod, customer, revenue, subTotal, vat, pph, String((numberValue(others) ?? 0) + (numberValue(dip) ?? 0))]);
+          if (revenue) rows.push([reportPeriod, customer, revenue, subTotal, vat, pph, String((numberValue(others) ?? 0) + (numberValue(dip) ?? 0)), job.str, mawb]);
         }
       } else {
         for (const rowNumber of items.filter((item) => item.x < 65 && /^\d+$/.test(item.str))) {
@@ -105,7 +106,7 @@ async function parsePdf(buffer: Buffer, type: DocumentType) {
     if (!rows.length) throw new Error("PDF_TABLE_NOT_FOUND");
     if (type === "COMPANY_SALES_REPORT") {
       if (!reportPeriod) throw new Error("MISSING_HEADER");
-      return [["period", "customer", "revenue", "trucking cost", "handling cost", "storage cost", "other operational cost"], ...rows];
+      return [["period", "customer", "revenue", "trucking cost", "handling cost", "storage cost", "other operational cost", "job", "mawb"], ...rows];
     }
     return [["invoice", "customer", "amount rp", "due date", "created date", "job", "mawb"], ...rows];
   } catch (error) {

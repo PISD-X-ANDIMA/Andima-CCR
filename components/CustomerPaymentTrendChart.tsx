@@ -75,9 +75,6 @@ export default function CustomerPaymentTrendChart({ data }: CustomerPaymentTrend
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-bold text-slate-800 font-heading">Payment Trend</h2>
-            <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-              Live Verified
-            </span>
           </div>
           <p className="mt-1 text-xs text-slate-500">
             Historical and latest recorded payment collection trajectory.
@@ -147,20 +144,6 @@ export default function CustomerPaymentTrendChart({ data }: CustomerPaymentTrend
           </div>
         )}
       </div>
-
-      {/* Monthly Summary Cards Below Chart */}
-      {!!chartData.length && (
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 pt-3 border-t border-slate-100">
-          {chartData.map((point) => (
-            <div key={point.period_month} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
-              <p className="text-[11px] font-bold text-slate-600">{monthLabel(point.period_month)}</p>
-              <p className="mt-1 text-xs font-extrabold text-slate-900 font-heading">
-                {money.format(point.amount)}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
     </section>
   );
 }

@@ -24,6 +24,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ invoic
     let promiseDate: string | null = null;
     let notes: string | null = null;
     let attachmentUrl: string | null = null;
+    let paymentAmount: number | null = null;
 
     const contentType = req.headers.get("content-type") || "";
     if (contentType.includes("multipart/form-data")) {
@@ -32,11 +33,16 @@ export async function POST(req: NextRequest, context: { params: Promise<{ invoic
       followUpAction = (formData.get("followUpAction") as string) || null;
       promiseDate = (formData.get("promiseDate") as string) || null;
       notes = (formData.get("notes") as string) || null;
+      const rawPayment = formData.get("paymentAmount") || formData.get("payment_amount");
+      if (rawPayment) {
+        const parsed = Number(rawPayment);
+        if (!Number.isNaN(parsed)) paymentAmount = parsed;
+      }
 
       const file = formData.get("file") as File | null;
       if (file && file.size > 0) {
-        if (file.size > 15 * 1024 * 1024) {
-          return apiError("Lampiran bukti maksimal 15MB.", 422, "FILE_TOO_LARGE");
+        if (file.size > 5 * 1024 * 1024) {
+          return apiError("Lampiran bukti maksimal 5MB.", 422, "FILE_TOO_LARGE");
         }
         const admin = createAdminClient();
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -68,12 +74,19 @@ export async function POST(req: NextRequest, context: { params: Promise<{ invoic
         promiseDate?: string;
         notes?: string;
         attachmentUrl?: string;
+        paymentAmount?: number | string;
+        payment_amount?: number | string;
       };
       followUpStatus = body.followUpStatus || "IN_PROGRESS";
       followUpAction = body.followUpAction || null;
       promiseDate = body.promiseDate || null;
       notes = body.notes || null;
       attachmentUrl = body.attachmentUrl || null;
+      const rawPayment = body.paymentAmount ?? body.payment_amount;
+      if (rawPayment !== undefined && rawPayment !== null) {
+        const parsed = Number(rawPayment);
+        if (!Number.isNaN(parsed)) paymentAmount = parsed;
+      }
     }
 
     const assignedTo = profile?.employee_id || profile?.full_name || "STAFF";
@@ -85,6 +98,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ invoic
       promiseDate,
       notes,
       attachmentUrl,
+      paymentAmount,
       updatedBy: session.user!.id,
       assignedTo,
     });

@@ -25,6 +25,10 @@ export interface AssignmentRecord {
   promise_date?: string | null;
   attachment_url?: string | null;
   updated_by?: string | null;
+  payment_amount?: number | null;
+  assigned_to_name?: string | null;
+  assigned_by_name?: string | null;
+  assigned_by_role?: string | null;
   created_at?: string;
 }
 

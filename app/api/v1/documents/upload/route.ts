@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
         c1_customer_id: resolvedCustomer.c1_customer_id,
         ...(documentType === "OUTSTANDING_REPORT"
           ? { create_date: row.create_date ?? null, job_number: row.job_number ?? null, mawb: row.mawb ?? null }
-          : {}),
+          : { job_number: row.job_number ?? null, mawb: row.mawb ?? null }),
       };
     });
     const { error: stagingError } = await persistenceClient.from(table).insert(stagingRows);

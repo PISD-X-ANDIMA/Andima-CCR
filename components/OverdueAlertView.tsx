@@ -13,11 +13,14 @@ import {
   ChevronUp,
   Clock,
   ExternalLink,
+  Eye,
   FileText,
   FileWarning,
   History,
   MessageSquare,
+  MoreVertical,
   Paperclip,
+  Pencil,
   Phone,
   RefreshCw,
   Search,
@@ -27,9 +30,11 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import CustomDropdown from "@/components/CustomDropdown";
 import Pagination from "@/components/Pagination";
+import OverdueInvoicePreviewModal from "./OverdueInvoicePreviewModal";
 import type { AssignmentRecord, OverdueInvoiceItem, OverdueKpiSummary, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 
@@ -94,9 +99,11 @@ function followUpStatusBadge(status: string) {
 }
 
 export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarningLetter }) => {
+  const router = useRouter();
   const [invoices, setInvoices] = useState<OverdueInvoiceItem[]>([]);
   const [kpiSummary, setKpiSummary] = useState<OverdueKpiSummary | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<OverdueInvoiceItem | null>(null);
+  const [previewModalInvoice, setPreviewModalInvoice] = useState<OverdueInvoiceItem | null>(null);
   const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -108,6 +115,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
   const [assignModalInvoice, setAssignModalInvoice] = useState<OverdueInvoiceItem | null>(null);
   const [assignTargetPic, setAssignTargetPic] = useState("");
+  const [isAssigning, setIsAssigning] = useState(false);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [staffLoading, setStaffLoading] = useState(true);
   const [canAssign, setCanAssign] = useState(false);
@@ -182,6 +190,13 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
     refreshAssignmentHistory(selectedInvoiceId);
   }, [selectedInvoiceId, refreshAssignmentHistory]);
 
+  const previewInvoiceId = previewModalInvoice?.id;
+  useEffect(() => {
+    if (previewInvoiceId) {
+      refreshAssignmentHistory(previewInvoiceId);
+    }
+  }, [previewInvoiceId, refreshAssignmentHistory]);
+
   const handleProgressSaved = useCallback(() => {
     if (selectedInvoice?.id) {
       refreshAssignmentHistory(selectedInvoice.id);
@@ -204,20 +219,31 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
   };
 
   const handleAssignPicSubmit = async () => {
-    if (!assignModalInvoice || !assignTargetPic || !canAssign) { showToast("PIC must be selected."); return; }
+    if (!assignModalInvoice || !assignTargetPic || !canAssign || isAssigning) {
+      if (!assignTargetPic) showToast("Pilih salah satu staf PIC.");
+      return;
+    }
+    setIsAssigning(true);
     try {
-      const response = await fetch(`/api/v1/overdue/${encodeURIComponent(assignModalInvoice.id)}/assign`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assignedTo: assignTargetPic }) });
+      const response = await fetch(`/api/v1/overdue/${encodeURIComponent(assignModalInvoice.id)}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignedTo: assignTargetPic }),
+      });
       const body = await readJsonResponse<{ error?: { message?: string } }>(response);
-      if (!response.ok) throw new Error(responseMessage(body, "Assignment failed."));
+      if (!response.ok) throw new Error(responseMessage(body, "Gagal menugaskan PIC."));
       const staff = staffOptions.find((item) => item.employee_id === assignTargetPic);
-      showToast(`PIC ${staff?.full_name ?? assignTargetPic} successfully assigned.`);
+      showToast(`PIC ${staff?.full_name ?? assignTargetPic} berhasil ditugaskan.`);
+      const currentAssignedId = assignModalInvoice.id;
       setAssignModalInvoice(null);
       setAssignTargetPic("");
       loadOverdueData();
-      if (selectedInvoice?.id === assignModalInvoice.id) {
-        refreshAssignmentHistory(assignModalInvoice.id);
-      }
-    } catch (error) { showToast(error instanceof Error ? error.message : "Assignment failed."); }
+      refreshAssignmentHistory(currentAssignedId);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Penugasan gagal.");
+    } finally {
+      setIsAssigning(false);
+    }
   };
 
   const kpi = kpiSummary ?? EMPTY_KPI;
@@ -295,7 +321,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
           </div>
         </section>
 
-        <section className="grid min-w-0 grid-cols-1 items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="min-w-0 w-full">
           <InvoiceTable
             loading={loading}
             errorMessage={errorMessage}
@@ -312,15 +338,8 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
             onSelectAll={(checked) => setCheckedIds(checked ? invoices.map((invoice) => invoice.id) : [])}
             onAssign={setAssignModalInvoice}
             onPageChange={setCurrentPage}
-          />
-          <InvoiceDetail
-            invoice={selectedInvoice}
-            assignmentHistory={assignmentHistory}
-            staffOptions={staffOptions}
-            onAssign={setAssignModalInvoice}
-            onProgressSaved={handleProgressSaved}
-            showToast={showToast}
-            onOpenWarningLetter={onOpenWarningLetter}
+            onPreview={(invoice) => setPreviewModalInvoice(invoice)}
+            onEdit={(invoice) => router.push(`/overdue-alert/${encodeURIComponent(invoice.id)}/edit`)}
           />
         </section>
       </main>
@@ -333,8 +352,31 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
           canAssign={canAssign}
           value={assignTargetPic}
           onChange={setAssignTargetPic}
-          onClose={() => { setAssignModalInvoice(null); setAssignTargetPic(""); }}
+          onClose={() => {
+            if (!isAssigning) {
+              setAssignModalInvoice(null);
+              setAssignTargetPic("");
+            }
+          }}
           onSubmit={() => void handleAssignPicSubmit()}
+          isSubmitting={isAssigning}
+        />
+      )}
+
+      {previewModalInvoice && (
+        <OverdueInvoicePreviewModal
+          open={Boolean(previewModalInvoice)}
+          invoice={previewModalInvoice}
+          assignmentHistory={assignmentHistory}
+          staffOptions={staffOptions}
+          onClose={() => setPreviewModalInvoice(null)}
+          onEdit={(invoice) => {
+            setPreviewModalInvoice(null);
+            router.push(`/overdue-alert/${encodeURIComponent(invoice.id)}/edit`);
+          }}
+          onAssign={(invoice) => {
+            setAssignModalInvoice(invoice);
+          }}
         />
       )}
     </div>
@@ -381,6 +423,8 @@ function InvoiceTable({
   onSelectAll,
   onAssign,
   onPageChange,
+  onPreview,
+  onEdit,
 }: {
   loading: boolean;
   errorMessage: string | null;
@@ -397,7 +441,23 @@ function InvoiceTable({
   onSelectAll: (checked: boolean) => void;
   onAssign: (invoice: OverdueInvoiceItem) => void;
   onPageChange: (page: number) => void;
+  onPreview: (invoice: OverdueInvoiceItem) => void;
+  onEdit: (invoice: OverdueInvoiceItem) => void;
 }) {
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!openActionMenuId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openActionMenuId]);
+
   return (
     <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3">
@@ -421,15 +481,16 @@ function InvoiceTable({
               <th className="px-3 py-3 text-right">Outstanding</th>
               <th className="px-3 py-3 text-center">Aging</th>
               <th className="px-3 py-3 text-center">Risk Status</th>
-              <th className="px-3 py-3 text-center">PIC / Action</th>
+              <th className="px-3 py-3 text-center">PIC</th>
+              <th className="w-20 px-3 py-3 text-center">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? [1, 2, 3, 4, 5].map((item) => (
-              <tr key={item}><td colSpan={7} className="px-4 py-4"><div className="h-8 animate-pulse rounded bg-slate-100" /></td></tr>
+              <tr key={item}><td colSpan={8} className="px-4 py-4"><div className="h-8 animate-pulse rounded bg-slate-100" /></td></tr>
             )) : errorMessage ? (
               <tr>
-                <td colSpan={7} className="px-4 py-14 text-center">
+                <td colSpan={8} className="px-4 py-14 text-center">
                   <AlertCircle className="mx-auto mb-2 h-5 w-5 text-red-500" />
                   <p className="text-xs font-semibold text-red-700">{errorMessage}</p>
                   <button type="button" onClick={onRetry} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline cursor-pointer">
@@ -439,7 +500,7 @@ function InvoiceTable({
               </tr>
             ) : !invoices.length ? (
               <tr>
-                <td colSpan={7} className="px-4 py-14 text-center">
+                <td colSpan={8} className="px-4 py-14 text-center">
                   <FileWarning className="mx-auto mb-2 h-5 w-5 text-slate-300" />
                   <p className="text-xs font-semibold text-slate-500">No invoices match the selected filter.</p>
                 </td>
@@ -481,6 +542,52 @@ function InvoiceTable({
                           <button type="button" onClick={(event) => { event.stopPropagation(); onAssign(invoice); }} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-bold text-blue-700 hover:bg-blue-100 cursor-pointer">Assign PIC</button>
                         )}
                       </div>
+                    </td>
+                    <td className="relative px-3 py-3 text-center" onClick={(event) => event.stopPropagation()}>
+                      <div className="flex items-center justify-center">
+                        <button
+                          type="button"
+                          aria-label={`Aksi untuk invoice ${invoice.invoice_number}`}
+                          onClick={() => setOpenActionMenuId((curr) => (curr === invoice.id ? null : invoice.id))}
+                          className={`flex size-8 items-center justify-center rounded-full border transition cursor-pointer ${
+                            openActionMenuId === invoice.id
+                              ? "border-blue-400 bg-blue-50 text-blue-700 shadow-xs"
+                              : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+                          }`}
+                        >
+                          <MoreVertical className="size-4" />
+                        </button>
+                      </div>
+
+                      {openActionMenuId === invoice.id && (
+                        <div
+                          ref={actionMenuRef}
+                          className="absolute right-3 top-12 z-30 w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150 text-left"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenActionMenuId(null);
+                              onPreview(invoice);
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
+                          >
+                            <Eye className="size-3.5 text-blue-600" />
+                            <span>Preview</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenActionMenuId(null);
+                              onEdit(invoice);
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition cursor-pointer"
+                          >
+                            <Pencil className="size-3.5 text-emerald-600" />
+                            <span>Edit</span>
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );
@@ -866,6 +973,7 @@ function AssignmentModal({
   onChange,
   onClose,
   onSubmit,
+  isSubmitting = false,
 }: {
   invoice: OverdueInvoiceItem;
   staffOptions: StaffOption[];
@@ -875,27 +983,202 @@ function AssignmentModal({
   onChange: (value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
+  isSubmitting?: boolean;
 }) {
+  const [searchStaff, setSearchStaff] = useState("");
+
+  const filteredStaff = React.useMemo(() => {
+    const q = searchStaff.trim().toLowerCase();
+    if (!q) return staffOptions;
+    return staffOptions.filter(
+      (s) =>
+        s.full_name.toLowerCase().includes(q) ||
+        s.employee_id.toLowerCase().includes(q)
+    );
+  }, [staffOptions, searchStaff]);
+
+  const selectedStaffObj = staffOptions.find((s) => s.employee_id === value);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4">
-      <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h2 className="text-sm font-bold text-slate-900 font-heading">Collection PIC Assignment</h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer">
-            <X className="h-4 w-4" />
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="assignment-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm animate-in fade-in"
+    >
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 bg-slate-50/70">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+              <UserCheck className="size-4" />
+            </span>
+            <div>
+              <h2 id="assignment-modal-title" className="text-sm font-bold text-slate-900 font-heading">
+                Penugasan PIC Penagihan
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Pilih staf CCR untuk menangani invoice ini
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Tutup"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition cursor-pointer"
+          >
+            <X className="size-4" />
           </button>
         </div>
-        <p className="mt-4 text-xs text-slate-500">{invoice.invoice_number} · {invoice.customer_name}</p>
-        <label className="mt-5 block text-xs font-semibold text-slate-700">
-          Staff PIC
-          <select autoFocus value={value} onChange={(event) => onChange(event.target.value)} disabled={!canAssign || staffLoading || !staffOptions.length} className="mt-2 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-medium outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100">
-            <option value="">{staffLoading ? "Loading staff..." : !canAssign ? "No assignment permission" : staffOptions.length ? "Select active staff" : "No staff available"}</option>
-            {staffOptions.map((staff) => <option key={staff.employee_id} value={staff.employee_id}>{staff.full_name} ({staff.employee_id})</option>)}
-          </select>
-        </label>
-        <div className="mt-5 flex gap-2">
-          <button type="button" onClick={onClose} className="flex-1 rounded-md border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">Cancel</button>
-          <button type="button" onClick={onSubmit} disabled={!canAssign || staffLoading || !value} className="flex-1 rounded-md bg-blue-600 py-2.5 text-xs font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer">Save Assignment</button>
+
+        {/* Invoice Summary Card */}
+        <div className="border-b border-slate-100 bg-blue-50/40 px-5 py-3 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-mono font-bold text-blue-700">{invoice.invoice_number}</span>
+            <span className="font-bold text-red-600 font-heading">{formatRupiah(invoice.amount_overdue)}</span>
+          </div>
+          <p className="mt-0.5 font-medium text-slate-800 truncate">{invoice.customer_name}</p>
+        </div>
+
+        {/* Search Bar */}
+        <div className="px-5 pt-4 pb-2">
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              autoFocus
+              value={searchStaff}
+              onChange={(e) => setSearchStaff(e.target.value)}
+              placeholder="Cari nama staff atau ID karyawan..."
+              disabled={!canAssign || staffLoading}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2 pl-9 pr-8 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            />
+            {searchStaff && (
+              <button
+                type="button"
+                onClick={() => setSearchStaff("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </label>
+        </div>
+
+        {/* Staff List Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-2 space-y-1.5 max-h-[300px]">
+          {staffLoading ? (
+            <div className="py-10 text-center text-xs text-slate-400 space-y-2">
+              <RefreshCw className="size-5 mx-auto animate-spin text-blue-600" />
+              <p>Memuat daftar staf CCR...</p>
+            </div>
+          ) : !canAssign ? (
+            <div className="py-8 text-center text-xs text-amber-700">
+              <p className="font-semibold">Akses Terbatas</p>
+              <p className="text-[11px] mt-1 text-slate-500">Hanya role Management yang berwenang menugaskan PIC.</p>
+            </div>
+          ) : filteredStaff.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-400">
+              <UserRound className="size-6 mx-auto mb-1.5 opacity-40" />
+              <p className="font-medium text-slate-600">Tidak ada staf yang sesuai</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Coba kata kunci pencarian yang lain.</p>
+            </div>
+          ) : (
+            filteredStaff.map((staff) => {
+              const isSelected = value === staff.employee_id;
+              const staffInit = staff.full_name
+                .split(/\s+/)
+                .filter(Boolean)
+                .map((part) => part[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase();
+
+              return (
+                <div
+                  key={staff.employee_id}
+                  onClick={() => onChange(staff.employee_id)}
+                  className={`flex items-center justify-between rounded-xl border p-3 transition cursor-pointer ${
+                    isSelected
+                      ? "border-blue-500 bg-blue-50/80 ring-1 ring-blue-500 shadow-xs"
+                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        isSelected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {staffInit}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`truncate text-xs font-bold ${isSelected ? "text-blue-950" : "text-slate-900"}`}>
+                        {staff.full_name}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="font-mono text-[11px] text-slate-500 font-semibold">{staff.employee_id}</span>
+                        <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-bold text-slate-600 uppercase">
+                          Staff CCR
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="ml-3 shrink-0">
+                    <span
+                      className={`flex size-5 items-center justify-center rounded-full border transition ${
+                        isSelected
+                          ? "border-blue-600 bg-blue-600 text-white"
+                          : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {isSelected && <Check className="size-3 stroke-[3]" />}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Selected Staff Indicator */}
+        {selectedStaffObj && (
+          <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-2.5 text-xs flex items-center justify-between">
+            <span className="text-[11px] text-slate-500">Staf Terpilih:</span>
+            <span className="font-bold text-blue-700">
+              {selectedStaffObj.full_name} ({selectedStaffObj.employee_id})
+            </span>
+          </div>
+        )}
+
+        {/* Modal Footer */}
+        <div className="flex items-center gap-2.5 border-t border-slate-200 bg-slate-50 px-5 py-3.5">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="flex-1 rounded-xl border border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!canAssign || staffLoading || !value || isSubmitting}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 transition cursor-pointer"
+          >
+            {isSubmitting ? (
+              <>
+                <RefreshCw className="size-3.5 animate-spin" />
+                <span>Menugaskan...</span>
+              </>
+            ) : (
+              <span>Simpan Penugasan</span>
+            )}
+          </button>
         </div>
       </div>
     </div>
