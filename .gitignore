@@ -47,6 +47,8 @@ next-env.d.ts
 
 # FRTR documents and working files
 /FRTR/
+backend-documentation.md
+chartnew.tsx
 
 *.pdf
 *.xlsx

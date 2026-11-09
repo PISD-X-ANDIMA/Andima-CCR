@@ -27,7 +27,6 @@ import {
   Search,
   Send,
   Upload,
-  UserCheck,
   UserRound,
   X,
 } from "lucide-react";
@@ -205,17 +204,31 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
     loadOverdueData();
   }, [selectedInvoice?.id, refreshAssignmentHistory, loadOverdueData]);
 
-  const handleEvaluate = async () => {
+  const handleRefresh = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/v1/overdue/evaluate?refresh=${Date.now()}`, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store" });
-      const body = await readJsonResponse<{ overdue?: number; error?: { message?: string } }>(response);
-      if (!response.ok) throw new Error(responseMessage(body, "Failed to evaluate overdue invoices."));
-      showToast(`${body?.overdue ?? 0} overdue invoices detected.`);
+      if (canAssign) {
+        try {
+          await fetch(`/api/v1/overdue/evaluate?refresh=${Date.now()}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+          });
+        } catch {
+          // ignore evaluation failure during refresh
+        }
+      }
       loadOverdueData();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Failed to evaluate overdue invoices.");
-      setLoading(false);
+      if (selectedInvoice?.id) {
+        refreshAssignmentHistory(selectedInvoice.id);
+      }
+      fetch(`/api/v1/overdue/staff?refresh=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
+        .then(async (res) => (await readJsonResponse<{ staff?: StaffOption[] }>(res))?.staff)
+        .then((staff) => { if (staff) setStaffOptions(staff); })
+        .catch(() => {});
+      showToast("Overdue alerts data refreshed.");
+    } finally {
+      // loading state managed by loadOverdueData
     }
   };
 
@@ -268,7 +281,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
             <p className="mt-1 max-w-2xl text-xs text-slate-500">Monitor overdue receivables, coordinate collection staff, and record follow-up progress.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={handleEvaluate} disabled={loading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-wait disabled:opacity-60 cursor-pointer">
+            <button type="button" onClick={() => void handleRefresh()} disabled={loading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-wait disabled:opacity-60 cursor-pointer">
               <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />Refresh
             </button>
           </div>
@@ -338,6 +351,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
             onPreview={(invoice) => setPreviewModalInvoice(invoice)}
             onEdit={(invoice) => router.push(`/overdue-alert/${encodeURIComponent(invoice.id)}/edit`)}
             onCreate={(invoice) => router.push(`/overdue-alert/${encodeURIComponent(invoice.id)}/create`)}
+            canAssign={canAssign}
           />
         </section>
       </main>
@@ -429,6 +443,7 @@ function InvoiceTable({
   onPreview,
   onEdit,
   onCreate,
+  canAssign = false,
 }: {
   loading: boolean;
   errorMessage: string | null;
@@ -448,6 +463,7 @@ function InvoiceTable({
   onPreview: (invoice: OverdueInvoiceItem) => void;
   onEdit: (invoice: OverdueInvoiceItem) => void;
   onCreate: (invoice: OverdueInvoiceItem) => void;
+  canAssign?: boolean;
 }) {
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
   const [menuCoords, setMenuCoords] = useState<{ top: number; left: number } | null>(null);
@@ -636,20 +652,22 @@ function InvoiceTable({
             <Eye className="size-3.5 text-blue-600" />
             <span>Preview</span>
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              const target = menuInvoice;
-              setOpenActionMenuId(null);
-              setMenuCoords(null);
-              setMenuInvoice(null);
-              onCreate(target);
-            }}
-            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
-          >
-            <Plus className="size-3.5 text-blue-600" />
-            <span>Create</span>
-          </button>
+          {!canAssign && (
+            <button
+              type="button"
+              onClick={() => {
+                const target = menuInvoice;
+                setOpenActionMenuId(null);
+                setMenuCoords(null);
+                setMenuInvoice(null);
+                onCreate(target);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
+            >
+              <Plus className="size-3.5 text-blue-600" />
+              <span>Create</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -662,7 +680,7 @@ function InvoiceTable({
             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
           >
             <Pencil className="size-3.5 text-blue-600" />
-            <span>Edit PIC</span>
+            <span>{canAssign ? "Edit PIC" : "Edit Log"}</span>
           </button>
         </div>
       )}
@@ -1079,18 +1097,13 @@ function AssignmentModal({
       <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 bg-slate-50/70">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-              <UserCheck className="size-4" />
-            </span>
-            <div>
-              <h2 id="assignment-modal-title" className="text-sm font-bold text-slate-900 font-heading">
-                Assign Collection PIC
-              </h2>
-              <p className="text-[11px] text-slate-500">
-                Select an active CCR staff member to handle this overdue invoice
-              </p>
-            </div>
+          <div>
+            <h2 id="assignment-modal-title" className="text-sm font-bold text-slate-900 font-heading">
+              Assign Collection PIC
+            </h2>
+            <p className="text-[11px] text-slate-500">
+              Select an active CCR staff member to handle this overdue invoice
+            </p>
           </div>
           <button
             type="button"

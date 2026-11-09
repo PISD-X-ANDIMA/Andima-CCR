@@ -48,8 +48,12 @@ export default function UploadedDocumentsPage() {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ search, document_type: documentType, file_type: fileType, page: String(page), limit: "10" });
+    params.set("refresh", Date.now().toString());
     try {
-      const response = await fetch(`/api/v1/documents/recent?${params}`, { cache: "no-store" });
+      const response = await fetch(`/api/v1/documents/recent?${params}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       const body = await readJsonResponse<ManagedResponse & { error?: { message?: string } }>(response);
       if (!response.ok || !body) throw new Error(responseMessage(body, "Unable to load documents."));
       setRows(body.data ?? []); setSummary(body.summary); setPagination(body.pagination); setCanManage(body.permissions?.can_manage_documents ?? false);

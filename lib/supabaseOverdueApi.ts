@@ -439,21 +439,34 @@ export async function recordSettlementPaymentInSupabase(params: {
   const staging = stagingData?.[0];
   let targetCustomerId = staging?.c1_customer_id || staging?.customer_id;
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let resolvedCustId: string | null = null;
+  if (targetCustomerId && UUID_RE.test(String(targetCustomerId))) {
+    const { data: custRow } = await supabase
+      .from("c1_customer")
+      .select("customer_id")
+      .eq("customer_id", targetCustomerId)
+      .maybeSingle();
+    resolvedCustId = custRow?.customer_id ?? null;
+  }
+
   // If customer ID is not set or not in c1_customer, lookup c1_customer by name
-  if (!targetCustomerId && staging?.customer_name) {
+  if (!resolvedCustId && staging?.customer_name) {
     const { data: custByName } = await supabase
       .from("c1_customer")
       .select("customer_id")
       .ilike("customer_name", staging.customer_name.trim())
       .limit(1);
-    targetCustomerId = custByName?.[0]?.customer_id;
+    resolvedCustId = custByName?.[0]?.customer_id ?? null;
   }
 
   // Fallback to any valid customer if still null
-  if (!targetCustomerId) {
+  if (!resolvedCustId) {
     const { data: anyCust } = await supabase.from("c1_customer").select("customer_id").limit(1);
-    targetCustomerId = anyCust?.[0]?.customer_id;
+    resolvedCustId = anyCust?.[0]?.customer_id ?? null;
   }
+
+  targetCustomerId = resolvedCustId;
 
   const finalAmount = Math.max(1, params.amount > 0 ? params.amount : Number(staging?.outstanding_amount || 1));
 

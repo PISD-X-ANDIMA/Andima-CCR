@@ -8,6 +8,9 @@ const previewModal = readFileSync(new URL("../components/OverdueInvoicePreviewMo
 const createView = readFileSync(new URL("../components/OverdueInvoiceCreateView.tsx", import.meta.url), "utf8");
 const editView = readFileSync(new URL("../components/OverdueInvoiceEditView.tsx", import.meta.url), "utf8");
 const progressRoute = readFileSync(new URL("../app/api/v1/overdue/[invoiceId]/progress/route.ts", import.meta.url), "utf8");
+const customerDetail = readFileSync(new URL("../components/CustomerAnalyticsDetail.tsx", import.meta.url), "utf8");
+const trendChart = readFileSync(new URL("../components/CustomerPaymentTrendChart.tsx", import.meta.url), "utf8");
+const paymentsRoute = readFileSync(new URL("../app/api/v1/customers/[customerId]/payments/route.ts", import.meta.url), "utf8");
 const paymentPeriodsMigration = readFileSync(new URL("../supabase/migrations/20261109130000_update_customer_analytics_payment_periods.sql", import.meta.url), "utf8");
 const preserveAssignmentMigration = readFileSync(new URL("../supabase/migrations/20261109140000_preserve_assignment_history_on_settlement.sql", import.meta.url), "utf8");
 
@@ -126,3 +129,34 @@ test("Overdue settlement payment flow and exclusions", () => {
   // Verify assignment history preservation
   assert.match(preserveAssignmentMigration, /drop constraint if exists c1_assignment_invoice_id_fkey/);
 });
+
+test("Customer Analytics and Overdue workflow enhancements meet user requirements", () => {
+  // 1. Customer Codes table has search bar and excludes Overdue Status column & filter pills
+  assert.match(customerDetail, /codeSearch/);
+  assert.match(customerDetail, /placeholder="Search code, name, or customer ID\.\.\."/);
+  assert.doesNotMatch(customerDetail, /<th[^>]*>Overdue Status<\/th>/);
+  assert.doesNotMatch(customerDetail, /All \(\{codeRows\.length\}\)/);
+
+  // 2. Overdue settlement automatically aggregates into Payment Trend and provides Recent Payments
+  assert.match(paymentsRoute, /fetchRecentCustomerPaymentsFromSupabase/);
+  assert.match(trendChart, /Recent Payments/);
+  assert.match(trendChart, /Recent Settled Payments/);
+  assert.match(trendChart, /loadRecentPayments/);
+
+  // 3. Reliable refresh buttons with cache busting
+  assert.match(overdueView, /handleRefresh/);
+  assert.match(overdueView, /Overdue alerts data refreshed/);
+
+  // 4. Removed badge box with AlertTriangle from preview modal header
+  assert.doesNotMatch(previewModal, /<span className="flex size-9 items-center justify-center rounded-lg bg-blue-100 text-blue-700">\s*<AlertTriangle/);
+
+  // 5. Role restrictions: Management cannot create/edit follow-up logs
+  assert.match(progressRoute, /profile\?\.resolved_role === "MANAGEMENT"[\s\S]*?Management role cannot create follow-up logs/);
+  assert.match(progressRoute, /profile\?\.resolved_role === "MANAGEMENT"[\s\S]*?Management role cannot edit follow-up logs/);
+  assert.match(progressRoute, /profile\?\.resolved_role === "MANAGEMENT"[\s\S]*?Management role cannot delete follow-up logs/);
+  assert.match(createView, /userRole === "MANAGEMENT"/);
+  assert.match(createView, /Follow-up Creation Restricted to Staff/);
+  assert.match(editView, /isManagement \? null/);
+  assert.match(editView, /View-only for Management/);
+});
+

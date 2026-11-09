@@ -28,9 +28,20 @@ export default function CustomerAnalyticsPage() {
     if (!hydrated) return;
     setIsLoading(true);
     const apiBranch = branch === "All Branches" ? "Semua Cabang" : branch;
-    const params = new URLSearchParams({ page: String(currentPage), limit: String(itemsPerPage), branch: apiBranch, search: searchQuery.trim(), sortBy, sortOrder });
+    const params = new URLSearchParams({
+      page: String(currentPage),
+      limit: String(itemsPerPage),
+      branch: apiBranch,
+      search: searchQuery.trim(),
+      sortBy,
+      sortOrder,
+      refresh: Date.now().toString(),
+    });
     try {
-      const response = await fetch(`/api/v1/customers/analytics?${params.toString()}`, { cache: "no-store" });
+      const response = await fetch(`/api/v1/customers/analytics?${params.toString()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       const body = (await readJsonResponse<{ data?: CustomerAnalyticsItem[]; kpiSummary?: KpiSummary; pagination?: { totalItems?: number; totalPages?: number }; error?: { message?: string }; message?: string }>(response)) ?? {};
       if (!response.ok) throw new Error(responseMessage(body, "Failed to load customer analytics data."));
       setCustomers(body.data ?? []);

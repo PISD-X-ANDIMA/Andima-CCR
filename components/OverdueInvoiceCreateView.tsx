@@ -10,13 +10,13 @@ import {
   Calendar,
   Check,
   ExternalLink,
-  FileText,
   History,
   MessageSquare,
   Paperclip,
   Phone,
   RefreshCw,
   Upload,
+  UserCheck,
   Users,
   Video,
   X,
@@ -93,6 +93,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
   const [invoice, setInvoice] = useState<OverdueInvoiceItem | null>(null);
   const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -170,10 +171,20 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
         ok: res.ok,
         body: await readJsonResponse<{ data?: StaffOption[]; error?: { message?: string } }>(res),
       })),
+      fetch(`/api/v1/account/me?refresh=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      }).then(async (res) => ({
+        ok: res.ok,
+        body: await readJsonResponse<{ data?: { app_role?: string | null } }>(res),
+      })),
     ])
-      .then(([invoiceRes, historyRes, staffRes]) => {
+      .then(([invoiceRes, historyRes, staffRes, accountRes]) => {
         if (!invoiceRes.ok) {
           throw new Error(responseMessage(invoiceRes.body, "Failed to load overdue invoice data."));
+        }
+        if (accountRes?.body?.data?.app_role) {
+          setUserRole(accountRes.body.data.app_role);
         }
 
         const normalizedTarget = cleanInvoiceId.toLowerCase();
@@ -213,6 +224,11 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
   const handleSubmitProgress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoice) return;
+
+    if (userRole === "MANAGEMENT") {
+      showToast("Management role cannot create follow-up logs.");
+      return;
+    }
 
     if (followUpStatus === "PROMISE_TO_PAY" && !promiseDate) {
       showToast("Promise to pay date is required.");
@@ -466,12 +482,43 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
             </section>
 
             {/* Form Section takes full width */}
+            {userRole === "MANAGEMENT" ? (
+              <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-xs space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-xl bg-amber-100 p-2 text-amber-700">
+                    <UserCheck className="size-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <h2 className="text-base font-bold text-amber-950 font-heading">
+                      Follow-up Creation Restricted to Staff
+                    </h2>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      Users with the <strong>Management</strong> role cannot create collection follow-up logs. 
+                      Management is authorized to assign and reassign PICs. Progress entries and settlements must be submitted by the assigned collection Staff.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <Link
+                    href={`/overdue-alert/${encodeURIComponent(cleanInvoiceId)}/edit`}
+                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition"
+                  >
+                    <UserCheck className="size-4" />
+                    <span>Manage PIC Assignment</span>
+                  </Link>
+                  <Link
+                    href="/overdue-alert"
+                    className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-900 shadow-xs hover:bg-amber-100 transition"
+                  >
+                    <ArrowLeft className="size-4" />
+                    <span>Back to Overdue Alerts</span>
+                  </Link>
+                </div>
+              </section>
+            ) : (
             <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-5">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex size-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-                    <FileText className="size-4" />
-                  </span>
+                <div>
                   <h2 className="text-sm font-bold text-slate-900 font-heading">
                     Follow-up Progress Form
                   </h2>
@@ -693,14 +740,12 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                 </div>
               </form>
             </section>
+            )}
 
             {/* Activity & Follow-up History Section moved below the form */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex size-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                    <History className="size-4" />
-                  </span>
+                <div>
                   <h2 className="text-sm font-bold text-slate-900 font-heading">
                     Activity &amp; Follow-up History
                   </h2>

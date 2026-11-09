@@ -19,7 +19,6 @@ import {
   Search,
   Trash2,
   Upload,
-  UserCheck,
   UserRound,
   Users,
   Video,
@@ -86,6 +85,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
   const [canAssign, setCanAssign] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
   const [searchStaff, setSearchStaff] = useState("");
   const [loading, setLoading] = useState(true);
@@ -156,10 +156,20 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
         ok: res.ok,
         body: await readJsonResponse<{ data?: AssignmentRecord[]; error?: { message?: string } }>(res),
       })),
+      fetch(`/api/v1/account/me?refresh=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      }).then(async (res) => ({
+        ok: res.ok,
+        body: await readJsonResponse<{ data?: { app_role?: string | null } }>(res),
+      })),
     ])
-      .then(([invoiceRes, staffRes, historyRes]) => {
+      .then(([invoiceRes, staffRes, historyRes, accountRes]) => {
         if (!invoiceRes.ok) {
           throw new Error(responseMessage(invoiceRes.body, "Failed to load overdue invoice data."));
+        }
+        if (accountRes?.body?.data?.app_role) {
+          setUserRole(accountRes.body.data.app_role);
         }
 
         const normalizedTarget = cleanInvoiceId.toLowerCase();
@@ -214,7 +224,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
   const currentAssignedStaff = useMemo(
     () => (invoice?.pic_assigned ? staffOptions.find((s) => s.employee_id === invoice.pic_assigned) : undefined),
-    [invoice?.pic_assigned, staffOptions]
+    [invoice, staffOptions]
   );
 
   const handlePicSubmit = async (e: React.FormEvent) => {
@@ -245,7 +255,13 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
     }
   };
 
+  const isManagement = userRole === "MANAGEMENT" || canAssign;
+
   const openEditModal = (record: AssignmentRecord) => {
+    if (isManagement) {
+      showToast("Management role cannot edit follow-up logs. You can change the PIC above.");
+      return;
+    }
     setEditingRecord(record);
     setEditStatus(record.follow_up_status || "IN_PROGRESS");
     setEditAction(record.follow_up_action || "Chat (WhatsApp / Others)");
@@ -316,6 +332,10 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
   const handleDeleteLog = async () => {
     if (!deletingRecord || !invoice || isDeleting) return;
+    if (isManagement) {
+      showToast("Management role cannot delete follow-up logs.");
+      return;
+    }
     setIsDeleting(true);
     try {
       const response = await fetch(
@@ -438,18 +458,13 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
               className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden"
             >
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5 bg-slate-50/70">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-9 items-center justify-center rounded-xl bg-blue-100 text-blue-700 shadow-xs">
-                    <UserCheck className="size-5" />
-                  </span>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900 font-heading">
-                      Edit Collection PIC
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                      Update the CCR staff assigned to collect this invoice
-                    </p>
-                  </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 font-heading">
+                    Edit Collection PIC
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Update the CCR staff assigned to collect this invoice
+                  </p>
                 </div>
               </div>
 
@@ -600,22 +615,26 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
             {/* Section 2: Riwayat & Edit Follow-up */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex size-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-                    <History className="size-4" />
-                  </span>
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-900 font-heading">
-                      Activity History &amp; Follow-up Log
-                    </h2>
-                    <p className="text-[11px] text-slate-500">
-                      Click the edit button on any log to correct mistake status or follow-up notes
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 font-heading">
+                    Activity History &amp; Follow-up Log
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                      {isManagement
+                        ? "Management view-only. PIC assignment is editable above; follow-up progress logs can only be modified by Staff."
+                        : "Click the edit button on any log to correct mistake status or follow-up notes"}
                     </p>
                   </div>
+                <div className="flex items-center gap-2">
+                  {isManagement && (
+                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                      View-only for Management
+                    </span>
+                  )}
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700">
+                    {assignmentHistory.length} Records
+                  </span>
                 </div>
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700">
-                  {assignmentHistory.length} Records
-                </span>
               </div>
 
               {assignmentHistory.length === 0 ? (
@@ -717,24 +736,26 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                                 year: "numeric",
                               })}
                             </span>
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => openEditModal(record)}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition cursor-pointer shadow-xs"
-                              >
-                                <Pencil className="size-3 text-blue-600" />
-                                <span>Edit Log</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeletingRecord(record)}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 transition cursor-pointer shadow-xs"
-                              >
-                                <Trash2 className="size-3 text-red-600" />
-                                <span>Delete Log</span>
-                              </button>
-                            </div>
+                            {isManagement ? null : (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(record)}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition cursor-pointer shadow-xs"
+                                >
+                                  <Pencil className="size-3 text-blue-600" />
+                                  <span>Edit Log</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeletingRecord(record)}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 transition cursor-pointer shadow-xs"
+                                >
+                                  <Trash2 className="size-3 text-red-600" />
+                                  <span>Delete Log</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -756,11 +777,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
         >
           <div className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/80">
-              <div className="flex items-center gap-2.5">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-                  <Pencil className="size-4" />
-                </span>
-                <div>
+              <div>
                   <h3 className="text-sm font-bold text-slate-900 font-heading">
                     Edit Follow-up Progress
                   </h3>
@@ -768,7 +785,6 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                     Update follow-up history record details
                   </p>
                 </div>
-              </div>
               <button
                 type="button"
                 onClick={() => setEditingRecord(null)}
