@@ -45,7 +45,7 @@ function useReducedMotion() {
 function MacroTooltip({ active, payload, label }: { active?: boolean; payload?: ReadonlyArray<{ dataKey?: string | number; value?: number | string; color?: string; name?: string }>; label?: string }) {
   if (!active || !payload?.length) return null;
   return <div className="min-w-44 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
-    <p className="mb-1.5 font-semibold text-slate-900">{label ? monthLabel(label) : "Periode"}</p>
+    <p className="mb-1.5 font-semibold text-slate-900">{label ? monthLabel(label) : "Period"}</p>
     {payload.map((entry, index) => {
       const key = String(entry.dataKey ?? entry.name ?? "metric") as Metric;
       const config = chartConfig[key] ?? { label: key, color: entry.color ?? "#64748b" };
@@ -83,15 +83,15 @@ export function ChartAreaStacked({ title, series, metrics, startPeriod, endPerio
   return <Card className="min-w-0 overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm">
     <CardHeader className="gap-3 border-b border-slate-100 bg-slate-50/70">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><CardTitle>{title}</CardTitle><CardDescription>Data hasil upload tervalidasi per bulan</CardDescription></div>
+        <div><CardTitle>{title}</CardTitle><CardDescription>Monthly validated upload data</CardDescription></div>
         <Activity className="size-4 text-slate-400" aria-hidden="true" />
       </div>
       <ChartLegend metrics={metrics} />
     </CardHeader>
     <CardContent className="pt-5">
-      {loading ? <div aria-label="Memuat chart" className="h-72 animate-pulse rounded-lg bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100" />
-        : error ? <div role="alert" className="flex h-72 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-sm text-red-700">Chart tidak dapat dimuat.</div>
-          : !ordered.length ? <div className="flex h-72 items-center justify-center rounded-lg border border-dashed border-slate-300 text-sm text-slate-500">Belum ada data chart pada periode ini.</div>
+      {loading ? <div aria-label="Loading chart" className="h-72 animate-pulse rounded-lg bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100" />
+        : error ? <div role="alert" className="flex h-72 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-sm text-red-700">Chart could not be loaded.</div>
+          : !ordered.length ? <div className="flex h-72 items-center justify-center rounded-lg border border-dashed border-slate-300 text-sm text-slate-500">No chart data available for this period.</div>
             : <div className="h-72 w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <RechartsAreaChart data={ordered} margin={{ top: 10, right: 8, left: 0, bottom: 4 }}>
@@ -112,7 +112,7 @@ export function ChartAreaStacked({ title, series, metrics, startPeriod, endPerio
     </CardContent>
     <CardFooter className="border-t border-slate-100 bg-slate-50/40">
       <div className="grid gap-2 text-sm">
-        <div className="flex items-center gap-2 font-medium leading-none text-slate-700">{loading || error || change === null ? "Perubahan belum tersedia" : <>{chartConfig[trendMetric].label} {change > 0 ? "naik" : change < 0 ? "turun" : "tetap"} {Math.abs(change).toFixed(1)}%<Trend className="size-4" /></>}</div>
+        <div className="flex items-center gap-2 font-medium leading-none text-slate-700">{loading || error || change === null ? "Change unavailable" : <>{chartConfig[trendMetric].label} {change > 0 ? "up" : change < 0 ? "down" : "flat"} {Math.abs(change).toFixed(1)}%<Trend className="size-4" /></>}</div>
         <div className="leading-none text-slate-500">{monthLabel(startPeriod)} - {monthLabel(endPeriod)}</div>
       </div>
     </CardFooter>

@@ -254,7 +254,7 @@ export default function EvidencePage() {
   const handleRotate = () => setRotation((prev) => (prev + 90) % 360);
 
   const handlePrintOrDownload = () => {
-    showNotification("Membuka dialog cetak / Simpan sebagai PDF...");
+    showNotification("Opening print dialog / Save as PDF...");
     window.print();
   };
 
@@ -339,11 +339,11 @@ export default function EvidencePage() {
           </div>
           <div className="flex items-center gap-3">
             <CustomButton variant="outline" onClick={fetchEvidenceFromSupabase}>
-              <RefreshCw className="h-4 w-4" /> Sinkronkan Database
+              <RefreshCw className="h-4 w-4" /> Sync Database
             </CustomButton>
 
             <CustomButton variant="outline" onClick={() => router.back()}>
-              <ArrowLeft className="h-4 w-4" /> Kembali
+              <ArrowLeft className="h-4 w-4" /> Back
             </CustomButton>
 
             <button
@@ -426,13 +426,13 @@ export default function EvidencePage() {
             <button
               onClick={handleZoomOut}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition"
-              title="Perkecil"
+              title="Zoom Out"
             >
               <Minus className="h-4 w-4" />
             </button>
             <span
               onClick={() => setZoom(100)}
-              title="Klik untuk reset zoom (100%)"
+              title="Click to reset zoom (100%)"
               className="w-14 cursor-pointer text-center text-xs font-bold text-slate-700 hover:text-sky-600 select-none"
             >
               {zoom}%
@@ -440,17 +440,17 @@ export default function EvidencePage() {
             <button
               onClick={handleZoomIn}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition"
-              title="Perbesar"
+              title="Zoom In"
             >
               <Plus className="h-4 w-4" />
             </button>
 
             <CustomButton variant="outline" size="sm" onClick={handleRotate}>
-              <RotateCw className="h-4 w-4" /> Putar {rotation > 0 ? `(${rotation}°)` : ""}
+              <RotateCw className="h-4 w-4" /> Rotate {rotation > 0 ? `(${rotation}°)` : ""}
             </CustomButton>
 
             <CustomButton variant="outline" size="sm" onClick={handlePrintOrDownload}>
-              <Download className="h-4 w-4" /> Unduh / Cetak PDF
+              <Download className="h-4 w-4" /> Download / Print PDF
             </CustomButton>
           </div>
         </div>
@@ -685,14 +685,14 @@ export default function EvidencePage() {
                   ) : (
                     <FileCheck className="h-4 w-4" />
                   )}
-                  {activeDoc.isVerified ? "Batalkan Pengesahan Bukti" : "Sahkan & Verifikasi Bukti ke Supabase"}
+                  {activeDoc.isVerified ? "Revoke Evidence Verification" : "Validate & Verify Evidence to Supabase"}
                 </button>
 
                 <button
                   onClick={() => router.back()}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0a7ebf] py-2.5 text-xs font-bold text-white transition hover:bg-[#08689d]"
                 >
-                  <ArrowLeft className="h-4 w-4" /> Kembali ke Dashboard
+                  <ArrowLeft className="h-4 w-4" /> Back to Dashboard
                 </button>
               </div>
             </div>

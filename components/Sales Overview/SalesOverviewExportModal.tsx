@@ -238,7 +238,7 @@ export default function SalesOverviewExportModal({
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(10);
         pdf.setTextColor(0, 0, 0);
-        pdf.text("1. RINGKASAN METRIK FINANSIAL", left, y);
+        pdf.text("1. FINANCIAL METRICS SUMMARY", left, y);
         y += 5;
 
         // Build list of active cards
@@ -247,14 +247,14 @@ export default function SalesOverviewExportModal({
           cardItems.push({ label: "SALES PROFIT PERIOD", value: money.format(summary.sales_profit ?? 0), note: "Total Revenue - Cost" });
         }
         if (selectedCards.cost) {
-          cardItems.push({ label: "COST REQUIREMENT PERIOD", value: money.format(summary.cost ?? 0), note: "Total Biaya Operasional" });
+          cardItems.push({ label: "COST REQUIREMENT PERIOD", value: money.format(summary.cost ?? 0), note: "Total Operational Cost" });
         }
         if (selectedCards.outstanding) {
-          cardItems.push({ label: "OUTSTANDING PERIOD", value: money.format(summary.total_outstanding ?? 0), note: "Total Tagihan Belum Tertagih" });
+          cardItems.push({ label: "OUTSTANDING PERIOD", value: money.format(summary.total_outstanding ?? 0), note: "Total Outstanding Receivables" });
         }
         if (selectedCards.netMargin) {
           const ratio = summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-";
-          cardItems.push({ label: "NET MARGIN RATIO", value: ratio, note: "Rasio Margin Penjualan" });
+          cardItems.push({ label: "NET MARGIN RATIO", value: ratio, note: "Sales Margin Ratio" });
         }
 
         const cols = cardItems.length === 1 ? 1 : cardItems.length === 2 ? 2 : cardItems.length === 3 ? 3 : 2;
@@ -301,12 +301,12 @@ export default function SalesOverviewExportModal({
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(10);
         pdf.setTextColor(0, 0, 0);
-        pdf.text("2. TREN KINERJA FINANSIAL BULANAN", left, y);
+        pdf.text("2. MONTHLY FINANCIAL PERFORMANCE TREND", left, y);
         y += 5;
 
         // Table Header
         const tableCols: PdfColumnDef[] = [
-          { title: "Periode", width: 30, align: "left" },
+          { title: "Period", width: 30, align: "left" },
           { title: "Revenue", width: 38, align: "right" },
           { title: "Cost", width: 38, align: "right" },
           { title: "Sales Profit", width: 38, align: "right" },
@@ -347,7 +347,7 @@ export default function SalesOverviewExportModal({
           let rowX = left;
           for (const col of tableCols) {
             let val = "";
-            if (col.title === "Periode") val = periodLabel(pt.period_month);
+            if (col.title === "Period") val = periodLabel(pt.period_month);
             else if (col.title === "Revenue") val = money.format(pt.revenue);
             else if (col.title === "Cost") val = money.format(pt.cost);
             else if (col.title === "Sales Profit") val = money.format(pt.sales_profit);
@@ -375,15 +375,15 @@ export default function SalesOverviewExportModal({
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(10);
         pdf.setTextColor(0, 0, 0);
-        pdf.text(`3. DAFTAR PERINGATAN OVERDUE (> 30 HARI) - Total: ${alerts.length} Invoices`, left, y);
+        pdf.text(`3. OVERDUE ALERTS (> 30 DAYS) - Total: ${alerts.length} Invoices`, left, y);
         y += 5;
 
         const alertCols: PdfColumnDef[] = [
-          { title: "No. Invoice", width: 34, align: "left" },
-          { title: "Pelanggan", width: 62, align: "left" },
-          { title: "Jatuh Tempo", width: 24, align: "center" },
+          { title: "Invoice No.", width: 34, align: "left" },
+          { title: "Customer", width: 62, align: "left" },
+          { title: "Due Date", width: 24, align: "center" },
           { title: "Overdue", width: 22, align: "center" },
-          { title: "Total Tagihan", width: 40, align: "right" },
+          { title: "Total Amount", width: 40, align: "right" },
         ];
 
         // Draw Table Header (Border Lines, No Fill)
@@ -415,11 +415,11 @@ export default function SalesOverviewExportModal({
           let rowX = left;
           alertCols.forEach((col) => {
             let val = "";
-            if (col.title === "No. Invoice") val = alert.id;
-            else if (col.title === "Pelanggan") val = (alert.client || "").slice(0, 36);
-            else if (col.title === "Jatuh Tempo") val = alert.due;
-            else if (col.title === "Overdue") val = `${alert.days} Hari`;
-            else if (col.title === "Total Tagihan") val = money.format(alert.amount);
+            if (col.title === "Invoice No.") val = alert.id;
+            else if (col.title === "Customer") val = (alert.client || "").slice(0, 36);
+            else if (col.title === "Due Date") val = alert.due;
+            else if (col.title === "Overdue") val = `${alert.days} Days`;
+            else if (col.title === "Total Amount") val = money.format(alert.amount);
 
             const tx = col.align === "right" ? rowX + col.width - 2 : col.align === "center" ? rowX + col.width / 2 : rowX + 2;
             pdf.text(val, tx, y + 4.2, { align: col.align });
@@ -443,13 +443,13 @@ export default function SalesOverviewExportModal({
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(10);
         pdf.setTextColor(0, 0, 0);
-        pdf.text(`4. RIWAYAT DOKUMEN UPLOAD TERAKHIR (${documents.length} Dokumen)`, left, y);
+        pdf.text(`4. RECENT DOCUMENT UPLOADS (${documents.length} Documents)`, left, y);
         y += 5;
 
         const docCols: PdfColumnDef[] = [
-          { title: "Nama File Dokumen", width: 75, align: "left" },
-          { title: "Tipe", width: 45, align: "left" },
-          { title: "Waktu Upload", width: 32, align: "center" },
+          { title: "Document File Name", width: 75, align: "left" },
+          { title: "Type", width: 45, align: "left" },
+          { title: "Upload Date", width: 32, align: "center" },
           { title: "Status", width: 30, align: "center" },
         ];
 
@@ -482,9 +482,9 @@ export default function SalesOverviewExportModal({
           let rowX = left;
           docCols.forEach((col) => {
             let val = "";
-            if (col.title === "Nama File Dokumen") val = doc.file_name.slice(0, 42);
-            else if (col.title === "Tipe") val = doc.document_type.replace(/_/g, " ");
-            else if (col.title === "Waktu Upload") val = doc.uploaded_at.slice(0, 10);
+            if (col.title === "Document File Name") val = doc.file_name.slice(0, 42);
+            else if (col.title === "Type") val = doc.document_type.replace(/_/g, " ");
+            else if (col.title === "Upload Date") val = doc.uploaded_at.slice(0, 10);
             else if (col.title === "Status") val = doc.validation_status.toUpperCase();
 
             const tx = col.align === "right" ? rowX + col.width - 2 : col.align === "center" ? rowX + col.width / 2 : rowX + 2;
@@ -513,7 +513,7 @@ export default function SalesOverviewExportModal({
         pdf.setFontSize(7);
         pdf.setTextColor(0, 0, 0);
         pdf.text("Confidential · PT Andima Transportindo Sales Overview Report", left, 291);
-        pdf.text(`Halaman ${p} dari ${totalPages}`, right, 291, { align: "right" });
+        pdf.text(`Page ${p} of ${totalPages}`, right, 291, { align: "right" });
       }
 
       // Save & trigger download
@@ -552,7 +552,7 @@ export default function SalesOverviewExportModal({
       worksheet.mergeCells("A3:E3");
       const metaCell = worksheet.getCell("A3");
       const todayStr = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
-      metaCell.value = `Periode Evaluasi: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)} | Tanggal Ekspor: ${todayStr}`;
+      metaCell.value = `Evaluation Period: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)} | Export Date: ${todayStr}`;
       metaCell.font = { name: "Calibri", size: 9, italic: true, color: { argb: "FF64748B" } };
 
       let currentRow = 5;
@@ -605,11 +605,11 @@ export default function SalesOverviewExportModal({
 
       // 1. Financial Metrics Summary
       if (anyCardsSelected && summary) {
-        worksheet.getCell(`A${currentRow}`).value = "1. RINGKASAN METRIK FINANSIAL";
+        worksheet.getCell(`A${currentRow}`).value = "1. FINANCIAL METRICS SUMMARY";
         worksheet.getCell(`A${currentRow}`).font = { name: "Calibri", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
         currentRow++;
 
-        worksheet.getRow(currentRow).values = ["Komponen Metrik", "Nilai Nominal / Rasio", "Keterangan"];
+        worksheet.getRow(currentRow).values = ["Metric Component", "Nominal Value / Ratio", "Description"];
         styleHeaderRow(currentRow, 3);
         currentRow++;
 
@@ -618,14 +618,14 @@ export default function SalesOverviewExportModal({
           metricRows.push(["Sales Profit Period", summary.sales_profit ?? 0, '"Rp"#,##0', "Total Revenue - Cost"]);
         }
         if (selectedCards.cost) {
-          metricRows.push(["Cost Requirement Period", summary.cost ?? 0, '"Rp"#,##0', "Total Biaya Operasional"]);
+          metricRows.push(["Cost Requirement Period", summary.cost ?? 0, '"Rp"#,##0', "Total Operational Cost"]);
         }
         if (selectedCards.outstanding) {
-          metricRows.push(["Outstanding Period", summary.total_outstanding ?? 0, '"Rp"#,##0', "Total Tagihan Belum Tertagih"]);
+          metricRows.push(["Outstanding Period", summary.total_outstanding ?? 0, '"Rp"#,##0', "Total Outstanding Receivables"]);
         }
         if (selectedCards.netMargin) {
           const ratio = summary.revenue ? summary.sales_profit / summary.revenue : 0;
-          metricRows.push(["Net Margin Ratio", ratio, "0.0%", "Rasio Margin Penjualan"]);
+          metricRows.push(["Net Margin Ratio", ratio, "0.0%", "Sales Margin Ratio"]);
         }
 
         metricRows.forEach(([label, val, fmt, note], idx) => {
@@ -643,11 +643,11 @@ export default function SalesOverviewExportModal({
 
       // 2. Monthly Financial Performance Trend
       if (includePerformanceTrend && filteredSeries.length > 0) {
-        worksheet.getCell(`A${currentRow}`).value = "2. TREN KINERJA FINANSIAL BULANAN";
+        worksheet.getCell(`A${currentRow}`).value = "2. MONTHLY FINANCIAL PERFORMANCE TREND";
         worksheet.getCell(`A${currentRow}`).font = { name: "Calibri", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
         currentRow++;
 
-        worksheet.getRow(currentRow).values = ["Periode", "Revenue", "Cost", "Sales Profit", "Outstanding"];
+        worksheet.getRow(currentRow).values = ["Period", "Revenue", "Cost", "Sales Profit", "Outstanding"];
         styleHeaderRow(currentRow, 5);
         currentRow++;
 
@@ -678,11 +678,11 @@ export default function SalesOverviewExportModal({
 
       // 3. Overdue Alerts List (ALL DATA)
       if (includeAlerts && alerts.length > 0) {
-        worksheet.getCell(`A${currentRow}`).value = `3. DAFTAR PERINGATAN OVERDUE (> 30 HARI) - Total: ${alerts.length} Invoices`;
+        worksheet.getCell(`A${currentRow}`).value = `3. OVERDUE ALERTS (> 30 DAYS) - Total: ${alerts.length} Invoices`;
         worksheet.getCell(`A${currentRow}`).font = { name: "Calibri", size: 10.5, bold: true, color: { argb: "FF991B1B" } };
         currentRow++;
 
-        worksheet.getRow(currentRow).values = ["No. Invoice", "Nama Pelanggan", "Jatuh Tempo", "Overdue (Hari)", "Total Tagihan"];
+        worksheet.getRow(currentRow).values = ["Invoice No.", "Customer Name", "Due Date", "Overdue (Days)", "Total Amount"];
         styleHeaderRow(currentRow, 5);
         currentRow++;
 
@@ -695,7 +695,7 @@ export default function SalesOverviewExportModal({
           row.getCell(3).value = alert.due;
           row.getCell(3).alignment = { horizontal: "center", vertical: "middle" };
 
-          row.getCell(4).value = `${alert.days} Hari`;
+          row.getCell(4).value = `${alert.days} Days`;
           row.getCell(4).alignment = { horizontal: "center", vertical: "middle" };
           row.getCell(4).font = { name: "Calibri", size: 9.5, bold: true, color: { argb: "FFDC2626" } };
 
@@ -711,11 +711,11 @@ export default function SalesOverviewExportModal({
 
       // 4. Recent Documents (ALL DATA)
       if (includeDocuments && documents.length > 0) {
-        worksheet.getCell(`A${currentRow}`).value = `4. RIWAYAT DOKUMEN UPLOAD TERAKHIR (${documents.length} Dokumen)`;
+        worksheet.getCell(`A${currentRow}`).value = `4. RECENT DOCUMENT UPLOADS (${documents.length} Documents)`;
         worksheet.getCell(`A${currentRow}`).font = { name: "Calibri", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
         currentRow++;
 
-        worksheet.getRow(currentRow).values = ["Nama File Dokumen", "Tipe Dokumen", "Waktu Upload", "Status Validasi"];
+        worksheet.getRow(currentRow).values = ["Document File Name", "Document Type", "Upload Date", "Validation Status"];
         styleHeaderRow(currentRow, 4);
         currentRow++;
 
@@ -760,7 +760,7 @@ export default function SalesOverviewExportModal({
       onClose();
     } catch (err) {
       console.error("Excel export failed:", err);
-      alert("Gagal mengekspor file Excel. Silakan coba lagi.");
+      alert("Failed to export Excel file. Please try again.");
     } finally {
       setIsExporting(false);
     }
@@ -775,32 +775,32 @@ export default function SalesOverviewExportModal({
       const lines: string[] = [];
       lines.push("PT ANDIMA TRANSPORTINDO");
       lines.push("SALES OVERVIEW REPORT");
-      lines.push(`Periode: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}`);
-      lines.push(`Tanggal Ekspor: ${new Date().toLocaleDateString("id-ID")}`);
+      lines.push(`Evaluation Period: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}`);
+      lines.push(`Export Date: ${new Date().toLocaleDateString("id-ID")}`);
       lines.push("");
 
       if (anyCardsSelected && summary) {
-        lines.push("=== 1. RINGKASAN METRIK FINANSIAL ===");
-        lines.push("Komponen Metrik,Nilai,Keterangan");
+        lines.push("=== 1. FINANCIAL METRICS SUMMARY ===");
+        lines.push("Metric Component,Value,Description");
         if (selectedCards.salesProfit) {
           lines.push(`Sales Profit Period,${summary.sales_profit ?? 0},Total Revenue - Cost`);
         }
         if (selectedCards.cost) {
-          lines.push(`Cost Requirement Period,${summary.cost ?? 0},Total Biaya Operasional`);
+          lines.push(`Cost Requirement Period,${summary.cost ?? 0},Total Operational Cost`);
         }
         if (selectedCards.outstanding) {
-          lines.push(`Outstanding Period,${summary.total_outstanding ?? 0},Total Tagihan Belum Tertagih`);
+          lines.push(`Outstanding Period,${summary.total_outstanding ?? 0},Total Outstanding Receivables`);
         }
         if (selectedCards.netMargin) {
           const ratio = summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "0.0%";
-          lines.push(`Net Margin Ratio,${ratio},Rasio Margin Penjualan`);
+          lines.push(`Net Margin Ratio,${ratio},Sales Margin Ratio`);
         }
         lines.push("");
       }
 
       if (includePerformanceTrend && filteredSeries.length > 0) {
-        lines.push("=== 2. TREN KINERJA FINANSIAL BULANAN ===");
-        lines.push("Periode,Revenue,Cost,Sales Profit,Outstanding");
+        lines.push("=== 2. MONTHLY FINANCIAL PERFORMANCE TREND ===");
+        lines.push("Period,Revenue,Cost,Sales Profit,Outstanding");
         filteredSeries.forEach((pt) => {
           lines.push(`"${periodLabel(pt.period_month)}",${pt.revenue},${pt.cost},${pt.sales_profit},${pt.total_outstanding}`);
         });
@@ -808,8 +808,8 @@ export default function SalesOverviewExportModal({
       }
 
       if (includeAlerts && alerts.length > 0) {
-        lines.push(`=== 3. DAFTAR PERINGATAN OVERDUE (> 30 HARI) (${alerts.length} Invoices) ===`);
-        lines.push("No. Invoice,Nama Pelanggan,Jatuh Tempo,Overdue (Hari),Total Tagihan");
+        lines.push(`=== 3. OVERDUE ALERTS (> 30 DAYS) (${alerts.length} Invoices) ===`);
+        lines.push("Invoice No.,Customer Name,Due Date,Overdue (Days),Total Amount");
         alerts.forEach((a) => {
           const cleanClient = (a.client || "").replace(/"/g, '""');
           lines.push(`"${a.id}","${cleanClient}","${a.due}",${a.days},${a.amount}`);
@@ -818,8 +818,8 @@ export default function SalesOverviewExportModal({
       }
 
       if (includeDocuments && documents.length > 0) {
-        lines.push(`=== 4. RIWAYAT DOKUMEN UPLOAD TERAKHIR (${documents.length} Dokumen) ===`);
-        lines.push("Nama File Dokumen,Tipe Dokumen,Waktu Upload,Status Validasi");
+        lines.push(`=== 4. RECENT DOCUMENT UPLOADS (${documents.length} Documents) ===`);
+        lines.push("Document File Name,Document Type,Upload Date,Validation Status");
         documents.forEach((d) => {
           const cleanName = d.file_name.replace(/"/g, '""');
           lines.push(`"${cleanName}","${d.document_type}","${d.uploaded_at.slice(0, 10)}","${d.validation_status}"`);
@@ -839,7 +839,7 @@ export default function SalesOverviewExportModal({
       onClose();
     } catch (err) {
       console.error("CSV export failed:", err);
-      alert("Gagal mengekspor file CSV. Silakan coba lagi.");
+      alert("Failed to export CSV file. Please try again.");
     } finally {
       setIsExporting(false);
     }
@@ -889,7 +889,7 @@ export default function SalesOverviewExportModal({
           </p>
         </div>
         <div className="text-right text-[9.5px] text-slate-600">
-          <span>Periode: <strong>{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</strong></span>
+          <span>Period: <strong>{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</strong></span>
         </div>
       </div>
     </div>
@@ -899,7 +899,7 @@ export default function SalesOverviewExportModal({
     <div className="border-t border-slate-300 pt-3 text-[9px] text-slate-500 flex justify-between items-center mt-6">
       <span>Confidential · PT Andima Transportindo Sales Overview Report</span>
       <span className="font-semibold text-slate-700">
-        Halaman {pageNum} dari {totalPages}
+        Page {pageNum} of {totalPages}
       </span>
     </div>
   );
@@ -909,7 +909,7 @@ export default function SalesOverviewExportModal({
     return (
       <div className="space-y-2">
         <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
-          1. Ringkasan Metrik Finansial
+          1. Financial Metrics Summary
         </h2>
         <div className="grid grid-cols-2 gap-2.5">
           {selectedCards.salesProfit && (
@@ -923,14 +923,14 @@ export default function SalesOverviewExportModal({
             <div className="rounded border border-slate-300 bg-white p-2.5">
               <p className="text-[9px] font-bold uppercase text-slate-600">Cost Requirement Period</p>
               <p className="text-xs font-extrabold text-slate-950 mt-0.5">{money.format(summary.cost ?? 0)}</p>
-              <p className="text-[9px] text-slate-500">Total Biaya Operasional</p>
+              <p className="text-[9px] text-slate-500">Total Operational Cost</p>
             </div>
           )}
           {selectedCards.outstanding && (
             <div className="rounded border border-slate-300 bg-white p-2.5">
               <p className="text-[9px] font-bold uppercase text-slate-600">Outstanding Period</p>
               <p className="text-xs font-extrabold text-slate-950 mt-0.5">{money.format(summary.total_outstanding ?? 0)}</p>
-              <p className="text-[9px] text-slate-500">Tagihan Belum Lunas</p>
+              <p className="text-[9px] text-slate-500">Total Outstanding Receivables</p>
             </div>
           )}
           {selectedCards.netMargin && (
@@ -939,7 +939,7 @@ export default function SalesOverviewExportModal({
               <p className="text-xs font-extrabold text-slate-950 mt-0.5">
                 {summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"}
               </p>
-              <p className="text-[9px] text-slate-500">Rasio Margin Penjualan</p>
+              <p className="text-[9px] text-slate-500">Sales Margin Ratio</p>
             </div>
           )}
         </div>
@@ -952,13 +952,13 @@ export default function SalesOverviewExportModal({
     return (
       <div className="space-y-2">
         <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
-          2. Tren Kinerja Finansial Bulanan
+          2. Monthly Financial Performance Trend
         </h2>
         <div className="overflow-x-auto rounded border border-slate-300">
           <table className="w-full text-left text-[10px]">
             <thead className="border-b-2 border-slate-900 bg-white text-slate-900 font-bold">
               <tr>
-                <th className="px-2 py-1.5">Periode</th>
+                <th className="px-2 py-1.5">Period</th>
                 <th className="px-2 py-1.5 text-right">Revenue</th>
                 <th className="px-2 py-1.5 text-right">Cost</th>
                 <th className="px-2 py-1.5 text-right">Sales Profit</th>
@@ -988,7 +988,7 @@ export default function SalesOverviewExportModal({
       <div className="space-y-2">
         <div className="flex items-center justify-between border-b border-slate-200 pb-1">
           <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-900">
-            3. Daftar Peringatan Overdue (&gt; 30 Hari)
+            3. Overdue Alerts List (&gt; 30 Days)
           </h2>
           <span className="text-[10px] text-slate-700 font-semibold">{alerts.length} Invoices</span>
         </div>
@@ -997,8 +997,8 @@ export default function SalesOverviewExportModal({
             <thead className="border-b-2 border-slate-900 bg-white text-slate-900 font-bold">
               <tr>
                 <th className="px-2 py-1.5">Invoice</th>
-                <th className="px-2 py-1.5">Pelanggan</th>
-                <th className="px-2 py-1.5 text-center">Jatuh Tempo</th>
+                <th className="px-2 py-1.5">Customer</th>
+                <th className="px-2 py-1.5 text-center">Due Date</th>
                 <th className="px-2 py-1.5 text-center">Overdue</th>
                 <th className="px-2 py-1.5 text-right">Outstanding</th>
               </tr>
@@ -1009,7 +1009,7 @@ export default function SalesOverviewExportModal({
                   <td className="px-2 py-1 font-mono font-bold text-slate-950">{a.id}</td>
                   <td className="px-2 py-1 max-w-[140px] truncate">{a.client}</td>
                   <td className="px-2 py-1 text-center text-slate-700">{a.due}</td>
-                  <td className="px-2 py-1 text-center font-bold text-slate-950">{a.days} Hari</td>
+                  <td className="px-2 py-1 text-center font-bold text-slate-950">{a.days} Days</td>
                   <td className="px-2 py-1 text-right font-semibold text-slate-950">{money.format(a.amount)}</td>
                 </tr>
               ))}
@@ -1018,7 +1018,7 @@ export default function SalesOverviewExportModal({
         </div>
         {alerts.length > 5 && (
           <p className="text-[9px] text-slate-500 italic">
-            + {alerts.length - 5} invoice overdue lainnya akan dicantumkan lengkap pada file hasil export.
+            + {alerts.length - 5} other overdue invoices will be included in full in the exported file.
           </p>
         )}
       </div>
@@ -1031,17 +1031,17 @@ export default function SalesOverviewExportModal({
       <div className="space-y-2">
         <div className="flex items-center justify-between border-b border-slate-200 pb-1">
           <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-900">
-            4. Riwayat Dokumen Upload Terakhir
+            4. Recent Document Uploads
           </h2>
-          <span className="text-[10px] text-slate-700 font-semibold">{documents.length} Dokumen</span>
+          <span className="text-[10px] text-slate-700 font-semibold">{documents.length} Documents</span>
         </div>
         <div className="overflow-x-auto rounded border border-slate-300">
           <table className="w-full text-left text-[9.5px]">
             <thead className="border-b-2 border-slate-900 bg-white text-slate-900 font-bold">
               <tr>
-                <th className="px-2 py-1.5">Nama Dokumen</th>
-                <th className="px-2 py-1.5">Tipe</th>
-                <th className="px-2 py-1.5 text-center">Waktu Upload</th>
+                <th className="px-2 py-1.5">Document Name</th>
+                <th className="px-2 py-1.5">Type</th>
+                <th className="px-2 py-1.5 text-center">Upload Date</th>
                 <th className="px-2 py-1.5 text-center">Status</th>
               </tr>
             </thead>
@@ -1177,7 +1177,7 @@ export default function SalesOverviewExportModal({
                   onChange={toggleMasterSelectAll}
                   className="size-4 rounded accent-blue-600 cursor-pointer"
                 />
-                <span>Pilih Semua</span>
+                <span>Select All</span>
               </label>
             </div>
 
@@ -1250,12 +1250,12 @@ export default function SalesOverviewExportModal({
                   <div>
                     <span className="font-bold text-slate-900">2. Monthly Financial Performance</span>
                     <p className="text-[10px] font-normal text-slate-500 mt-0.5">
-                      Tabel tren bulanan Revenue, Cost, Profit &amp; Outstanding
+                      Monthly trend table of Revenue, Cost, Profit &amp; Outstanding
                     </p>
                   </div>
                 </div>
                 <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
-                  {filteredSeries.length} Bulan
+                  {filteredSeries.length} Months
                 </span>
               </label>
             </div>
@@ -1301,9 +1301,9 @@ export default function SalesOverviewExportModal({
           <section className="flex flex-col items-center bg-slate-200/70 p-4 md:p-8 overflow-y-auto">
             <div className="mb-3 flex items-center justify-between w-full max-w-[620px] text-xs text-slate-500 font-medium">
               <span>
-                Preview Dokumen Laporan ({exportFormat}){" "}
+                Report Document Preview ({exportFormat}){" "}
                 <strong className="text-slate-700">
-                  {exportFormat === "PDF" && `(${selectedCount === 0 ? "1" : previewPages.length} Halaman)`}
+                  {exportFormat === "PDF" && `(${selectedCount === 0 ? "1" : previewPages.length} Pages)`}
                 </strong>
               </span>
               <span className="text-[11px] text-slate-600 font-semibold">
@@ -1317,8 +1317,8 @@ export default function SalesOverviewExportModal({
                   {renderFullHeader()}
                   <div className="py-28 text-center text-slate-400">
                     <Square className="size-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs font-semibold">Belum ada konten yang dipilih.</p>
-                    <p className="text-[11px]">Centang komponen pada menu sebelah kiri untuk memunculkannya di laporan.</p>
+                    <p className="text-xs font-semibold">No content selected yet.</p>
+                    <p className="text-[11px]">Check the components on the left menu to display them in the report.</p>
                   </div>
                 </div>
                 {renderPageFooter(1, 1)}
@@ -1351,10 +1351,10 @@ export default function SalesOverviewExportModal({
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-6 py-3.5">
           <p className="text-xs text-slate-600">
             {selectedCount === 0 ? (
-              <span className="text-amber-700 font-semibold">Pilih minimal 1 komponen untuk diekspor.</span>
+              <span className="text-amber-700 font-semibold">Select at least 1 component to export.</span>
             ) : (
               <span>
-                Siap mengekspor <strong className="text-slate-900">{selectedCount} bagian terpilih</strong> ke file{" "}
+                Ready to export <strong className="text-slate-900">{selectedCount} selected section(s)</strong> to{" "}
                 <strong className="text-blue-700">
                   {exportFormat === "PDF" ? "PDF (.pdf)" : exportFormat === "XLSX" ? "Excel (.xlsx)" : "CSV (.csv)"}
                 </strong>
@@ -1385,7 +1385,7 @@ export default function SalesOverviewExportModal({
             >
               <Download className="size-4" />
               {isExporting
-                ? `Membuat ${exportFormat}...`
+                ? `Generating ${exportFormat}...`
                 : exportFormat === "PDF"
                 ? "Export PDF"
                 : exportFormat === "XLSX"

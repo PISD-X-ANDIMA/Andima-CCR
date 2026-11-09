@@ -51,14 +51,14 @@ export async function GET(req: NextRequest) {
       : allInvoices;
 
     const filtered = invoices.filter((invoice) => {
-      const branchMatches = matches(branch, "Semua Cabang") || branch?.toLowerCase() === invoice.branch.toLowerCase();
+      const branchMatches = !branch || branch === "all" || matches(branch, "Semua Cabang") || matches(branch, "All Branches") || branch?.toLowerCase() === invoice.branch.toLowerCase();
       const searchMatches = !search || [invoice.invoice_number, invoice.customer_name, invoice.npwp]
         .some((value) => value.toLowerCase().includes(search));
-      const statusMatches = matches(status, "semua status") || invoice.risk_status.toLowerCase() === status;
-      const agingMatches = !agingBucket || agingBucket === "Semua Bucket" || agingBucket === "all"
-        || (agingBucket === "1 - 30 Hari" && invoice.days_overdue >= 1 && invoice.days_overdue <= 30)
-        || (agingBucket === "31 - 60 Hari" && invoice.days_overdue >= 31 && invoice.days_overdue <= 60)
-        || (agingBucket === "> 60 Hari" && invoice.days_overdue > 60);
+      const statusMatches = matches(status, "semua status") || status === "all" || invoice.risk_status.toLowerCase() === status;
+      const agingMatches = !agingBucket || agingBucket === "Semua Bucket" || agingBucket === "All Buckets" || agingBucket === "all"
+        || ((agingBucket === "1 - 30 Hari" || agingBucket === "1 - 30 Days") && invoice.days_overdue >= 1 && invoice.days_overdue <= 30)
+        || ((agingBucket === "31 - 60 Hari" || agingBucket === "31 - 60 Days") && invoice.days_overdue >= 31 && invoice.days_overdue <= 60)
+        || ((agingBucket === "> 60 Hari" || agingBucket === "> 60 Days") && invoice.days_overdue > 60);
       return branchMatches && searchMatches && statusMatches && agingMatches;
     });
 

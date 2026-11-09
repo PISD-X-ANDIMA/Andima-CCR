@@ -148,7 +148,7 @@ export default function CustomerCostPage() {
   const [customerProfiles, setCustomerProfiles] = useState<Record<string, CustomerProfile>>(fallbackCustomers);
   const [customerKey, setCustomerKey] = useState<string>("PT ATLANTIC CONTAINER LINI");
   const [periode, setPeriode] = useState("September 2026");
-  const [selectedKategori, setSelectedKategori] = useState("Semua Kategori");
+  const [selectedKategori, setSelectedKategori] = useState("All Categories");
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal State
@@ -330,7 +330,7 @@ export default function CustomerCostPage() {
 
   // Filter Kategori Transaksi
   const filteredTransactions = useMemo(() => {
-    if (selectedKategori === "Semua Kategori") return activeCustomer.transaksi;
+    if (selectedKategori === "All Categories" || selectedKategori === "Semua Kategori") return activeCustomer.transaksi;
     return activeCustomer.transaksi.filter((t) => t.kategori === selectedKategori);
   }, [activeCustomer, selectedKategori]);
 
@@ -366,11 +366,11 @@ export default function CustomerCostPage() {
           </div>
           <div className="flex items-center gap-3">
             <CustomButton variant="outline" onClick={fetchCustomerData}>
-              <RefreshCw className="h-4 w-4" /> Sinkronkan Database
+              <RefreshCw className="h-4 w-4" /> Sync Database
             </CustomButton>
 
             <CustomButton variant="outline" onClick={handleDownloadDetail}>
-              <Download className="h-4 w-4" /> Unduh Detail CSV
+              <Download className="h-4 w-4" /> Download CSV Details
             </CustomButton>
 
             <button
@@ -533,17 +533,17 @@ export default function CustomerCostPage() {
                     </p>
                   </div>
                   <button
-                    onClick={() => showToast(`Menampilkan seluruh berkas bukti ${activeCustomer.name}`)}
+                    onClick={() => showToast(`Showing all evidence files for ${activeCustomer.name}`)}
                     className="text-xs font-semibold text-sky-600 hover:text-sky-800"
                   >
-                    Lihat Semua
+                    View All
                   </button>
                 </div>
 
                 <div className="mt-4 space-y-3">
                   {activeCustomer.dokumen.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-xs text-slate-400">
-                      Belum ada berkas lampiran kuitansi untuk pelanggan ini.
+                      No receipt attachments for this customer yet.
                     </div>
                   ) : (
                     activeCustomer.dokumen.map((d) => (
@@ -566,7 +566,7 @@ export default function CustomerCostPage() {
                         </div>
                         <button
                           onClick={() => setPreviewDoc(d)}
-                          title="Pratinjau Kuitansi"
+                          title="Preview Receipt"
                           className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-500 shadow-sm transition hover:bg-sky-50 hover:text-sky-600"
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -582,9 +582,9 @@ export default function CustomerCostPage() {
             <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Transaksi Terbaru</h3>
+                  <h3 className="text-sm font-bold text-slate-900">Recent Transactions</h3>
                   <p className="text-[11px] text-slate-400">
-                    Menampilkan {filteredTransactions.length} dari {activeCustomer.totalTrx} record transaksi
+                    Showing {filteredTransactions.length} of {activeCustomer.totalTrx} transaction records
                   </p>
                 </div>
                 <select
@@ -592,11 +592,11 @@ export default function CustomerCostPage() {
                   onChange={(e) => setSelectedKategori(e.target.value)}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400"
                 >
-                  <option value="Semua Kategori">Semua Kategori</option>
+                  <option value="All Categories">All Categories</option>
                   <option value="TRUCKING">Trucking</option>
                   <option value="HANDLING">Handling</option>
                   <option value="STORAGE">Storage</option>
-                  <option value="OTHER_OPERATIONAL">Operasional</option>
+                  <option value="OTHER_OPERATIONAL">Operational</option>
                 </select>
               </div>
 
@@ -604,13 +604,13 @@ export default function CustomerCostPage() {
                 <table className="w-full text-left text-[13px]">
                   <thead>
                     <tr className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
-                      <th className="px-4 py-3 font-bold">Nomor Job / ID</th>
-                      <th className="px-4 py-3 font-bold">Tanggal</th>
-                      <th className="px-4 py-3 font-bold">Kategori</th>
-                      <th className="px-4 py-3 font-bold">Deskripsi</th>
-                      <th className="px-4 py-3 font-bold">Nominal</th>
+                      <th className="px-4 py-3 font-bold">Job No. / ID</th>
+                      <th className="px-4 py-3 font-bold">Date</th>
+                      <th className="px-4 py-3 font-bold">Category</th>
+                      <th className="px-4 py-3 font-bold">Description</th>
+                      <th className="px-4 py-3 font-bold">Amount</th>
                       <th className="px-4 py-3 font-bold">Status</th>
-                      <th className="px-4 py-3 font-bold text-center">Bukti</th>
+                      <th className="px-4 py-3 font-bold text-center">Evidence</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -630,16 +630,16 @@ export default function CustomerCostPage() {
                               onClick={() =>
                                 setPreviewDoc({
                                   id: t.id,
-                                  nama: t.evidenceName || "Bukti_Transaksi.pdf",
+                                  nama: t.evidenceName || "Transaction_Evidence.pdf",
                                   tanggal: t.tanggal,
-                                  ukuran: "1,4 MB",
+                                  ukuran: "1.4 MB",
                                   tipe: "image",
                                   url: t.evidenceUrl!,
                                 })
                               }
                               className="inline-flex items-center gap-1 rounded bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700 hover:bg-sky-100"
                             >
-                              <Eye className="h-3 w-3" /> Bukti
+                              <Eye className="h-3 w-3" /> Evidence
                             </button>
                           ) : (
                             <span className="text-[10px] font-bold text-slate-400">-</span>
@@ -653,10 +653,10 @@ export default function CustomerCostPage() {
 
               <div className="mt-4 flex items-center justify-between">
                 <p className="text-[11px] text-slate-400">
-                  Total {activeCustomer.totalTrx} transaksi · Tersinkronisasi dengan Supabase
+                  Total {activeCustomer.totalTrx} transactions · Synchronized with Supabase
                 </p>
                 <CustomButton size="sm" onClick={() => setIsAllTrxModalOpen(true)}>
-                  Buka Semua Transaksi <ChevronRight className="h-3.5 w-3.5" />
+                  Open All Transactions <ChevronRight className="h-3.5 w-3.5" />
                 </CustomButton>
               </div>
             </div>

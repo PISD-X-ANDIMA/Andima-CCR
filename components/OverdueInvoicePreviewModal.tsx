@@ -23,6 +23,7 @@ interface OverdueInvoicePreviewModalProps {
   invoice: OverdueInvoiceItem | null;
   assignmentHistory: AssignmentRecord[];
   staffOptions?: StaffOption[];
+  canAssign?: boolean;
   onEdit: (invoice: OverdueInvoiceItem) => void;
   onCreate?: (invoice: OverdueInvoiceItem) => void;
   onAssign?: (invoice: OverdueInvoiceItem) => void;
@@ -85,6 +86,7 @@ export default function OverdueInvoicePreviewModal({
   invoice,
   assignmentHistory,
   staffOptions = [],
+  canAssign = false,
   onEdit,
   onCreate,
   onAssign,
@@ -97,10 +99,18 @@ export default function OverdueInvoicePreviewModal({
   const picName = assignedStaff?.full_name || invoice.pic_assigned || "-";
   const picInitials = invoice.pic_initials || (picName === "-" ? "-" : initials(picName));
 
-  const cleanPhone = invoice.contact_person?.phone
-    ? invoice.contact_person.phone.replace(/[^0-9]/g, "")
-    : "";
+  const rawPhone = invoice.contact_person?.phone && invoice.contact_person.phone !== "-" ? invoice.contact_person.phone : "";
+  const cleanPhone = rawPhone.replace(/[^0-9]/g, "");
   const waPhone = cleanPhone.startsWith("0") ? `62${cleanPhone.slice(1)}` : cleanPhone;
+  const contactName =
+    invoice.contact_person?.name &&
+    invoice.contact_person.name !== "-" &&
+    invoice.contact_person.name !== "Kontak tidak tersedia" &&
+    invoice.contact_person.name !== "Contact not available"
+      ? invoice.contact_person.name
+      : null;
+  const contactPhone = rawPhone || null;
+  const hasContact = Boolean(contactName || contactPhone);
 
   return (
     <div
@@ -131,7 +141,7 @@ export default function OverdueInvoicePreviewModal({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Tutup"
+            aria-label="Close"
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition cursor-pointer"
           >
             <X className="size-5" />
@@ -149,49 +159,36 @@ export default function OverdueInvoicePreviewModal({
               <p className="mt-1 text-lg font-extrabold text-red-600 font-heading">
                 {formatRupiah(invoice.amount_overdue)}
               </p>
-              <p className="mt-0.5 text-[11px] text-slate-500">{invoice.payment_note || "Belum ada pembayaran"}</p>
+              <p className="mt-0.5 text-[11px] text-slate-500">{invoice.payment_note || "No payments yet"}</p>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-heading">
-                Status Jatuh Tempo &amp; Aging
+                Due Date &amp; Aging Status
               </span>
               <p className="mt-1 text-sm font-bold text-slate-900">
                 {formatDate(invoice.due_date)}
               </p>
               <div className="mt-1">
                 <span className={`inline-flex rounded px-2 py-0.5 text-[11px] font-bold ${agingClasses(invoice.days_overdue)}`}>
-                  Overdue {invoice.days_overdue} Hari
+                  Overdue {invoice.days_overdue} Days
                 </span>
               </div>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-heading">
-                Pelanggan &amp; Cabang
+                Customer &amp; Branch
               </span>
               <p className="mt-1 text-xs font-bold text-slate-900 truncate">
                 {invoice.customer_name}
               </p>
               <p className="mt-0.5 text-[11px] text-slate-500">
-                {invoice.branch || "Cabang Pusat"} {invoice.branch_code ? `(${invoice.branch_code})` : ""}
+                {invoice.branch && invoice.branch !== "Tidak tersedia" ? invoice.branch : "Head Office"} {invoice.branch_code ? `(${invoice.branch_code})` : ""}
               </p>
               <p className="text-[10px] text-slate-400 font-mono mt-0.5">NPWP: {invoice.npwp || "-"}</p>
             </div>
           </div>
-
-          {/* Overdue threshold callout (invoice.days_overdue >= 30) */}
-          {invoice.days_overdue >= 30 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              <div className="flex items-center gap-1.5 font-bold text-amber-800">
-                <Clock className="h-4 w-4 shrink-0 text-amber-600" />
-                <span>Overdue Threshold Active (&ge; 30 Days)</span>
-              </div>
-              <p className="mt-1 text-[11px] text-amber-700 leading-relaxed">
-                Invoice telah melewati SLA batas toleransi 30 hari. Perhatikan progres penagihan dan lakukan eskalasi komunikasi jika diperlukan.
-              </p>
-            </div>
-          )}
 
           {/* PIC and Quick Contact Actions */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -199,9 +196,9 @@ export default function OverdueInvoicePreviewModal({
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <span className="text-xs font-bold text-slate-800 font-heading flex items-center gap-1.5">
-                  <UserCheck className="size-4 text-blue-600" /> PIC Penagihan
+                  <UserCheck className="size-4 text-blue-600" /> PIC
                 </span>
-                {onAssign && (
+                {canAssign && onAssign && (
                   <button
                     type="button"
                     onClick={() => {
@@ -210,7 +207,7 @@ export default function OverdueInvoicePreviewModal({
                     }}
                     className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition cursor-pointer"
                   >
-                    {picName === "-" ? "Assign PIC" : "Ganti PIC"}
+                    {picName === "-" ? "Assign PIC" : "Change PIC"}
                   </button>
                 )}
               </div>
@@ -225,7 +222,7 @@ export default function OverdueInvoicePreviewModal({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-slate-900">{picName}</p>
                   <p className="truncate text-xs text-slate-500">
-                    {picName === "-" ? "Belum ada PIC ditugaskan" : "Petugas Penagihan Terdaftar"}
+                    {picName === "-" ? "No PIC assigned yet" : "Registered Collection Officer"}
                     {assignedStaff ? ` · ID: ${assignedStaff.employee_id}` : ""}
                   </p>
                 </div>
@@ -236,19 +233,27 @@ export default function OverdueInvoicePreviewModal({
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
               <div className="border-b border-slate-100 pb-2.5">
                 <span className="text-xs font-bold text-slate-800 font-heading">
-                  Kontak Person Pelanggan
+                  Customer Contact Person
                 </span>
               </div>
               <div className="mt-2.5 space-y-1">
-                <p className="text-xs font-bold text-slate-900">
-                  {invoice.contact_person?.name || "Customer Representative"}
-                </p>
-                <p className="text-xs text-slate-600 font-mono">
-                  {invoice.contact_person?.phone || "Nomor telepon tidak tersedia"}
-                </p>
+                {hasContact ? (
+                  <>
+                    <p className="text-xs font-bold text-slate-900">
+                      {contactName || "Customer Contact"}
+                    </p>
+                    <p className="text-xs text-slate-600 font-mono">
+                      {contactPhone || "Phone number not available"}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs italic text-slate-500">
+                    Contact not available
+                  </p>
+                )}
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                {waPhone ? (
+                {waPhone && hasContact ? (
                   <a
                     href={`https://wa.me/${waPhone}?text=${encodeURIComponent(
                       `Halo, konfirmasi tagihan ${invoice.invoice_number} sebesar ${formatRupiah(
@@ -274,16 +279,16 @@ export default function OverdueInvoicePreviewModal({
                 )}
                 <button
                   type="button"
-                  disabled={!invoice.contact_person?.phone || invoice.contact_person.phone === "-"}
+                  disabled={!contactPhone}
                   onClick={() => {
-                    if (invoice.contact_person?.phone && invoice.contact_person.phone !== "-") {
-                      window.location.href = `tel:${invoice.contact_person.phone}`;
+                    if (contactPhone) {
+                      window.location.href = `tel:${contactPhone}`;
                     }
                   }}
                   className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 transition cursor-pointer"
                 >
                   <Phone className="h-3.5 w-3.5 text-slate-600" />
-                  <span>Telepon</span>
+                  <span>Call</span>
                 </button>
               </div>
             </div>
@@ -295,7 +300,7 @@ export default function OverdueInvoicePreviewModal({
               <div className="flex items-center gap-2">
                 <History className="h-4 w-4 text-blue-600" />
                 <h3 className="text-xs font-bold text-slate-900 font-heading">
-                  Riwayat Aktivitas &amp; Log Follow-up ({assignmentHistory.length})
+                  Activity &amp; Follow-up History ({assignmentHistory.length})
                 </h3>
               </div>
             </div>
@@ -303,7 +308,7 @@ export default function OverdueInvoicePreviewModal({
             <div className="mt-3">
               {assignmentHistory.length === 0 ? (
                 <div className="py-6 text-center text-slate-400">
-                  <p className="text-xs">Belum ada riwayat aktivitas follow-up yang dicatat untuk invoice ini.</p>
+                  <p className="text-xs">No follow-up activity recorded for this invoice yet.</p>
                 </div>
               ) : (
                 <div className="relative ml-2 space-y-4 border-l-2 border-slate-200 pl-4 py-1">
@@ -321,15 +326,15 @@ export default function OverdueInvoicePreviewModal({
                             {isAssignmentEvent ? (
                               <div>
                                 <p className="text-xs font-bold text-slate-900">
-                                  Penugasan PIC Penagihan
+                                  Collection PIC Assignment
                                 </p>
                                 <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-700">
-                                  <span>Ditugaskan kepada:</span>
+                                  <span>Assigned to:</span>
                                   <strong className="text-blue-900 font-bold">{staffDisplayName}</strong>
                                   <span className="text-[11px] text-slate-500 font-mono">({assignment.assigned_to})</span>
                                 </div>
                                 <div className="mt-0.5 text-[11px] text-slate-500">
-                                  <span>Ditugaskan oleh: </span>
+                                  <span>Assigned by: </span>
                                   <strong className="text-slate-800 font-semibold">{assignerDisplayName}</strong>
                                   {assignment.assigned_by_role && (
                                     <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-bold text-slate-600 uppercase">
@@ -362,7 +367,7 @@ export default function OverdueInvoicePreviewModal({
                               )}
                               {hasPayment && (
                                 <span className="inline-flex rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                                  Bayar: {formatRupiah(assignment.payment_amount!)}
+                                  Paid: {formatRupiah(assignment.payment_amount!)}
                                 </span>
                               )}
                             </div>
@@ -380,7 +385,7 @@ export default function OverdueInvoicePreviewModal({
                         {assignment.promise_date && (
                           <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
                             <Calendar className="h-3.5 w-3.5" />
-                            <span>Janji Bayar: {formatDate(assignment.promise_date)}</span>
+                            <span>Promise to Pay: {formatDate(assignment.promise_date)}</span>
                           </p>
                         )}
 
@@ -398,7 +403,7 @@ export default function OverdueInvoicePreviewModal({
                             className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition"
                           >
                             <Paperclip className="h-3 w-3" />
-                            <span>Lihat Bukti Lampiran</span>
+                            <span>View Attachment</span>
                             <ExternalLink className="h-3 w-3 opacity-60" />
                           </a>
                         )}
@@ -418,20 +423,22 @@ export default function OverdueInvoicePreviewModal({
             onClick={onClose}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
           >
-            Tutup
+            Close
           </button>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onEdit(invoice);
-              }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-            >
-              <Pencil className="size-3.5 text-slate-500" />
-              <span>Ubah PIC</span>
-            </button>
+            {canAssign && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEdit(invoice);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <Pencil className="size-3.5 text-slate-500" />
+                <span>Edit PIC</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -445,7 +452,7 @@ export default function OverdueInvoicePreviewModal({
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition cursor-pointer"
             >
               <Plus className="size-3.5" />
-              <span>Tambah Progress</span>
+              <span>Add Progress</span>
             </button>
           </div>
         </footer>

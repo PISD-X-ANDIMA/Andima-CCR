@@ -140,18 +140,18 @@ export default function UploadForm({ open, onClose, onCompleted }: Props) {
       if (!response.ok || !body?.data) {
         const errors = body?.error?.errors ?? [];
         if (body?.error?.code === "PARSE_FAILED") {
-          setParseErrors(errors.length ? errors : [{ field: "file", code: "PARSE_FAILED", message: responseMessage(body, "File gagal diekstrak.") }]);
+          setParseErrors(errors.length ? errors : [{ field: "file", code: "PARSE_FAILED", message: responseMessage(body, "File extraction failed.") }]);
           setStep("review");
           return;
         }
-        throw new Error(responseMessage(body, "Gagal menyiapkan preview."));
+        throw new Error(responseMessage(body, "Failed to prepare preview."));
       }
       setReview(body.data);
       setStep("review");
       setRowPage(1);
       setIssuePage(1);
     } catch (error) {
-      setRequestError(error instanceof Error ? error.message : "Gagal menyiapkan preview.");
+      setRequestError(error instanceof Error ? error.message : "Failed to prepare preview.");
     } finally {
       setBusy(null);
     }
@@ -174,9 +174,9 @@ export default function UploadForm({ open, onClose, onCompleted }: Props) {
         onCompleted({ documentId: body.error.documentId, validationStatus: "rejected", errors: body.error.errors ?? review.errors, warnings: review.warnings });
         return;
       }
-      throw new Error(responseMessage(body, "Upload dokumen gagal."));
+      throw new Error(responseMessage(body, "Document upload failed."));
     } catch (error) {
-      setRequestError(error instanceof Error ? error.message : "Upload dokumen gagal. Silakan coba lagi.");
+      setRequestError(error instanceof Error ? error.message : "Document upload failed. Please try again.");
     } finally {
       setBusy(null);
     }
@@ -189,7 +189,7 @@ export default function UploadForm({ open, onClose, onCompleted }: Props) {
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-5" role="dialog" aria-modal="true" aria-labelledby="upload-title">
     <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
       <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-        <div className="flex min-w-0 items-center gap-3"><div className="rounded-lg bg-blue-50 p-2 text-[#3B6FF5]"><UploadCloud className="size-5" /></div><div><h2 id="upload-title" className="text-lg font-bold text-slate-900 font-heading">{step === "select" ? "Upload Document" : "Review Document"}</h2><p className="text-xs text-slate-500">{step === "select" ? "Pilih file untuk meninjau hasil ekstraksi dan validasi." : "Periksa data dan temuan sebelum menyimpan dokumen."}</p></div></div>
+        <div className="flex min-w-0 items-center gap-3"><div className="rounded-lg bg-blue-50 p-2 text-[#3B6FF5]"><UploadCloud className="size-5" /></div><div><h2 id="upload-title" className="text-lg font-bold text-slate-900 font-heading">{step === "select" ? "Upload Document" : "Review Document"}</h2><p className="text-xs text-slate-500">{step === "select" ? "Select a file to review extraction and validation findings." : "Review data and findings before saving the document."}</p></div></div>
         <button type="button" onClick={onClose} disabled={Boolean(busy)} className="rounded p-1 text-slate-400 hover:text-slate-700 disabled:opacity-40 cursor-pointer" aria-label="Close upload"><X className="size-5" /></button>
       </header>
 
@@ -197,22 +197,22 @@ export default function UploadForm({ open, onClose, onCompleted }: Props) {
         <div><label htmlFor="document-type" className="mb-2 block text-xs font-semibold text-slate-600">Document Type</label><select id="document-type" value={documentType} onChange={(event) => setDocumentType(event.target.value as DocumentType)} disabled={Boolean(busy)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700"><option value="COMPANY_SALES_REPORT">Company Sales Report</option><option value="OUTSTANDING_REPORT">Outstanding Report Data</option></select></div>
         <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={(event) => chooseFile(event.target.files?.[0])} />
         <div onDragEnter={(event) => { event.preventDefault(); setIsDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setIsDragging(false)} onDrop={handleDrop} onClick={() => !busy && inputRef.current?.click()} className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${isDragging ? "border-[#3B6FF5] bg-blue-100" : "border-blue-200 bg-blue-50"}`}>
-          <FileUp className="mx-auto mb-3 size-7 text-[#3B6FF5]" /><p className="font-semibold text-slate-800">Drag &amp; drop file or <span className="text-[#3B6FF5] underline">Browse files</span></p><p className="mt-2 text-xs text-slate-500">.xlsx, .xls, .pdf · Maksimum 5 MB</p>
+          <FileUp className="mx-auto mb-3 size-7 text-[#3B6FF5]" /><p className="font-semibold text-slate-800">Drag &amp; drop file or <span className="text-[#3B6FF5] underline">Browse files</span></p><p className="mt-2 text-xs text-slate-500">.xlsx, .xls, .pdf · Maximum 5 MB</p>
         </div>
         {file && <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="flex min-w-0 items-center gap-3"><FileUp className="size-5 shrink-0 text-[#3B6FF5]" /><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{file.name}</p><p className="text-xs text-slate-500">{formatSize(file.size)}</p></div></div><button type="button" onClick={(event) => { event.stopPropagation(); setFile(null); setRequestError(null); }} className="rounded p-1 text-slate-400 hover:text-red-600 cursor-pointer" aria-label="Remove file"><X className="size-4" /></button></div>}
         {requestError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{requestError}</p>}
       </div> : <div className="min-h-0 space-y-5 overflow-y-auto p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{file?.name}</p><p className="text-xs text-slate-500">{review?.documentType === "COMPANY_SALES_REPORT" ? "Company Sales Report" : "Outstanding Report Data"} · {review?.rows.length ?? 0} extracted rows</p></div><span className="rounded bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">{file ? formatSize(file.size) : ""}</span></div>
         {busy === "preview" && <div aria-label="Preparing preview" aria-busy="true" className="space-y-3"><div className="h-7 animate-pulse rounded bg-slate-100" /><div className="h-56 animate-pulse rounded-lg bg-slate-100" /></div>}
-        {parseErrors.length > 0 && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"><div className="mb-2 flex items-center gap-2 font-bold"><AlertCircle className="size-4" />File tidak dapat diparsing</div>{parseErrors.map((issue, index) => <p key={`${issue.code}-${index}`} className="text-xs">{issue.message}</p>)}<p className="mt-2 text-xs">Pilih file lain untuk melanjutkan.</p></div>}
+        {parseErrors.length > 0 && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"><div className="mb-2 flex items-center gap-2 font-bold"><AlertCircle className="size-4" />File cannot be parsed</div>{parseErrors.map((issue, index) => <p key={`${issue.code}-${index}`} className="text-xs">{issue.message}</p>)}<p className="mt-2 text-xs">Please select another file to continue.</p></div>}
         {review && <>
           <section aria-label="Extracted data">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-900 font-heading">Extracted Data</h3><div className="flex flex-wrap gap-2 text-[11px]"><span className="rounded bg-teal-50 px-2 py-1 font-semibold text-teal-800">Valid {review.rows.filter((row) => row.status === "valid").length}</span><span className="rounded bg-rose-50 px-2 py-1 font-semibold text-rose-800">Error {review.rows.filter((row) => row.status === "invalid").length}</span><span className="rounded bg-slate-100 px-2 py-1 font-semibold text-slate-700">Ignored {review.rows.filter((row) => row.status === "ignored").length}</span></div></div>
-            <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 font-semibold text-slate-600"><tr><th className="whitespace-nowrap px-3 py-2">Status</th><th className="whitespace-nowrap px-3 py-2">Row</th>{review.headers.map((header, index) => <th key={`${header}-${index}`} className="whitespace-nowrap px-3 py-2">{header}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{visibleRows.length ? visibleRows.map((row) => <tr key={row.row_number}><td className="whitespace-nowrap px-3 py-2"><span className={`rounded px-2 py-1 text-[10px] font-bold ${row.status === "valid" ? "bg-teal-50 text-teal-800" : row.status === "invalid" ? "bg-rose-50 text-rose-800" : "bg-slate-100 text-slate-700"}`}>{row.status === "valid" ? "VALID" : row.status === "invalid" ? "ERROR" : "IGNORED"}</span></td><td className="whitespace-nowrap px-3 py-2 text-slate-600">{row.row_number}</td>{review.headers.map((header, index) => <td key={`${header}-${index}`} className="max-w-64 whitespace-nowrap px-3 py-2 text-slate-700">{row.values[index] || "-"}</td>)}</tr>) : <tr><td colSpan={review.headers.length + 2} className="px-3 py-8 text-center text-slate-500">Tidak ada baris data hasil ekstraksi.</td></tr>}</tbody></table></div>
+            <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 font-semibold text-slate-600"><tr><th className="whitespace-nowrap px-3 py-2">Status</th><th className="whitespace-nowrap px-3 py-2">Row</th>{review.headers.map((header, index) => <th key={`${header}-${index}`} className="whitespace-nowrap px-3 py-2">{header}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{visibleRows.length ? visibleRows.map((row) => <tr key={row.row_number}><td className="whitespace-nowrap px-3 py-2"><span className={`rounded px-2 py-1 text-[10px] font-bold ${row.status === "valid" ? "bg-teal-50 text-teal-800" : row.status === "invalid" ? "bg-rose-50 text-rose-800" : "bg-slate-100 text-slate-700"}`}>{row.status === "valid" ? "VALID" : row.status === "invalid" ? "ERROR" : "IGNORED"}</span></td><td className="whitespace-nowrap px-3 py-2 text-slate-600">{row.row_number}</td>{review.headers.map((header, index) => <td key={`${header}-${index}`} className="max-w-64 whitespace-nowrap px-3 py-2 text-slate-700">{row.values[index] || "-"}</td>)}</tr>) : <tr><td colSpan={review.headers.length + 2} className="px-3 py-8 text-center text-slate-500">No extracted data rows available.</td></tr>}</tbody></table></div>
             <div className="mt-3 flex flex-col gap-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between"><span>{review.rows.length} rows · Page {rowPage} of {rowTotalPages} · {PAGE_SIZE} per page</span>{rowTotalPages > 1 && <Pagination currentPage={rowPage} totalPages={rowTotalPages} onPageChange={setRowPage} />}</div>
           </section>
-          {findings.length ? issueTable(findings, issuePage, setIssuePage, "Upload") : <div className="flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm font-medium text-teal-800"><CheckCircle2 className="size-4" />Validasi selesai tanpa error atau warning.</div>}
-          {review.errors.length > 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">Jika difinalisasi, dokumen akan dicatat sebagai Rejected dan file asli tidak disimpan.</p>}
+          {findings.length ? issueTable(findings, issuePage, setIssuePage, "Upload") : <div className="flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm font-medium text-teal-800"><CheckCircle2 className="size-4" />Validation completed with no errors or warnings.</div>}
+          {review.errors.length > 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">If finalized, document will be marked as Rejected and the original file will not be stored.</p>}
         </>}
         {requestError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{requestError}</p>}
       </div>}

@@ -392,14 +392,14 @@ Mr. Bramantyo Cipta Adi, S.E., M.B.A. (Director of Finance, Accounting & Tax)
             </div>
             <div className="flex items-center gap-2">
               <CustomButton variant="outline" size="sm" onClick={handleDownloadBA}>
-                <Download className="h-4 w-4" /> Unduh Berita Acara
+                <Download className="h-4 w-4" /> Download Closing Report
               </CustomButton>
               <button
                 onClick={() => setIsClosed(false)}
-                title="Buka status untuk pengujian alur persetujuan"
+                title="Re-open status for approval flow testing"
                 className="text-[11px] font-semibold text-emerald-700 underline hover:text-emerald-900 ml-2"
               >
-                Simulasi Re-Open
+                Simulate Re-Open
               </button>
             </div>
           </div>
@@ -558,11 +558,11 @@ Mr. Bramantyo Cipta Adi, S.E., M.B.A. (Director of Finance, Accounting & Tax)
               onChange={(e) => setFilterKategori(e.target.value)}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400"
             >
-              <option value="Semua Aktivitas">Semua Aktivitas</option>
-              <option value="Validasi">Validasi</option>
+              <option value="All Activities">All Activities</option>
+              <option value="Validasi">Validation</option>
               <option value="Review">Review</option>
               <option value="Approval">Approval</option>
-              <option value="Sistem">Sistem</option>
+              <option value="Sistem">System</option>
             </select>
           </div>
 
@@ -660,14 +660,14 @@ Mr. Bramantyo Cipta Adi, S.E., M.B.A. (Director of Finance, Accounting & Tax)
               {/* Tombol Aksi */}
               <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
                 <CustomButton variant="outline" size="sm" onClick={() => setIsApprovalModalOpen(false)}>
-                  Batalkan
+                  Cancel
                 </CustomButton>
                 <CustomButton
                   size="sm"
                   onClick={handleConfirmApproval}
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
-                  <Lock className="h-3.5 w-3.5" /> Setujui & Kunci Periode (CLOSED)
+                  <Lock className="h-3.5 w-3.5" /> Approve & Lock Period (CLOSED)
                 </CustomButton>
               </div>
             </div>

@@ -50,7 +50,7 @@ const periodeOptions: DropdownOption[] = [
 ];
 
 const regionOptions: DropdownOption[] = [
-  { value: "ALL", label: "Nasional (Semua Cabang)" },
+  { value: "ALL", label: "National (All Branches)" },
   { value: "Jakarta Pusat", label: "Jakarta Pusat" },
   { value: "Surabaya", label: "Surabaya" },
   { value: "Semarang", label: "Semarang" },
@@ -130,7 +130,7 @@ export default function DashboardPage() {
   // 2. Buat Opsi Dropdown Entitas Secara Dinamis Berdasarkan Customer Riil di Database
   const dynamicEntitasOptions: DropdownOption[] = useMemo(() => {
     const uniqueCustomers = Array.from(new Set(allTransactions.map((t) => t.customer_name))).filter(Boolean);
-    const options: DropdownOption[] = [{ value: "ALL", label: "Semua Entitas" }];
+    const options: DropdownOption[] = [{ value: "ALL", label: "All Entities" }];
     uniqueCustomers.forEach((cust) => {
       options.push({ value: cust, label: cust });
     });
@@ -352,7 +352,7 @@ export default function DashboardPage() {
                 onClick={handleDownloadExcelFiles}
                 className="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-700 transition"
               >
-                Unduh .xlsx Sekarang
+                Download .xlsx Now
               </button>
               <button
                 onClick={() => setExportState("idle")}

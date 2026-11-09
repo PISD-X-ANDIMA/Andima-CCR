@@ -1,4 +1,12 @@
-export type RiskStatus = 'LEGAL ESCALATION' | 'HIGH RISK' | 'WATCHLIST' | 'NEGOSIASI';
+export type RiskStatus =
+  | 'High Risk'
+  | 'Medium Risk'
+  | 'Watchlist'
+  | 'Negotiation'
+  | 'LEGAL ESCALATION'
+  | 'HIGH RISK'
+  | 'WATCHLIST'
+  | 'NEGOSIASI';
 
 export interface OverdueAlertRecord {
   alert_id: string;
@@ -76,7 +84,7 @@ export interface OverdueInvoiceItem {
   pic_initials?: string;
   pic_display_name?: string;
   pic_role?: string;
-  action_type: 'SP-1' | 'SP-2' | 'SP-3' | 'AUDIT' | 'TERMIN' | 'TUGASKAN';
+  action_type: 'SP-1' | 'SP-2' | 'SP-3' | 'AUDIT' | 'TERMIN' | 'TUGASKAN' | 'ASSIGN';
   contact_person: {
     name: string;
     role: string;

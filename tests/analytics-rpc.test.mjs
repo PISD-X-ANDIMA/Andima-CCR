@@ -7,6 +7,7 @@ const migration = readFileSync(new URL("../supabase/migrations/20261016000000_op
 const companyAnalyticsMigration = readFileSync(new URL("../supabase/migrations/20261020000000_company_customer_analytics.sql", import.meta.url), "utf8");
 const companyAliasMigration = readFileSync(new URL("../supabase/migrations/20261021000000_company_alias_grouping.sql", import.meta.url), "utf8");
 const companyDeduplicationMigration = readFileSync(new URL("../supabase/migrations/20261105000000_deduplicate_company_mawb_names.sql", import.meta.url), "utf8");
+const updatePaymentPeriodsMigration = readFileSync(new URL("../supabase/migrations/20261109130000_update_customer_analytics_payment_periods.sql", import.meta.url), "utf8");
 
 async function setup() {
   const db = new PGlite();
@@ -55,6 +56,7 @@ async function setup() {
   await db.exec(companyAnalyticsMigration);
   await db.exec(companyAliasMigration);
   await db.exec(companyDeduplicationMigration);
+  await db.exec(updatePaymentPeriodsMigration);
   return db;
 }
 
