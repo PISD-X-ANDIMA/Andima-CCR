@@ -776,6 +776,90 @@ test("customer invoices resolve legacy CUST ids and tolerate pre-analytics C1 sc
   assert.equal((await api.fetchInvoicesFromSupabase("CUST-9999")).length, 0);
 });
 
+test("customer invoices query chunks large alias sets to prevent HTTP headers/URL overflow", async () => {
+  const primaryId = "11111111-2222-3333-4444-555555555555";
+  const customerList = [];
+  for (let i = 0; i < 125; i++) {
+    const id = `c-${String(i).padStart(4, "0")}-0000-0000-000000000000`;
+    customerList.push({
+      customer_id: i === 0 ? primaryId : id,
+      customer_name: `Big Corp Branch ${i}`,
+      customer_code: `BC-${i}`,
+      company_name_key: "BIG CORP",
+      active_status: true,
+      created_at: "2026-01-01T00:00:00Z",
+    });
+  }
+
+  const invoice = {
+    id: "inv-chunked-1",
+    document_id: "doc-chunked-1",
+    invoice_number: "INV-CHUNKED-1",
+    customer_name: "Big Corp Branch 0",
+    customer_id: primaryId,
+    c1_customer_id: primaryId,
+    outstanding_amount: 1000,
+    due_date: "2026-10-25",
+    create_date: "2026-10-01",
+    bulk_close_status: "PENDING",
+    created_at: "2026-10-01T00:00:00Z",
+  };
+
+  const tables = {
+    c1_customer: customerList,
+    c1_document_uploads: [{ id: "doc-chunked-1", validation_status: "validated", document_type: "OUTSTANDING_REPORT" }],
+    c1_outstanding_staging_rows: [invoice],
+    c1_payment_transactions: [],
+  };
+
+  let maxInArrayLength = 0;
+  const makeClient = () => ({
+    from(table) {
+      const state = { filters: [], range: null };
+      const query = {
+        select() { return query; },
+        eq(column, value) { state.filters.push([column, "eq", value]); return query; },
+        ilike(column, value) { state.filters.push([column, "ilike", value]); return query; },
+        neq(column, value) { state.filters.push([column, "neq", value]); return query; },
+        in(column, values) {
+          if (Array.isArray(values) && values.length > maxInArrayLength) {
+            maxInArrayLength = values.length;
+          }
+          state.filters.push([column, "in", values]);
+          return query;
+        },
+        order() { return query; },
+        range(from) { state.range = from; return query; },
+        limit() { return query; },
+        async maybeSingle() { const result = await query; return { data: result.data?.[0] ?? null, error: result.error }; },
+        then(resolve, reject) {
+          let data = (tables[table] ?? []).filter((row) =>
+            state.filters.every(([column, operator, value]) =>
+              operator === "eq" ? String(row[column]) === String(value) :
+              operator === "ilike" ? String(row[column] ?? "").toLowerCase() === String(value).toLowerCase() :
+              operator === "neq" ? String(row[column]) !== String(value) :
+              operator === "in" ? value.map(String).includes(String(row[column])) : true
+            )
+          );
+          if (state.range) data = data.slice(state.range, state.range + 1);
+          return Promise.resolve({ data, error: null }).then(resolve, reject);
+        },
+      };
+      return query;
+    },
+  });
+
+  const api = load("lib/supabaseApi.ts", {
+    "@/lib/server/admin": { createAdminClient: makeClient },
+    "./customerData": { INITIAL_KPI_SUMMARY: {}, STATEMENT_AURORA_BLUE: {} },
+  });
+
+  const invoices = await api.fetchInvoicesFromSupabase(primaryId);
+  assert.equal(invoices.length, 1);
+  assert.equal(invoices[0].invoice_number, "INV-CHUNKED-1");
+  assert.ok(maxInArrayLength <= 50, `Expected max .in() chunk size to be <= 50, but observed ${maxInArrayLength}`);
+});
+
 test("overdue route authorizes before a fresh admin read and exposes timing headers", async () => {
   let fetchCalls = 0;
   let receivedClient;

@@ -19,6 +19,15 @@ export function describeSupabaseError(error: unknown) {
   return String(error ?? "Database operation failed.");
 }
 
+function chunkArray<T>(items: T[], size = 50): T[][] {
+  if (!items || !items.length) return [];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 export type OverdueQueryOptions = {
   startDate?: string;
   endDateExclusive?: string;
@@ -282,12 +291,22 @@ export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOption
   }))];
   const customers = new Map<string, CustomerIdentity>();
   if (customerIds.length) {
-    const { data: customerRows, error: customersError } = await supabase
-      .from("c1_customer")
-      .select("customer_id, customer_name, branch, npwp")
-      .in("customer_id", customerIds);
+    const customerChunks = chunkArray(customerIds, 50);
+    const results = await Promise.all(
+      customerChunks.map((chunk) =>
+        supabase
+          .from("c1_customer")
+          .select("customer_id, customer_name, branch, npwp")
+          .in("customer_id", chunk)
+      )
+    );
+    const customersError = results.find((r) => r.error)?.error;
     if (customersError) throw customersError;
-    for (const customer of (customerRows ?? []) as CustomerIdentity[]) customers.set(customer.customer_id, customer);
+    for (const r of results) {
+      for (const customer of (r.data ?? []) as CustomerIdentity[]) {
+        customers.set(customer.customer_id, customer);
+      }
+    }
   }
 
   const invoices = alertsList

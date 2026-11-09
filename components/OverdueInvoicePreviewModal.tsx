@@ -11,6 +11,7 @@ import {
   Paperclip,
   Pencil,
   Phone,
+  Plus,
   UserCheck,
   X,
 } from "lucide-react";
@@ -23,6 +24,7 @@ interface OverdueInvoicePreviewModalProps {
   assignmentHistory: AssignmentRecord[];
   staffOptions?: StaffOption[];
   onEdit: (invoice: OverdueInvoiceItem) => void;
+  onCreate?: (invoice: OverdueInvoiceItem) => void;
   onAssign?: (invoice: OverdueInvoiceItem) => void;
 }
 
@@ -84,6 +86,7 @@ export default function OverdueInvoicePreviewModal({
   assignmentHistory,
   staffOptions = [],
   onEdit,
+  onCreate,
   onAssign,
 }: OverdueInvoicePreviewModalProps) {
   if (!open || !invoice) return null;
@@ -307,7 +310,7 @@ export default function OverdueInvoicePreviewModal({
                   {assignmentHistory.map((assignment) => {
                     const isAssignmentEvent = assignment.follow_up_status === "ASSIGNED";
                     const staffDisplayName = assignment.assigned_to_name || assignment.assigned_to;
-                    const assignerDisplayName = assignment.assigned_by_name || "Manajemen CCR";
+                    const assignerDisplayName = assignment.assigned_by_name || "Stevanus Imanuel";
                     const hasPayment = Boolean(assignment.payment_amount && assignment.payment_amount > 0);
 
                     return (
@@ -417,17 +420,34 @@ export default function OverdueInvoicePreviewModal({
           >
             Tutup
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onEdit(invoice);
-            }}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition cursor-pointer"
-          >
-            <Pencil className="size-3.5" />
-            <span>Edit Progress</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onEdit(invoice);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            >
+              <Pencil className="size-3.5 text-slate-500" />
+              <span>Ubah PIC</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                if (onCreate) {
+                  onCreate(invoice);
+                } else {
+                  onEdit(invoice);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition cursor-pointer"
+            >
+              <Plus className="size-3.5" />
+              <span>Tambah Progress</span>
+            </button>
+          </div>
         </footer>
       </div>
     </div>

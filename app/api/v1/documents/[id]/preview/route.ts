@@ -10,6 +10,15 @@ function timed(response: NextResponse, startedAt: number, phases: Record<string,
   return response;
 }
 
+function chunkArray<T>(items: T[], size = 50): T[][] {
+  if (!items || !items.length) return [];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const startedAt = performance.now();
   const authStarted = performance.now();
@@ -32,15 +41,25 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     admin.from(isSales ? "c1_company_sales_staging_rows" : "c1_outstanding_staging_rows").select("*").eq("document_id", id).order("row_number", { ascending: true }).limit(1000),
   ]);
   const customerIds = [...new Set((rowsResult.data ?? []).map((row: { c1_customer_id?: string | null }) => row.c1_customer_id).filter((value): value is string => Boolean(value)))];
-  const customersResult = customerIds.length
-    ? await admin.from("c1_customer").select("customer_id, customer_code, customer_name, branch, source_type, source_document_id").in("customer_id", customerIds)
-    : { data: [], error: null };
+  const customerChunks = chunkArray(customerIds, 50);
+  const customerResults = customerChunks.length
+    ? await Promise.all(
+        customerChunks.map((chunk) =>
+          admin
+            .from("c1_customer")
+            .select("customer_id, customer_code, customer_name, branch, source_type, source_document_id")
+            .in("customer_id", chunk)
+        )
+      )
+    : [];
+  const customerError = customerResults.find((r) => r.error)?.error;
+  const customersData = customerResults.flatMap((r) => r.data ?? []);
   const signed = document.validation_status === "rejected"
     ? { data: null, error: null }
     : await admin.storage.from(document.storage_bucket).createSignedUrl(document.storage_path, 300);
   const databaseDuration = performance.now() - databaseStarted;
-  if (errorsResult.error || rowsResult.error || customersResult.error) return timed(NextResponse.json({ error: { code: "DATABASE_ERROR", message: "Unable to load document preview data." } }, { status: 500 }), startedAt, { auth: authDuration, db: databaseDuration });
+  if (errorsResult.error || rowsResult.error || customerError) return timed(NextResponse.json({ error: { code: "DATABASE_ERROR", message: "Unable to load document preview data." } }, { status: 500 }), startedAt, { auth: authDuration, db: databaseDuration });
   if (signed.error) return timed(NextResponse.json({ error: { code: "STORAGE_ERROR", message: "Unable to create document preview URL." } }, { status: 500 }), startedAt, { auth: authDuration, db: databaseDuration });
 
-  return timed(NextResponse.json({ data: { document, errors: errorsResult.data ?? [], rows: rowsResult.data ?? [], customers: customersResult.data ?? [], signedUrl: signed.data?.signedUrl ?? null } }), startedAt, { auth: authDuration, db: databaseDuration });
+  return timed(NextResponse.json({ data: { document, errors: errorsResult.data ?? [], rows: rowsResult.data ?? [], customers: customersData, signedUrl: signed.data?.signedUrl ?? null } }), startedAt, { auth: authDuration, db: databaseDuration });
 }

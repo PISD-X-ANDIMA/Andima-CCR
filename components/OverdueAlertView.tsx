@@ -22,6 +22,7 @@ import {
   Paperclip,
   Pencil,
   Phone,
+  Plus,
   RefreshCw,
   Search,
   Send,
@@ -339,7 +340,8 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
             onAssign={setAssignModalInvoice}
             onPageChange={setCurrentPage}
             onPreview={(invoice) => setPreviewModalInvoice(invoice)}
-            onEdit={(invoice) => router.push(`/overdue-alert/${encodeURIComponent(invoice.id)}/edit`)}
+            onEdit={(invoice) => setAssignModalInvoice(invoice)}
+            onCreate={(invoice) => router.push(`/overdue-alert/${encodeURIComponent(invoice.id)}/create`)}
           />
         </section>
       </main>
@@ -372,7 +374,11 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = ({ onOpenWarnin
           onClose={() => setPreviewModalInvoice(null)}
           onEdit={(invoice) => {
             setPreviewModalInvoice(null);
-            router.push(`/overdue-alert/${encodeURIComponent(invoice.id)}/edit`);
+            setAssignModalInvoice(invoice);
+          }}
+          onCreate={(invoice) => {
+            setPreviewModalInvoice(null);
+            router.push(`/overdue-alert/${encodeURIComponent(invoice.id)}/create`);
           }}
           onAssign={(invoice) => {
             setAssignModalInvoice(invoice);
@@ -425,6 +431,7 @@ function InvoiceTable({
   onPageChange,
   onPreview,
   onEdit,
+  onCreate,
 }: {
   loading: boolean;
   errorMessage: string | null;
@@ -443,6 +450,7 @@ function InvoiceTable({
   onPageChange: (page: number) => void;
   onPreview: (invoice: OverdueInvoiceItem) => void;
   onEdit: (invoice: OverdueInvoiceItem) => void;
+  onCreate: (invoice: OverdueInvoiceItem) => void;
 }) {
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
@@ -465,17 +473,11 @@ function InvoiceTable({
           <h2 className="text-sm font-bold text-slate-900 font-heading">Overdue Invoices List</h2>
           <p className="mt-0.5 text-[11px] text-slate-500">{totalItems} invoices from validated data</p>
         </div>
-        <button type="button" disabled className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500">
-          <ArrowDownUp className="h-3.5 w-3.5" />Sort
-        </button>
       </div>
       <div className="max-h-[640px] overflow-auto">
         <table className="w-full min-w-[940px] border-collapse text-left text-xs">
           <thead className="sticky top-0 z-10 bg-slate-100 text-xs font-semibold text-slate-600">
             <tr className="border-b border-slate-200">
-              <th className="w-10 px-3 py-3 text-center">
-                <input type="checkbox" aria-label="Select all invoices" checked={allVisibleChecked} onChange={(event) => onSelectAll(event.target.checked)} className="h-3.5 w-3.5 accent-blue-600" />
-              </th>
               <th className="px-3 py-3">Invoice</th>
               <th className="px-3 py-3">Customer</th>
               <th className="px-3 py-3 text-right">Outstanding</th>
@@ -487,10 +489,10 @@ function InvoiceTable({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? [1, 2, 3, 4, 5].map((item) => (
-              <tr key={item}><td colSpan={8} className="px-4 py-4"><div className="h-8 animate-pulse rounded bg-slate-100" /></td></tr>
+              <tr key={item}><td colSpan={7} className="px-4 py-4"><div className="h-8 animate-pulse rounded bg-slate-100" /></td></tr>
             )) : errorMessage ? (
               <tr>
-                <td colSpan={8} className="px-4 py-14 text-center">
+                <td colSpan={7} className="px-4 py-14 text-center">
                   <AlertCircle className="mx-auto mb-2 h-5 w-5 text-red-500" />
                   <p className="text-xs font-semibold text-red-700">{errorMessage}</p>
                   <button type="button" onClick={onRetry} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline cursor-pointer">
@@ -500,7 +502,7 @@ function InvoiceTable({
               </tr>
             ) : !invoices.length ? (
               <tr>
-                <td colSpan={8} className="px-4 py-14 text-center">
+                <td colSpan={7} className="px-4 py-14 text-center">
                   <FileWarning className="mx-auto mb-2 h-5 w-5 text-slate-300" />
                   <p className="text-xs font-semibold text-slate-500">No invoices match the selected filter.</p>
                 </td>
@@ -510,9 +512,6 @@ function InvoiceTable({
                 const assigned = Boolean(invoice.pic_assigned);
                 return (
                   <tr key={invoice.id} onClick={() => onSelect(invoice)} className={`cursor-pointer transition hover:bg-blue-50/40 ${selectedInvoice?.id === invoice.id ? "bg-blue-50/70" : "bg-white"}`}>
-                    <td className="px-3 py-3 text-center" onClick={(event) => event.stopPropagation()}>
-                      <input type="checkbox" aria-label={`Select ${invoice.invoice_number}`} checked={checkedIds.includes(invoice.id)} onChange={(event) => onToggle(invoice.id, event.target.checked)} className="h-3.5 w-3.5 accent-blue-600 cursor-pointer" />
-                    </td>
                     <td className="px-3 py-3">
                       <p className="font-semibold text-blue-700">{invoice.invoice_number}</p>
                       <p className="mt-0.5 text-[11px] text-slate-500">{formatDate(invoice.due_date)}</p>
@@ -579,12 +578,23 @@ function InvoiceTable({
                             type="button"
                             onClick={() => {
                               setOpenActionMenuId(null);
+                              onCreate(invoice);
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
+                          >
+                            <Plus className="size-3.5 text-blue-600" />
+                            <span>Create</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenActionMenuId(null);
                               onEdit(invoice);
                             }}
                             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition cursor-pointer"
                           >
                             <Pencil className="size-3.5 text-emerald-600" />
-                            <span>Edit</span>
+                            <span>Edit PIC</span>
                           </button>
                         </div>
                       )}

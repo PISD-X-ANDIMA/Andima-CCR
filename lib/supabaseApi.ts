@@ -206,6 +206,15 @@ function numeric(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function chunkArray<T>(items: T[], size = 50): T[][] {
+  if (!items || !items.length) return [];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 async function validatedDocumentIds(supabase: ReturnType<typeof getSupabaseClient>, documentType: 'COMPANY_SALES_REPORT' | 'OUTSTANDING_REPORT') {
   const { data, error } = await supabase
     .from('c1_document_uploads')
@@ -238,17 +247,24 @@ export async function fetchCustomerCodeDetailFromSupabase(customerId: string, co
   ]);
 
   const salesRows: CustomerCodeSalesRow[] = [];
-  if (salesDocumentIds.length) {
-    const { data, error } = await supabase
-      .from('c1_company_sales_staging_rows')
-      .select('id, document_id, row_number, period_month, customer_name, customer_id, c1_customer_id, revenue, trucking_cost, handling_cost, storage_cost, other_operational_cost, total_cost')
-      .in('document_id', salesDocumentIds)
-      .in('c1_customer_id', memberIds)
-      .order('period_month', { ascending: false })
-      .order('row_number', { ascending: true });
-    if (error) throw error;
+  if (salesDocumentIds.length && memberIds.length) {
+    const memberChunks = chunkArray(memberIds, 50);
+    const salesResults = await Promise.all(
+      memberChunks.map((chunk) =>
+        supabase
+          .from('c1_company_sales_staging_rows')
+          .select('id, document_id, row_number, period_month, customer_name, customer_id, c1_customer_id, revenue, trucking_cost, handling_cost, storage_cost, other_operational_cost, total_cost')
+          .in('document_id', salesDocumentIds)
+          .in('c1_customer_id', chunk)
+          .order('period_month', { ascending: false })
+          .order('row_number', { ascending: true })
+      )
+    );
+    const salesError = salesResults.find((r) => r.error)?.error;
+    if (salesError) throw salesError;
+    const rawSales = salesResults.flatMap((r) => r.data ?? []);
     const seenSalesRows = new Set<string>();
-    for (const row of data ?? []) {
+    for (const row of rawSales) {
       const rowKey = String(row.id ?? `${row.document_id}:${row.row_number}`);
       if (seenSalesRows.has(rowKey)) continue;
       seenSalesRows.add(rowKey);
@@ -277,18 +293,25 @@ export async function fetchCustomerCodeDetailFromSupabase(customerId: string, co
   }
 
   const outstandingRows: CustomerCodeOutstandingRow[] = [];
-  if (outstandingDocumentIds.length) {
-    const { data, error } = await supabase
-      .from('c1_outstanding_staging_rows')
-      .select('id, document_id, row_number, invoice_number, customer_name, customer_id, c1_customer_id, outstanding_amount, due_date, create_date, job_number, mawb, bulk_close_status, created_at')
-      .in('document_id', outstandingDocumentIds)
-      .in('c1_customer_id', memberIds)
-      .order('created_at', { ascending: false, nullsFirst: false })
-      .order('due_date', { ascending: true })
-      .order('row_number', { ascending: true });
-    if (error) throw error;
+  if (outstandingDocumentIds.length && memberIds.length) {
+    const memberChunks = chunkArray(memberIds, 50);
+    const outstandingResults = await Promise.all(
+      memberChunks.map((chunk) =>
+        supabase
+          .from('c1_outstanding_staging_rows')
+          .select('id, document_id, row_number, invoice_number, customer_name, customer_id, c1_customer_id, outstanding_amount, due_date, create_date, job_number, mawb, bulk_close_status, created_at')
+          .in('document_id', outstandingDocumentIds)
+          .in('c1_customer_id', chunk)
+          .order('created_at', { ascending: false, nullsFirst: false })
+          .order('due_date', { ascending: true })
+          .order('row_number', { ascending: true })
+      )
+    );
+    const outstandingError = outstandingResults.find((r) => r.error)?.error;
+    if (outstandingError) throw outstandingError;
+    const rawOutstanding = outstandingResults.flatMap((r) => r.data ?? []);
     const seenInvoices = new Set<string>();
-    for (const row of data ?? []) {
+    for (const row of rawOutstanding) {
       const invoiceKey = String(row.invoice_number ?? '').trim().toLowerCase();
       const rowKey = String(row.id ?? `${row.document_id}:${row.row_number}`);
       if (invoiceKey ? seenInvoices.has(invoiceKey) : seenInvoices.has(rowKey)) continue;
@@ -336,20 +359,32 @@ async function validatedOutstandingRows(requestedCustomerId: string) {
   if (!documentIds.length) return { customer, rows: [] as any[] };
 
   const baseQuery = 'id, document_id, invoice_number, customer_name, customer_id, outstanding_amount, due_date, create_date, job_number, mawb, created_at';
-  const enhanced = await supabase
-    .from('c1_outstanding_staging_rows')
-    .select(`${baseQuery}, c1_customer_id, bulk_close_status`)
-    .in('document_id', documentIds)
-    .in('c1_customer_id', customer.memberIds)
-    .order('created_at', { ascending: false });
+  const memberChunks = chunkArray(customer.memberIds, 50);
+
+  const queryStagingChunks = async (
+    selectClause: string,
+    idColumn: 'c1_customer_id' | 'customer_id'
+  ) => {
+    if (!memberChunks.length) return { data: [], error: null };
+    const results = await Promise.all(
+      memberChunks.map((chunk) =>
+        supabase
+          .from('c1_outstanding_staging_rows')
+          .select(selectClause)
+          .in('document_id', documentIds)
+          .in(idColumn, chunk)
+          .order('created_at', { ascending: false })
+      )
+    );
+    const firstError = results.find((r) => r.error)?.error;
+    if (firstError) return { data: null, error: firstError };
+    return { data: results.flatMap((r) => r.data ?? []) as any[], error: null };
+  };
+
+  const enhanced = await queryStagingChunks(`${baseQuery}, c1_customer_id, bulk_close_status`, 'c1_customer_id');
   let enhancedError = enhanced.error;
   if (!enhanced.error) {
-    const legacyRows = await supabase
-      .from('c1_outstanding_staging_rows')
-      .select(`${baseQuery}, c1_customer_id, bulk_close_status`)
-      .in('document_id', documentIds)
-      .in('customer_id', customer.memberIds)
-      .order('created_at', { ascending: false });
+    const legacyRows = await queryStagingChunks(`${baseQuery}, c1_customer_id, bulk_close_status`, 'customer_id');
     if (!legacyRows.error) {
       const merged = [...(enhanced.data ?? []), ...(legacyRows.data ?? [])];
       const seen = new Set<string>();
@@ -371,12 +406,7 @@ async function validatedOutstandingRows(requestedCustomerId: string) {
   // Query only the original ingestion schema there instead of failing the detail page.
   if (!enhancedError) return { customer, rows: [] as any[] };
   if (!/column .*|schema cache|does not exist/i.test(String(enhancedError.message ?? enhancedError))) throw enhancedError;
-  const fallback = await supabase
-      .from('c1_outstanding_staging_rows')
-      .select(baseQuery)
-      .in('document_id', documentIds)
-      .in('customer_id', customer.memberIds)
-      .order('created_at', { ascending: false });
+  const fallback = await queryStagingChunks(baseQuery, 'customer_id');
   if (!fallback.error && (fallback.data?.length || !customer.customerName)) return { customer, rows: fallback.data ?? [] };
   if (!fallback.error && customer.customerName) {
     const byName = await supabase
@@ -416,16 +446,26 @@ export async function fetchInvoicesFromSupabase(customerId: string, options: { i
     let invoices = Array.from(latest.values());
     if (!options.includeClosed) invoices = invoices.filter((row) => (row.bulk_close_status ?? 'PENDING') === 'PENDING');
 
-    const invoiceNumbers = invoices.map((row) => row.invoice_number).filter(Boolean);
-    const paymentResult = invoiceNumbers.length
-      ? await supabase.from('c1_payment_transactions').select('payment_id, invoice_number, amount, payment_date, reference_no').in('customer_id', result.customer.memberIds).in('invoice_number', invoiceNumbers).order('payment_date', { ascending: false })
-      : { data: [], error: null };
+    const memberChunks = chunkArray(result.customer.memberIds, 50);
+    const paymentResults = memberChunks.length
+      ? await Promise.all(
+          memberChunks.map((chunk) =>
+            supabase
+              .from('c1_payment_transactions')
+              .select('payment_id, invoice_number, amount, payment_date, reference_no')
+              .in('customer_id', chunk)
+              .order('payment_date', { ascending: false })
+          )
+        )
+      : [];
+    const paymentError = paymentResults.find((r) => r.error)?.error;
     // Payment history was introduced after the initial C1 deployment. A
     // missing table must not make validated invoice detail unreadable; the
     // invoice remains available with zero payment history until migration is applied.
-    if (paymentResult.error && !/relation .*c1_payment_transactions|schema cache|does not exist/i.test(String(paymentResult.error.message ?? paymentResult.error))) throw paymentResult.error;
+    if (paymentError && !/relation .*c1_payment_transactions|schema cache|does not exist/i.test(String(paymentError.message ?? paymentError))) throw paymentError;
+    const paymentRows = paymentResults.flatMap((r) => r.data ?? []);
     const paymentsByInvoice = new Map<string, Array<{ payment_id: string; amount: number; payment_date: string; reference_no: string }>>();
-    for (const payment of paymentResult.data ?? []) {
+    for (const payment of paymentRows) {
       const key = String(payment.invoice_number).trim().toLowerCase();
       const list = paymentsByInvoice.get(key) ?? [];
       list.push({ payment_id: payment.payment_id, amount: Number(payment.amount) || 0, payment_date: payment.payment_date, reference_no: payment.reference_no });
@@ -504,14 +544,28 @@ export async function recordPaymentInSupabase(input: {
 export async function bulkCloseInvoicesInSupabase(customerId: string, invoiceIds?: string[]) {
   try {
     const supabase = getSupabaseClient();
-    let query = supabase.from('invoice_detail').update({ bulk_close_status: 'CLOSED' }).eq('customer_id', customerId);
-    if (invoiceIds && invoiceIds.length > 0 && !invoiceIds.includes('ALL_PENDING')) query = query.in('invoice_id', invoiceIds);
-    const { data, error } = await query.select();
-    if (error) {
-      console.error('Supabase bulk close error:', error);
-      return { success: false, error: error.message };
+    if (!invoiceIds || invoiceIds.length === 0 || invoiceIds.includes('ALL_PENDING')) {
+      const { data, error } = await supabase.from('invoice_detail').update({ bulk_close_status: 'CLOSED' }).eq('customer_id', customerId).select();
+      if (error) {
+        console.error('Supabase bulk close error:', error);
+        return { success: false, error: error.message };
+      }
+      return { success: true, count: data?.length || 0 };
     }
-    return { success: true, count: data?.length || 0 };
+
+    const idChunks = chunkArray(invoiceIds, 50);
+    const results = await Promise.all(
+      idChunks.map((chunk) =>
+        supabase.from('invoice_detail').update({ bulk_close_status: 'CLOSED' }).eq('customer_id', customerId).in('invoice_id', chunk).select()
+      )
+    );
+    const firstError = results.find((r) => r.error)?.error;
+    if (firstError) {
+      console.error('Supabase bulk close error:', firstError);
+      return { success: false, error: firstError.message };
+    }
+    const totalCount = results.reduce((sum, r) => sum + (r.data?.length || 0), 0);
+    return { success: true, count: totalCount };
   } catch (error: any) {
     console.error('Supabase bulk close exception:', error);
     return { success: false, error: error.message };

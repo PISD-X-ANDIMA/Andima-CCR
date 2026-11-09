@@ -53,7 +53,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ invoic
       const assignedToProf = profileMap.get(item.assigned_to);
       return {
         ...item,
-        assigned_by_name: assignedByProf?.full_name || "Manajemen CCR",
+        assigned_by_name: assignedByProf?.full_name || (profile?.resolved_role === "MANAGEMENT" && profile.full_name ? profile.full_name : "Stevanus Imanuel"),
         assigned_by_role: assignedByProf?.resolved_role || "MANAGEMENT",
         assigned_to_name: assignedToProf?.full_name || item.assigned_to,
       };
