@@ -1,0 +1,835 @@
+Project pt_andima_current {
+  database_type: 'PostgreSQL'
+  Note: 'Generated from the current table inventory. Ref lines are logical ERD relations; verify against actual database FK constraints before migration.'
+}
+
+Table d3_departments {
+  id uuid [pk]
+  code varchar [unique, not null]
+  name varchar [not null]
+  created_at timestamptz
+}
+
+Table d3_positions {
+  id uuid [pk]
+  code varchar [unique, not null]
+  title varchar [not null]
+  department_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz
+}
+
+Table d3_competencies {
+  id uuid [pk]
+  code varchar [unique, not null]
+  name varchar [not null]
+  category varchar
+  created_at timestamptz
+}
+
+Table d3_employee {
+  id uuid [pk]
+  employee_id varchar [unique, not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  full_name varchar [not null]
+  email varchar [unique, not null]
+  phone varchar
+  identity_type varchar
+  identity_number varchar
+  join_date date [not null]
+  employment_status varchar [not null]
+  position_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  department_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  work_location varchar [not null]
+  avatar_url text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table position_requirements {
+  id uuid [pk]
+  position_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  competency_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  min_proficiency_level int4 [not null]
+  is_mandatory bool
+  created_at timestamptz
+}
+
+Table d3_employee_skills {
+  id uuid [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  competency_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  proficiency_level int4 [not null]
+  evidence_notes text
+  updated_at timestamptz
+}
+
+Table d3_employee_certifications {
+  id uuid [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  title varchar [not null]
+  issuing_organization varchar [not null]
+  issue_date date [not null]
+  expiry_date date
+  credential_id varchar [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz
+}
+
+Table d3_attendances {
+  id uuid [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  date date [not null]
+  clock_in timestamptz [not null]
+  clock_out timestamptz
+  status varchar
+  notes text
+  created_at timestamptz
+}
+
+Table employee_kpi {
+  id uuid [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  period varchar [not null]
+  kpi_score numeric [not null]
+  notes text
+  created_at timestamptz
+}
+
+Table feedback_rewards {
+  id uuid [pk]
+  receiver_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  sender_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  type varchar [not null]
+  category varchar [not null]
+  title varchar [not null]
+  message text [not null]
+  points int4
+  created_at timestamptz
+}
+
+Table d2_job_posts {
+  id uuid [pk]
+  title varchar [not null]
+  department varchar [not null]
+  location varchar
+  description text
+  requirements _text
+  status varchar
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table d2_candidates {
+  id uuid [pk]
+  job_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  full_name varchar [not null]
+  nik varchar
+  email varchar [not null]
+  phone_number varchar
+  registration_way varchar [not null]
+  cv_file_path text [not null]
+  stage varchar
+  status varchar
+  rejection_reason text
+  application_count int4
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table d3_user_access {
+  auth_user_id uuid [pk] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  employee_id uuid [unique, not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  app_role d3_app_role [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table d3_tickets {
+  id uuid [pk]
+  ticket_code text [unique, not null]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  title text [not null]
+  category text [not null]
+  description text [not null]
+  occurred_at timestamptz
+  status d3_ticket_status [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  reporter_name text
+  reporter_employee_code text
+  reporter_department text
+}
+
+Table d3_ticket_followups {
+  id uuid [pk]
+  ticket_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  note text [not null]
+  follow_up_at timestamptz
+  created_at timestamptz [not null]
+}
+
+Table d3_ticket_attachments {
+  id uuid [pk]
+  ticket_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  storage_path text [unique, not null]
+  file_name text [not null]
+  mime_type text
+  byte_size int8
+  created_at timestamptz [not null]
+}
+
+Table d3_ticket_history {
+  id uuid [pk]
+  ticket_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  event_type text [not null]
+  from_status d3_ticket_status
+  to_status d3_ticket_status
+  note text
+  created_at timestamptz [not null]
+}
+
+Table A_job_recruitment_certifications {
+  job_recruitment_id uuid [pk] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  certification_title varchar
+  issuing_organization varchar
+  is_mandatory bool
+  min_validity_period_months int8
+  created_at timestamptz
+}
+
+Table b2_issue_board {
+  employee_certification_id uuid [pk] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  job_recruitment_certification_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  issue_type varchar
+  title varchar
+  description text
+  status varchar
+  priority varchar
+  assigned_to uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  due_date date
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table d3_employee_audit_log {
+  id uuid [pk]
+  employee_record_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  action text [not null]
+  actor_auth_user_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  changed_fields _text [not null]
+  created_at timestamptz [not null]
+}
+
+Table d4_performance_evaluations {
+  id uuid [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  position_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  position_title_snapshot text [not null]
+  period varchar [not null]
+  evaluation_date date
+  evaluator_name_snapshot text [not null]
+  status varchar [not null]
+  review_status varchar [not null]
+  overall_score numeric
+  aspects jsonb [not null]
+  general_notes text [not null]
+  evidence_reference text
+  actor_auth_user_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz [not null]
+}
+
+Table d4_competency_assessments {
+  id uuid [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  position_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  position_title_snapshot text [not null]
+  effective_date date [not null]
+  context varchar [not null]
+  overall_status varchar [not null]
+  findings jsonb [not null]
+  actor_auth_user_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz [not null]
+}
+
+Table d4_development_needs {
+  id uuid [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  source_type varchar [not null]
+  position_requirement_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  competency_assessment_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  performance_evaluation_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  objective text [not null]
+  priority varchar [not null]
+  actor_auth_user_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz [not null]
+}
+
+Table d4_development_need_versions {
+  id uuid [pk]
+  development_need_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  revision int4 [not null]
+  status varchar [not null]
+  notes text [not null]
+  actor_auth_user_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz [not null]
+}
+
+Table d4_training_records {
+  id uuid [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  development_need_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  activity text [not null]
+  activity_date date [not null]
+  actor_auth_user_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz [not null]
+}
+
+Table d4_training_versions {
+  id uuid [pk]
+  training_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  revision int4 [not null]
+  status varchar [not null]
+  result text [not null]
+  notes text [not null]
+  actor_auth_user_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz [not null]
+}
+
+Table d2_audit_logs {
+  id uuid [pk]
+  candidate_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_name varchar
+  old_status varchar [not null]
+  new_status varchar [not null]
+  change_reason varchar
+  created_at timestamptz
+}
+
+Table b1_activity {
+  id int8 [pk]
+  created_at timestamptz [not null]
+  date date
+  time time
+  email varchar
+  fiture varchar
+}
+
+Table d3_attendance_corrections {
+  id int8 [pk]
+  created_at timestamptz [not null]
+  attendance_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  requested_by uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  correction_type varchar
+  proposed_clock_in timestamptz
+  proposed_clock_out timestamptz
+  reason text
+  status varchar
+  reviewed_by uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  review_note text
+}
+
+Table d3_employee_feedback {
+  id int8 [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  given_by uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  date date [not null]
+  feedback_text text [not null]
+  created_at timestamptz [not null]
+}
+
+Table d3_employee_rewards {
+  id int8 [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  reward_name varchar [not null]
+  date date [not null]
+  description text [not null]
+  created_at timestamptz [not null]
+}
+
+Table d1_job_positions {
+  id uuid [pk]
+  nama_posisi varchar [not null]
+  departemen varchar [not null]
+  deskripsi_posisi varchar
+  status_posisi varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table d1_position_competency_map {
+  position_id uuid [pk] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  competency_id uuid [pk] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  minimum_level int4 [not null]
+  is_required bool
+}
+
+Table d1_position_certifications {
+  id uuid [pk]
+  position_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  certification_name varchar [not null]
+  issuing_authority varchar [not null]
+  regulation_reference varchar
+  is_required bool [not null]
+  notes varchar
+  created_at timestamp
+  updated_at timestamp
+  created_by uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+}
+
+Table d1_kpi_definitions {
+  id uuid [pk]
+  position_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  kpi_name varchar [not null]
+  kpi_target varchar [not null]
+  kpi_weight int4 [not null]
+  is_active bool [not null]
+  metadata jsonb
+  created_at timestamp
+  updated_at timestamp
+  created_by uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+}
+
+Table d1_gap_analysis_history {
+  id uuid [pk]
+  employee_id varchar [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  position_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  calculated_at timestamp
+  calculated_by uuid
+}
+
+Table b2_register {
+  id uuid [pk]
+  created_at timestamptz [not null]
+  employee_id varchar [note: 'Logical relation inferred from column name; confirm physical FK.']
+  full_name varchar
+  email varchar
+  phone varchar
+  employment_status varchar
+  position_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  departement_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+}
+
+Table d3_employee_reporting {
+  id uuid [pk]
+  manager_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  subordinate_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  effective_from date [not null]
+  effective_to date
+  is_active bool [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table d3_feedback_reward_audit_log {
+  id uuid [pk]
+  entity_type text [not null]
+  entity_id int8 [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  target_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  action text [not null]
+  actor_auth_user_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz [not null]
+}
+
+Table d4_figma_demo_people {
+  employee_code text [pk]
+  full_name text [not null]
+  position_title text [not null]
+  department_name text [not null]
+  sort_order int4 [unique, not null]
+  performance_score numeric
+  kpi_score int4
+  review_status text
+  evaluation_comment text [not null]
+  aspects jsonb [not null]
+  scorecard jsonb [not null]
+  competency jsonb [not null]
+  training jsonb [not null]
+  created_at timestamptz [not null]
+}
+
+Table d4_figma_demo_trend {
+  quarter text [pk]
+  sort_order int4 [unique, not null]
+  performance_avg numeric [not null]
+  kpi_avg numeric [not null]
+}
+
+Table d4_kpi_role_catalog {
+  role_order int4 [pk]
+  role_name text [not null]
+  indicator_order int4 [pk]
+  kpi_name text [not null]
+  target text
+  weight_percent int4 [not null]
+  source_version text [not null]
+}
+
+Table d4_kpi_assessments {
+  id uuid [pk]
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  role_order int4 [not null]
+  role_name text [not null]
+  period varchar [not null]
+  evaluation_date date
+  evaluator_name text [not null]
+  status varchar [not null]
+  lines jsonb [not null]
+  overall_score numeric
+  general_notes text [not null]
+  actor_auth_user_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  actor_employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz [not null]
+}
+
+Table org_master {
+  employee_id text [pk] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  employee_name text [not null]
+  position text [not null]
+  reports_to_id text [note: 'Logical relation inferred from column name; confirm physical FK.']
+  reports_to_name text
+  department text [not null]
+  function_name text
+  team_unit text
+  hierarchy_level int4
+  governance_layer text
+  location text
+  employment_status text
+  effective_from date
+  effective_to date
+  org_version text
+  key_responsibilities_short text
+  responsibility_basis text
+  review_status text
+  notes text
+  source_file text [not null]
+  imported_at timestamptz [not null]
+}
+
+Table org_role_responsibilities {
+  role_code text [pk]
+  department text [not null]
+  position text [not null]
+  function_name text
+  hierarchy_level int4
+  core_responsibilities text
+  responsibility_basis text
+  review_status text
+  source_file text [not null]
+  imported_at timestamptz [not null]
+}
+
+Table a1_company_list {
+  company_list_id uuid [pk] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  job_number text
+  name text [not null]
+  company_name text [not null]
+  created_by text [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  customer_code varchar
+  address text
+}
+
+Table a2_record_conversations {
+  id uuid [pk]
+  job_number varchar
+  customer_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  customer_code varchar
+  sales_pic_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  channel_type varchar [not null]
+  conversation_date date [not null]
+  summary text [not null]
+  need_assistance bool [not null]
+  urgency_level varchar
+  synced_to_ctrack bool [not null]
+  document_urls _text
+  status varchar [not null]
+  created_by uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table a2_worksheets {
+  worksheet_id int8 [pk] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  transaction_no varchar [not null]
+  job_no varchar [not null]
+  customer_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  created_by_user_id int8 [note: 'Logical relation inferred from column name; confirm physical FK.']
+  create_date date [not null]
+  status_kendala varchar
+  field_agent_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  sales_pic_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  shipper text
+  consignee text
+  mawb varchar
+  hawb varchar
+  handover_datetime timestamptz
+  handover_location text
+  pihak_penyerah text
+  pihak_penerima text
+  is_dangerous_goods bool [not null]
+  special_handling text
+  has_issue bool [not null]
+  issue_note text
+  is_exported_pdf bool [not null]
+  updated_at timestamptz [not null]
+  conversation_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+}
+
+Table a2_conversation_files {
+  id uuid [pk]
+  conversation_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  file_name text [not null]
+  file_type varchar [not null]
+  file_url text [not null]
+  file_size_kb int4
+  uploaded_by uuid [not null]
+  uploaded_at timestamptz [not null]
+}
+
+Table a2_worksheet_physical_items {
+  id uuid [pk]
+  worksheet_id int8 [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  item_label text [not null]
+  item_value text [not null]
+  item_unit text
+  sort_order int2 [not null]
+  created_at timestamptz [not null]
+}
+
+Table a2_worksheet_photos {
+  id uuid [pk]
+  worksheet_id int8 [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  photo_label text [not null]
+  photo_status text [not null]
+  photo_url text
+  file_name text
+  taken_at timestamptz
+  is_verified bool [not null]
+  sort_order int2 [not null]
+  created_at timestamptz [not null]
+}
+
+Table a2_worksheet_documents {
+  id uuid [pk]
+  worksheet_id int8 [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  doc_name text [not null]
+  doc_type varchar [not null]
+  file_size_kb int4
+  doc_url text [not null]
+  doc_description text
+  is_verified bool [not null]
+  uploaded_by uuid
+  uploaded_at timestamptz [not null]
+  created_at timestamptz [not null]
+}
+
+Table a2_worksheet_checklists {
+  id uuid [pk]
+  worksheet_id int8 [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  check_label text [not null]
+  is_verified bool [not null]
+  verified_by uuid
+  verified_at timestamptz
+  sort_order int2 [not null]
+  created_at timestamptz [not null]
+}
+
+Table jobs {
+  id uuid [pk]
+  job_number varchar [unique, not null]
+  sales_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  customer_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  customer_name varchar [not null]
+  shipper_name varchar
+  consignee_name varchar
+  mawb_hawb varchar
+  job_type job_type_enum
+  planned_pieces int4
+  planned_gross_weight numeric
+  delivery_location text
+  planned_date_time timestamptz
+  status job_status_enum
+  has_issue bool
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table handovers {
+  id uuid [pk]
+  job_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  agent_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  sender_name varchar [not null]
+  receiver_name varchar [not null]
+  actual_pieces int4 [not null]
+  actual_gross_weight numeric [not null]
+  latitude numeric
+  longitude numeric
+  notes text
+  created_at timestamptz
+}
+
+Table cargo_documentations {
+  id uuid [pk]
+  job_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  doc_type varchar [not null]
+  file_url text [not null]
+  file_name varchar
+  file_size numeric
+  uploaded_by uuid
+  uploaded_at timestamptz
+}
+
+Table cargo_verifications {
+  id uuid [pk]
+  job_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  doc_match_status doc_match_status_enum [not null]
+  packaging_condition packaging_condition_enum [not null]
+  airline_standard_status airline_standard_status_enum [not null]
+  is_dangerous_goods bool
+  dg_class varchar
+  special_handling varchar
+  verified_by uuid
+  verified_at timestamptz
+}
+
+Table job_issues {
+  id uuid [pk]
+  job_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  cluster_id uuid [note: 'Logical relation inferred from column name; confirm physical FK.']
+  issue_category varchar [not null]
+  description text [not null]
+  proof_photo_url text
+  reported_by uuid
+  created_at timestamptz
+}
+
+Table tracking_login {
+  id uuid [pk]
+  auth_user_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  employee_id uuid [not null] [note: 'Logical relation inferred from column name; confirm physical FK.']
+  date date [not null]
+  timelogin time [not null]
+  timelogout time
+  email text [not null]
+  role text [not null]
+  created_at timestamptz [not null]
+}
+
+Table c2_cost_transactions {
+  id uuid [pk]
+  job_number varchar [not null]
+  customer_name varchar [not null]
+  branch_code varchar
+  cost_category varchar [not null]
+  period_month varchar
+  planned_cost numeric
+  actual_cost numeric
+  variance numeric
+  has_evidence bool
+  evidence_url text
+  reconciliation_result varchar
+  review_flag bool
+  exception_tags _text
+  voucher_no varchar
+  description text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Ref: d3_positions.department_id > d3_departments.id
+Ref: d3_employee.position_id > d3_positions.id
+Ref: d3_employee.department_id > d3_departments.id
+Ref: position_requirements.position_id > d3_positions.id
+Ref: position_requirements.competency_id > d3_competencies.id
+Ref: d3_employee_skills.employee_id > d3_employee.id
+Ref: d3_employee_skills.competency_id > d3_competencies.id
+Ref: d3_employee_certifications.employee_id > d3_employee.id
+Ref: d3_attendances.employee_id > d3_employee.id
+Ref: employee_kpi.employee_id > d3_employee.id
+Ref: feedback_rewards.receiver_id > d3_employee.id
+Ref: feedback_rewards.sender_id > d3_employee.id
+Ref: d2_candidates.job_id > d2_job_posts.id
+Ref: d3_user_access.employee_id > d3_employee.id
+Ref: d3_tickets.employee_id > d3_employee.id
+Ref: d3_ticket_followups.ticket_id > d3_tickets.id
+Ref: d3_ticket_followups.actor_employee_id > d3_employee.id
+Ref: d3_ticket_attachments.ticket_id > d3_tickets.id
+Ref: d3_ticket_history.ticket_id > d3_tickets.id
+Ref: d3_ticket_history.actor_employee_id > d3_employee.id
+Ref: b2_issue_board.job_recruitment_certification_id > A_job_recruitment_certifications.job_recruitment_id
+Ref: b2_issue_board.assigned_to > d3_employee.id
+Ref: d3_employee_audit_log.employee_record_id > d3_employee.id
+Ref: d3_employee_audit_log.actor_employee_id > d3_employee.id
+Ref: d4_performance_evaluations.employee_id > d3_employee.id
+Ref: d4_performance_evaluations.position_id > d3_positions.id
+Ref: d4_performance_evaluations.actor_employee_id > d3_employee.id
+Ref: d4_competency_assessments.employee_id > d3_employee.id
+Ref: d4_competency_assessments.position_id > d3_positions.id
+Ref: d4_competency_assessments.actor_employee_id > d3_employee.id
+Ref: d4_development_needs.employee_id > d3_employee.id
+Ref: d4_development_needs.position_requirement_id > position_requirements.id
+Ref: d4_development_needs.competency_assessment_id > d4_competency_assessments.id
+Ref: d4_development_needs.performance_evaluation_id > d4_performance_evaluations.id
+Ref: d4_development_needs.actor_employee_id > d3_employee.id
+Ref: d4_development_need_versions.development_need_id > d4_development_needs.id
+Ref: d4_development_need_versions.actor_employee_id > d3_employee.id
+Ref: d4_training_records.employee_id > d3_employee.id
+Ref: d4_training_records.development_need_id > d4_development_needs.id
+Ref: d4_training_records.actor_employee_id > d3_employee.id
+Ref: d4_training_versions.training_id > d4_training_records.id
+Ref: d4_training_versions.actor_employee_id > d3_employee.id
+Ref: d2_audit_logs.candidate_id > d2_candidates.id
+Ref: d2_audit_logs.actor_id > d3_employee.id
+Ref: d3_attendance_corrections.attendance_id > d3_attendances.id
+Ref: d3_attendance_corrections.requested_by > d3_employee.id
+Ref: d3_attendance_corrections.reviewed_by > d3_employee.id
+Ref: d3_employee_feedback.employee_id > d3_employee.id
+Ref: d3_employee_feedback.given_by > d3_employee.id
+Ref: d3_employee_rewards.employee_id > d3_employee.id
+Ref: d1_position_competency_map.position_id > d1_job_positions.id
+Ref: d1_position_competency_map.competency_id > d3_competencies.id
+Ref: d1_position_certifications.position_id > d1_job_positions.id
+Ref: d1_position_certifications.created_by > d3_employee.id
+Ref: d1_kpi_definitions.position_id > d1_job_positions.id
+Ref: d1_kpi_definitions.created_by > d3_employee.id
+Ref: d1_gap_analysis_history.position_id > d1_job_positions.id
+Ref: d1_gap_analysis_history.employee_id > d3_employee.employee_id
+Ref: d1_gap_analysis_history.calculated_by > d3_employee.id
+Ref: b2_register.position_id > d1_job_positions.id
+Ref: b2_register.departement_id > d3_departments.id
+Ref: d3_employee_reporting.manager_employee_id > d3_employee.id
+Ref: d3_employee_reporting.subordinate_employee_id > d3_employee.id
+Ref: d3_feedback_reward_audit_log.target_employee_id > d3_employee.id
+Ref: d3_feedback_reward_audit_log.actor_employee_id > d3_employee.id
+Ref: d4_kpi_assessments.employee_id > d3_employee.id
+Ref: d4_kpi_assessments.actor_employee_id > d3_employee.id
+Ref: d4_kpi_assessments.role_order > d4_kpi_role_catalog.role_order
+Ref: org_master.reports_to_id > org_master.employee_id
+Ref: org_role_responsibilities.role_code > org_master.position
+Ref: a2_record_conversations.job_number > jobs.job_number
+Ref: a2_record_conversations.customer_id > a1_company_list.company_list_id
+Ref: a2_worksheets.job_no > jobs.job_number
+Ref: a2_worksheets.conversation_id > a2_record_conversations.id
+Ref: a2_conversation_files.conversation_id > a2_record_conversations.id
+Ref: a2_worksheet_physical_items.worksheet_id > a2_worksheets.worksheet_id
+Ref: a2_worksheet_photos.worksheet_id > a2_worksheets.worksheet_id
+Ref: a2_worksheet_documents.worksheet_id > a2_worksheets.worksheet_id
+Ref: a2_worksheet_checklists.worksheet_id > a2_worksheets.worksheet_id
+Ref: handovers.job_id > jobs.id
+Ref: cargo_documentations.job_id > jobs.id
+Ref: cargo_verifications.job_id > jobs.id
+Ref: job_issues.job_id > jobs.id
+Ref: tracking_login.employee_id > d3_employee.id
+Ref: c2_cost_transactions.job_number > jobs.job_number
+Ref: d4_figma_demo_people.employee_code > d3_employee.employee_id
+Ref: d4_figma_demo_trend.quarter > d4_performance_evaluations.period
+Ref: d4_kpi_role_catalog.role_name > d3_positions.title
+Ref: b1_activity.email > d3_employee.email
