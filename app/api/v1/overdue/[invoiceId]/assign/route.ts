@@ -34,7 +34,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ invoic
       orClauses.push(`employee_id.in.(${assignedToIds.join(",")})`);
     }
 
-    let profileMap = new Map<string, { full_name: string; resolved_role: string; employee_id: string }>();
+    const profileMap = new Map<string, { full_name: string; resolved_role: string; employee_id: string }>();
     if (orClauses.length) {
       const { data: profiles } = await admin
         .from("b2_register")

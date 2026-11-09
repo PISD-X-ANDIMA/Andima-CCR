@@ -18,6 +18,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ invoic
   if (!canUseCcr(profile)) {
     return apiError("You are not allowed to update overdue follow-up progress.", 403, "FORBIDDEN");
   }
+  if (profile?.resolved_role === "MANAGEMENT") {
+    return apiError("Management role cannot create follow-up logs. Only assigned Staff can submit follow-up progress.", 403, "FORBIDDEN");
+  }
 
   try {
     const { invoiceId } = await context.params;
@@ -123,6 +126,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ invoi
   const profile = await getCcrProfile(session.client, session.user!.id);
   if (!canUseCcr(profile)) {
     return apiError("You are not allowed to update overdue follow-up progress.", 403, "FORBIDDEN");
+  }
+  if (profile?.resolved_role === "MANAGEMENT") {
+    return apiError("Management role cannot edit follow-up logs. Management may only reassign PIC.", 403, "FORBIDDEN");
   }
 
   try {
@@ -236,6 +242,9 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ invo
   const profile = await getCcrProfile(session.client, session.user!.id);
   if (!canUseCcr(profile)) {
     return apiError("You are not allowed to delete overdue follow-up progress.", 403, "FORBIDDEN");
+  }
+  if (profile?.resolved_role === "MANAGEMENT") {
+    return apiError("Management role cannot delete follow-up logs.", 403, "FORBIDDEN");
   }
 
   try {

@@ -94,8 +94,6 @@ export default function SalesOverviewExportModal({
       .sort((a, b) => a.period_month.localeCompare(b.period_month));
   }, [series, startPeriod, endPeriod]);
 
-  if (!open) return null;
-
   const allCardsChecked = Object.values(selectedCards).every(Boolean);
 
   const toggleAllCards = () => {
@@ -170,6 +168,8 @@ export default function SalesOverviewExportModal({
       ["alerts", "documents"],
     ];
   }, [anyCardsSelected, summary, includePerformanceTrend, filteredSeries, includeAlerts, alerts, includeDocuments, documents]);
+
+  if (!open) return null;
 
   // ==========================================
   // 1. PDF EXPORT (All Black, No Table BG, All Data)
@@ -1073,25 +1073,14 @@ export default function SalesOverviewExportModal({
       <div className="flex h-[92vh] w-full max-w-6xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/80">
-          <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-              {exportFormat === "PDF" ? (
-                <FileText className="size-5 text-rose-600" />
-              ) : exportFormat === "XLSX" ? (
-                <FileSpreadsheet className="size-5 text-emerald-600" />
-              ) : (
-                <Table className="size-5 text-indigo-600" />
-              )}
-            </span>
-            <div>
-              <h2 id="export-modal-title" className="text-base font-bold text-slate-900 font-heading">
-                Sales Overview Export
-              </h2>
-              <p className="text-xs text-slate-500">
+          <div>
+            <h2 id="export-modal-title" className="text-base font-bold text-slate-900 font-heading">
+              Sales Overview Export
+            </h2>
+            <p className="text-xs text-slate-500">
                 Periode: <strong className="text-slate-700">{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</strong>
               </p>
             </div>
-          </div>
           <button
             type="button"
             onClick={onClose}

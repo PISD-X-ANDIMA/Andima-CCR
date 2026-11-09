@@ -183,9 +183,10 @@ async function resolveCanonicalCustomer(supabase: ReturnType<typeof getSupabaseC
   if (!selected) return null;
   const key = String((selected as any).company_name_key || companyNameKey((selected as any).customer_name));
   const members = rows.filter((row: CustomerMasterRow) => String(row.company_name_key || companyNameKey(row.customer_name)) === key);
+  const canonicalMember = members.find((m: any) => m.source_type === 'MASTER') ?? members[0] ?? selected;
   return {
-    customerId: String((selected as any).customer_id),
-    customerName: (selected as any).customer_name ?? null,
+    customerId: String((canonicalMember as any).customer_id),
+    customerName: (canonicalMember as any).customer_name ?? null,
     memberIds: members.map((row: any) => String(row.customer_id)),
     members,
   };
@@ -620,3 +621,43 @@ export async function fetchStatementFromSupabase(customerId: string): Promise<St
     return null;
   }
 }
+
+export type CustomerPaymentTransaction = {
+  payment_id: string;
+  invoice_number: string;
+  customer_id: string;
+  amount: number;
+  payment_date: string;
+  reference_no: string;
+  created_at: string;
+  entered_by?: string | null;
+};
+
+export async function fetchRecentCustomerPaymentsFromSupabase(customerId: string, limit = 50): Promise<CustomerPaymentTransaction[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const canonical = await resolveCanonicalCustomer(supabase, customerId);
+    const memberIds = canonical?.memberIds?.length ? canonical.memberIds : [customerId];
+
+    const memberChunks = chunkArray(memberIds, 50);
+    const paymentResults = memberChunks.length
+      ? await Promise.all(
+          memberChunks.map((chunk) =>
+            supabase
+              .from('c1_payment_transactions')
+              .select('payment_id, invoice_number, customer_id, amount, payment_date, reference_no, created_at, entered_by')
+              .in('customer_id', chunk)
+              .order('created_at', { ascending: false })
+              .limit(limit)
+          )
+        )
+      : [];
+    const paymentRows = paymentResults.flatMap((r) => (r.data ?? []) as CustomerPaymentTransaction[]);
+    paymentRows.sort((a, b) => new Date(b.created_at || b.payment_date).getTime() - new Date(a.created_at || a.payment_date).getTime());
+    return paymentRows.slice(0, limit);
+  } catch (error) {
+    console.error('Error fetching recent payments from Supabase:', error);
+    return [];
+  }
+}
+

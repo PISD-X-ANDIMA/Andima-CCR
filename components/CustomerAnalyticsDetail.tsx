@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, ChevronDown, ChevronRight, FileText, Loader2, Receipt, RefreshCw, Wallet } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Loader2, Receipt, RefreshCw, Search, X } from "lucide-react";
 import { CustomerAnalyticsItem, InvoiceDetail } from "@/types/customer";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import CustomerCodeDetailModal from "@/components/CustomerCodeDetailModal";
@@ -23,7 +23,7 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
   const [error, setError] = useState<string | null>(null);
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [selectedInvoiceDetail, setSelectedInvoiceDetail] = useState<CustomerInvoice | null>(null);
-  const [codeFilter, setCodeFilter] = useState<"ALL" | "OVERDUE" | "CURRENT">("ALL");
+  const [codeSearch, setCodeSearch] = useState("");
   const [openInvoice, setOpenInvoice] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -34,10 +34,11 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
     try {
+      const cacheBuster = Date.now();
       const [analyticsResponse, invoicesResponse, accountResponse] = await Promise.all([
-        fetch(`/api/v1/customers/${encodeURIComponent(customerId)}/analytics`, { cache: "no-store" }),
-        fetch(`/api/v1/customers/${encodeURIComponent(customerId)}/invoices?mode=overdue`, { cache: "no-store" }),
-        fetch("/api/v1/account/me", { cache: "no-store" }),
+        fetch(`/api/v1/customers/${encodeURIComponent(customerId)}/analytics?refresh=${cacheBuster}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
+        fetch(`/api/v1/customers/${encodeURIComponent(customerId)}/invoices?mode=overdue&refresh=${cacheBuster}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
+        fetch(`/api/v1/account/me?refresh=${cacheBuster}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
       ]);
       const analyticsBody = (await readJsonResponse<{ data?: CustomerAnalyticsItem; error?: { message?: string }; message?: string }>(analyticsResponse)) ?? {};
       const invoicesBody = (await readJsonResponse<InvoiceResponse>(invoicesResponse)) ?? {};
@@ -75,10 +76,15 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
   }, [customer, invoices]);
 
   const filteredCodeRows = useMemo(() => {
-    if (codeFilter === "OVERDUE") return codeRows.filter((r) => r.is_overdue);
-    if (codeFilter === "CURRENT") return codeRows.filter((r) => !r.is_overdue);
-    return codeRows;
-  }, [codeRows, codeFilter]);
+    const q = codeSearch.trim().toLowerCase();
+    if (!q) return codeRows;
+    return codeRows.filter(
+      (r) =>
+        r.code.toLowerCase().includes(q) ||
+        r.customer_name.toLowerCase().includes(q) ||
+        (r.customer_id && String(r.customer_id).toLowerCase().includes(q))
+    );
+  }, [codeRows, codeSearch]);
   const metrics = useMemo(() => customer ? [["Sales Profit", customer.sales_profit], ["Current Month Cost", customer.current_month_cost ?? customer.cost], ["Total Outstanding", customer.total_outstanding]] as const : [], [customer]);
   const overdueSummary = useMemo(() => {
     const today = Date.parse(new Date().toISOString().slice(0, 10));
@@ -121,34 +127,24 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
           <p className="mt-1 text-xs text-slate-500">Click any row to view associated Sales Overview and due dates.</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 text-[11px] font-semibold">
-            <button
-              type="button"
-              onClick={() => setCodeFilter("ALL")}
-              className={`rounded-md px-2.5 py-1 transition cursor-pointer ${
-                codeFilter === "ALL" ? "bg-white text-blue-700 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              All ({codeRows.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setCodeFilter("OVERDUE")}
-              className={`rounded-md px-2.5 py-1 transition cursor-pointer ${
-                codeFilter === "OVERDUE" ? "bg-rose-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-rose-600"
-              }`}
-            >
-              Overdue ({codeRows.filter((r) => r.is_overdue).length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setCodeFilter("CURRENT")}
-              className={`rounded-md px-2.5 py-1 transition cursor-pointer ${
-                codeFilter === "CURRENT" ? "bg-emerald-600 text-white shadow-xs font-bold" : "text-slate-600 hover:text-emerald-600"
-              }`}
-            >
-              Lancar ({codeRows.filter((r) => !r.is_overdue).length})
-            </button>
+          <div className="relative w-64 sm:w-80">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={codeSearch}
+              onChange={(e) => setCodeSearch(e.target.value)}
+              placeholder="Search code, name, or customer ID..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-8 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            />
+            {codeSearch && (
+              <button
+                type="button"
+                onClick={() => setCodeSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -158,7 +154,6 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
             <tr>
               <th className="px-4 py-3">Customer Code</th>
               <th className="px-4 py-3">Source Name</th>
-              <th className="px-4 py-3 text-center">Overdue Status</th>
               <th className="px-4 py-3">Customer ID</th>
             </tr>
           </thead>
@@ -173,23 +168,16 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
                   {row.code}
                 </td>
                 <td className="max-w-[420px] px-4 py-3 text-slate-800 font-medium">{row.customer_name}</td>
-                <td className="px-4 py-3 text-center">
-                  {row.is_overdue ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[10px] font-bold text-rose-700">
-                      ✓ Overdue
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                      ✕ Lancar
-                    </span>
-                  )}
-                </td>
                 <td className="px-4 py-3 font-mono text-[11px] text-slate-500">{row.customer_id ?? "-"}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {!codeRows.length && <p className="p-6 text-center text-xs font-medium text-slate-400">No customer codes available.</p>}
+        {!codeRows.length ? (
+          <p className="p-6 text-center text-xs font-medium text-slate-400">No customer codes available.</p>
+        ) : !filteredCodeRows.length ? (
+          <p className="p-6 text-center text-xs font-medium text-slate-400">No matching customer codes found.</p>
+        ) : null}
       </div>
     </section>
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -211,7 +199,11 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
       </section>
     </div>
     {/* Customer Payment Trend visualization (replaces static 3-Month Payment grid with dynamic monthly collection trend) */}
-    <CustomerPaymentTrendChart data={customer.payment_trend ?? []} />
+    <CustomerPaymentTrendChart
+      data={customer.payment_trend ?? []}
+      customerId={customerId}
+      customerName={customer.customer_name}
+    />
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
       <div className="flex items-center justify-between gap-4">
         <div>

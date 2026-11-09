@@ -2,9 +2,7 @@
 
 import React from "react";
 import {
-  AlertTriangle,
   Calendar,
-  Clock,
   ExternalLink,
   History,
   MessageSquare,
@@ -122,21 +120,16 @@ export default function OverdueInvoicePreviewModal({
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/80">
-          <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-              <AlertTriangle className="size-5 text-amber-600" />
-            </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 id="preview-modal-title" className="text-base font-bold text-slate-900 font-heading">
-                  Preview Invoice {invoice.invoice_number}
-                </h2>
-                <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${riskClasses(invoice.risk_status)}`}>
-                  {invoice.risk_status}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">{invoice.customer_name}</p>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 id="preview-modal-title" className="text-base font-bold text-slate-900 font-heading">
+                Preview Invoice {invoice.invoice_number}
+              </h2>
+              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${riskClasses(invoice.risk_status)}`}>
+                {invoice.risk_status}
+              </span>
             </div>
+            <p className="text-xs text-slate-500">{invoice.customer_name}</p>
           </div>
           <button
             type="button"
@@ -439,21 +432,23 @@ export default function OverdueInvoicePreviewModal({
                 <span>Edit PIC</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                if (onCreate) {
-                  onCreate(invoice);
-                } else {
-                  onEdit(invoice);
-                }
-              }}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition cursor-pointer"
-            >
-              <Plus className="size-3.5" />
-              <span>Add Progress</span>
-            </button>
+            {!canAssign && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onCreate) {
+                    onCreate(invoice);
+                  } else {
+                    onEdit(invoice);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition cursor-pointer"
+              >
+                <Plus className="size-3.5" />
+                <span>Add Progress</span>
+              </button>
+            )}
           </div>
         </footer>
       </div>

@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import Header from "@/components/Header";
 import type { OverdueInvoiceItem, WarningLetterParams } from "@/types/overdue";
-import { AlertTriangle, ArrowLeft, Building2, CalendarDays, CheckCircle2, Clock3, FileText, Mail, Save, Settings2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, Clock3, FileText, Mail, Save, Settings2 } from "lucide-react";
 import { createWarningLetterPdf, getWarningLetterLevel, PAYMENT_ACCOUNT, warningLetterFilePart } from "@/lib/warningLetter";
 
 interface WarningLetterGeneratorProps {
@@ -99,16 +99,11 @@ export const WarningLetterGenerator: React.FC<WarningLetterGeneratorProps> = ({ 
           </header>
 
           <section className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-                <Building2 className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="truncate text-base font-bold text-slate-950 font-heading">{invoice.customer_name}</h2>
+            <div className="min-w-0">
+              <h2 className="truncate text-base font-bold text-slate-950 font-heading">{invoice.customer_name}</h2>
                 <p className="mt-1 text-xs text-slate-500">Invoice {invoice.invoice_number} · Due date {invoice.due_date}</p>
                 <p className="mt-1 text-xs text-slate-500">{invoice.branch || "Branch unavailable"} {invoice.branch_code ? `(${invoice.branch_code})` : ""}</p>
               </div>
-            </div>
             <div className="grid grid-cols-2 gap-3 text-right lg:block">
               <div>
                 <p className="text-xs font-medium text-slate-500">Outstanding</p>
