@@ -1,4 +1,4 @@
-export type BranchLocation = 'Jakarta' | 'Semarang' | 'Surabaya' | 'Balikpapan' | 'Medan';
+export type BranchLocation = 'Jakarta' | 'Semarang' | 'Surabaya' | 'Balikpapan' | 'Medan' | 'Tidak ditentukan';
 
 export interface Customer {
   customer_id: string;
@@ -35,25 +35,115 @@ export interface InvoiceDetail {
   description?: string;
   due_date: string;
   amount: number;
+  paid_amount?: number;
+  remaining_amount?: number;
+  payment_date?: string;
   payment_status: 'PAID' | 'UNPAID' | 'PARTIAL';
   bulk_close_status: 'PENDING' | 'CLOSED';
   created_at?: string;
 }
 
+export interface InvoicePayment {
+  payment_id: string;
+  amount: number;
+  payment_date: string;
+  reference_no: string;
+}
+
+export type CustomerInvoice = InvoiceDetail & {
+  job_number?: string | null;
+  mawb?: string | null;
+  payments?: InvoicePayment[];
+};
+
+export interface PaymentTrendPoint {
+  period_month: string;
+  amount: number;
+}
+
+export interface PaymentTrendChange {
+  from_period: string;
+  to_period: string;
+  amount: number;
+  direction: 'up' | 'down' | 'flat';
+}
+
+export interface CustomerCodeAlias {
+  customer_id: string;
+  customer_code?: string | null;
+  customer_name: string;
+}
+
+export interface CustomerCodeSalesRow {
+  id: string;
+  document_id: string;
+  row_number: number;
+  period_month: string;
+  customer_name: string;
+  customer_id: string | null;
+  c1_customer_id: string | null;
+  revenue: number;
+  sub_total?: number;
+  trucking_cost: number;
+  vat?: number;
+  handling_cost: number;
+  pph_23?: number;
+  storage_cost: number;
+  others_dip_cost?: number;
+  other_operational_cost: number;
+  total_cost: number;
+  sales_profit: number;
+}
+
+export interface CustomerCodeOutstandingRow {
+  id: string;
+  document_id: string;
+  row_number: number;
+  invoice_number: string;
+  customer_name: string;
+  customer_id: string | null;
+  c1_customer_id: string | null;
+  outstanding_amount: number;
+  due_date: string;
+  create_date: string | null;
+  job_number: string | null;
+  mawb: string | null;
+  bulk_close_status: string;
+}
+
+export interface CustomerCodeDetail {
+  company_group_id: string;
+  customer_id: string;
+  code: string;
+  aliases: CustomerCodeAlias[];
+  sales_rows: CustomerCodeSalesRow[];
+  outstanding_rows: CustomerCodeOutstandingRow[];
+}
+
 export interface CustomerAnalyticsItem {
   id: string;
+  company_group_id?: string;
+  customer_id?: string;
+  customer_code?: string | null;
+  customer_codes?: string[];
+  customer_aliases?: CustomerCodeAlias[];
   customer_name: string;
   npwp: string;
   location_detail: string;
   branch: BranchLocation;
   branch_office_badge: string;
-  sales_profit: number;
+  sales_profit: number | null;
+  revenue?: number | null;
   sales_profit_trend: 'up' | 'down' | 'flat';
-  cost: number;
-  total_outstanding: number;
+  cost: number | null;
+  total_outstanding: number | null;
+  dso_days?: number | null;
+  current_month_cost?: number | null;
   credit_limit: number;
   payment_accuracy: number;
   active_invoices_count: number;
+  payment_trend?: PaymentTrendPoint[];
+  payment_changes?: PaymentTrendChange[];
   dso_trend: {
     may_2026: number;
     june_2026: number;
@@ -67,27 +157,31 @@ export interface CustomerAnalyticsItem {
     route: string;
     volume: string;
   }>;
+  job_count?: number;
+  issue_count?: number;
+  latest_job_number?: string | null;
+  latest_activity_date?: string | null;
+  latest_conversation?: string | null;
+  assistance_count?: number;
 }
 
 export interface KpiSummary {
-  totalActiveCustomers: number;
-  branchBreakdown: {
-    jkt: number;
-    sub: number;
-    smg: number;
-    bpn: number;
-    medan?: number;
-  };
-  averagePaymentCycle: number; // e.g. 24.5
-  paymentCycleDiffVsQ2: number; // e.g. -2.1
-  highRiskOutstanding: number; // e.g. 4850000
-  highRiskAccountCount: number; // e.g. 4
-  highRiskGrowthPercent: number; // e.g. 6.4
-  topContributingCustomer: {
-    name: string;
-    rank: number;
-    totalLogisticsVolume: number;
-  };
+  totalCustomers?: number;
+  period?: string | null;
+  totalRevenue?: number | null;
+  totalCost?: number | null;
+  currentMonthCost?: number | null;
+  currentMonthSalesProfit?: number | null;
+  totalOutstanding?: number | null;
+  overdueOutstanding?: number | null;
+  totalActiveCustomers?: number;
+  branchBreakdown?: { jkt: number; sub: number; smg: number; bpn: number; medan?: number };
+  averagePaymentCycle?: number;
+  paymentCycleDiffVsQ2?: number;
+  highRiskOutstanding?: number;
+  highRiskAccountCount?: number;
+  highRiskGrowthPercent?: number;
+  topContributingCustomer?: { name: string; rank: number; totalLogisticsVolume: number };
 }
 
 export interface AnalyticsResponse {

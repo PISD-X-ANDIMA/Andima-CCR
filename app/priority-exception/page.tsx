@@ -124,8 +124,8 @@ export default function PriorityExceptionPage() {
   const [rows, setRows] = useState<PriorityExceptionRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [selectedPrioritas, setSelectedPrioritas] = useState("Semua Prioritas");
-  const [selectedStatus, setSelectedStatus] = useState("Semua Status");
+  const [selectedPrioritas, setSelectedPrioritas] = useState("All Priorities");
+  const [selectedStatus, setSelectedStatus] = useState("All Statuses");
 
   const [activeItem, setActiveItem] = useState<PriorityExceptionRow | null>(null);
   const [notes, setNotes] = useState("");
@@ -230,9 +230,13 @@ export default function PriorityExceptionPage() {
         r.jobNumber.toLowerCase().includes(search.toLowerCase());
 
       const matchPrioritas =
-        selectedPrioritas === "Semua Prioritas" || r.prioritas === selectedPrioritas;
+        selectedPrioritas === "All Priorities" ||
+        selectedPrioritas === "Semua Prioritas" ||
+        r.prioritas === selectedPrioritas;
       const matchStatus =
-        selectedStatus === "Semua Status" || r.status === selectedStatus;
+        selectedStatus === "All Statuses" ||
+        selectedStatus === "Semua Status" ||
+        r.status === selectedStatus;
 
       return matchSearch && matchPrioritas && matchStatus;
     });
@@ -458,7 +462,7 @@ export default function PriorityExceptionPage() {
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
               {metrics.topFocus.length === 0 ? (
                 <div className="col-span-3 py-6 text-center text-xs text-slate-400">
-                  Semua transaksi anomali telah selesai ditinjau.
+                  All anomaly transactions have been reviewed.
                 </div>
               ) : (
                 metrics.topFocus.map((f) => (
@@ -535,7 +539,7 @@ export default function PriorityExceptionPage() {
                 onChange={(e) => setSelectedPrioritas(e.target.value)}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400"
               >
-                <option value="Semua Prioritas">Semua Prioritas</option>
+                <option value="All Priorities">All Priorities</option>
                 <option value="Critical">Critical</option>
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
@@ -547,7 +551,7 @@ export default function PriorityExceptionPage() {
                 onChange={(e) => setSelectedStatus(e.target.value)}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400"
               >
-                <option value="Semua Status">Semua Status</option>
+                <option value="All Statuses">All Statuses</option>
                 <option value="Terbuka">Terbuka</option>
                 <option value="Ditinjau">Ditinjau</option>
                 <option value="Dalam Proses">Dalam Proses</option>
@@ -576,14 +580,14 @@ export default function PriorityExceptionPage() {
                     <td colSpan={8} className="py-10 text-center text-slate-400">
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
-                        <span>Menghubungkan ke basis data Supabase...</span>
+                        <span>Connecting to database...</span>
                       </div>
                     </td>
                   </tr>
                 ) : filteredRows.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-6 text-center text-slate-400">
-                      Tidak ada anomali yang sesuai dengan pencarian atau filter.
+                      No anomalies match the search or filter.
                     </td>
                   </tr>
                 ) : (

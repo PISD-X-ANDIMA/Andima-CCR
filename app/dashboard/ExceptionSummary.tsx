@@ -12,10 +12,10 @@ export default function ExceptionSummary() {
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-sm font-bold text-slate-900">Ringkasan Exception</h3>
-          <p className="text-[11px] text-slate-400">26 item memerlukan tindak lanjut</p>
+          <h3 className="text-sm font-bold text-slate-900">Exception Summary</h3>
+          <p className="text-[11px] text-slate-400">26 items require follow-up</p>
         </div>
-        <CustomButton variant="outline" size="sm">Lihat Semua</CustomButton>
+        <CustomButton variant="outline" size="sm">View All</CustomButton>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -26,7 +26,7 @@ export default function ExceptionSummary() {
             </span>
             <p className="mt-2 text-[13px] font-bold text-slate-800">{i.label}</p>
             <p className="text-[13px] font-semibold text-slate-600">{i.value}</p>
-            <p className="mt-1 text-[11px] text-slate-400">Perlu ditinjau</p>
+            <p className="mt-1 text-[11px] text-slate-400">Needs review</p>
           </div>
         ))}
       </div>

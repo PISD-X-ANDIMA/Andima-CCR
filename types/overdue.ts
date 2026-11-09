@@ -1,4 +1,12 @@
-export type RiskStatus = 'LEGAL ESCALATION' | 'HIGH RISK' | 'WATCHLIST' | 'NEGOSIASI';
+export type RiskStatus =
+  | 'High Risk'
+  | 'Medium Risk'
+  | 'Watchlist'
+  | 'Negotiation'
+  | 'LEGAL ESCALATION'
+  | 'HIGH RISK'
+  | 'WATCHLIST'
+  | 'NEGOSIASI';
 
 export interface OverdueAlertRecord {
   alert_id: string;
@@ -20,7 +28,15 @@ export interface AssignmentRecord {
   assigned_by: string;
   assigned_at: string;
   follow_up_status: string;
-  notes?: string;
+  notes?: string | null;
+  follow_up_action?: string | null;
+  promise_date?: string | null;
+  attachment_url?: string | null;
+  updated_by?: string | null;
+  payment_amount?: number | null;
+  assigned_to_name?: string | null;
+  assigned_by_name?: string | null;
+  assigned_by_role?: string | null;
   created_at?: string;
 }
 
@@ -66,7 +82,9 @@ export interface OverdueInvoiceItem {
   risk_status: RiskStatus;
   pic_assigned?: string;
   pic_initials?: string;
-  action_type: 'SP-1' | 'SP-2' | 'AUDIT' | 'TERMIN' | 'TUGASKAN';
+  pic_display_name?: string;
+  pic_role?: string;
+  action_type: 'SP-1' | 'SP-2' | 'SP-3' | 'AUDIT' | 'TERMIN' | 'TUGASKAN' | 'ASSIGN';
   contact_person: {
     name: string;
     role: string;
@@ -82,6 +100,13 @@ export interface OverdueInvoiceItem {
 }
 
 export interface OverdueKpiSummary {
+  totalActiveCustomers: number;
+  highRiskOutstanding: number;
+  topContributingCustomer: {
+    name: string;
+    outstanding: number;
+    invoiceCount: number;
+  } | null;
   totalOverdueValue: number;
   totalOverdueValueGrowth: number;
   affectedInvoicesCount: number;
@@ -95,20 +120,16 @@ export interface OverdueKpiSummary {
   unassignedFloatingValue: number;
 }
 
+export interface StaffOption {
+  employee_id: string;
+  full_name: string;
+}
+
 export interface WarningLetterParams {
   escalationLevel: 'SP-1' | 'SP-2' | 'SP-3';
   registrationNumber: string;
   issueDate: string;
   deadlineDate: string;
   picName: string;
-  escrowBank: 'mandiri' | 'bca';
-  channels: {
-    email: boolean;
-    whatsapp: boolean;
-    courier: boolean;
-    portal: boolean;
-  };
-  attachSoa: boolean;
-  attachStpf: boolean;
   internalNotes: string;
 }

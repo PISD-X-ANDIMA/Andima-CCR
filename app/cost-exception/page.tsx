@@ -527,7 +527,7 @@ export default function CostExceptionPage() {
                 }}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400"
               >
-                <option value="ALL">Semua Cabang</option>
+                <option value="ALL">All Branches</option>
                 <option value="Jakarta">Jakarta Pusat</option>
                 <option value="Surabaya">Surabaya</option>
                 <option value="Semarang">Semarang</option>
@@ -542,7 +542,7 @@ export default function CostExceptionPage() {
                 }}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400"
               >
-                <option value="ALL">Semua Tipe Anomali</option>
+                <option value="ALL">All Anomaly Types</option>
                 <option value="OVER_BUDGET">Over Budget</option>
                 <option value="MISSING_EVIDENCE">Missing Evidence</option>
                 <option value="JOB_NOT_FOUND">Job Not Found</option>
@@ -558,7 +558,7 @@ export default function CostExceptionPage() {
                 }}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400"
               >
-                <option value="ALL">Semua Status</option>
+                <option value="ALL">All Statuses</option>
                 <option value="Terbuka">Terbuka</option>
                 <option value="Ditinjau">Ditinjau</option>
                 <option value="Selesai">Selesai</option>
@@ -587,14 +587,14 @@ export default function CostExceptionPage() {
                     <td colSpan={8} className="py-10 text-center text-xs text-slate-400">
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
-                        <span>Menghubungkan ke Supabase...</span>
+                        <span>Connecting to database...</span>
                       </div>
                     </td>
                   </tr>
                 ) : paginatedData.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-8 text-center text-xs text-slate-400">
-                      Tidak ada transaksi anomali yang cocok dengan kriteria filter.
+                      No anomaly transactions match the filter criteria.
                     </td>
                   </tr>
                 ) : (
@@ -790,7 +790,7 @@ export default function CostExceptionPage() {
               {/* Tombol Aksi */}
               <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
                 <CustomButton variant="outline" size="sm" onClick={() => setActiveItem(null)}>
-                  Batal
+                  Cancel
                 </CustomButton>
                 <CustomButton
                   variant="outline"
@@ -799,7 +799,7 @@ export default function CostExceptionPage() {
                   onClick={() => handleResolveException("Ditinjau")}
                   className="text-amber-700 border-amber-200 hover:bg-amber-50"
                 >
-                  Tandai Ditinjau
+                  Mark as Reviewed
                 </CustomButton>
                 <CustomButton
                   size="sm"
@@ -812,7 +812,7 @@ export default function CostExceptionPage() {
                   ) : (
                     <ShieldCheck className="h-4 w-4" />
                   )}
-                  Selesaikan Anomali
+                  Resolve Anomaly
                 </CustomButton>
               </div>
             </div>
@@ -829,8 +829,8 @@ export default function CostExceptionPage() {
                     <Sliders className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-900">Konfigurasi Rule Alert Biaya</h3>
-                    <p className="text-[11px] text-slate-400">Parameter klasifikasi anomali otomatis</p>
+                    <h3 className="text-base font-extrabold text-slate-900">Cost Alert Rules Configuration</h3>
+                    <p className="text-[11px] text-slate-400">Automated anomaly classification parameters</p>
                   </div>
                 </div>
                 <button
@@ -843,7 +843,7 @@ export default function CostExceptionPage() {
 
               <div className="mt-4 space-y-4 text-xs">
                 <div>
-                  <label className="font-bold text-slate-700">Batas Toleransi Over Budget (%)</label>
+                  <label className="font-bold text-slate-700">Over Budget Tolerance Limit (%)</label>
                   <input
                     type="number"
                     value={ruleBudgetVariance}
@@ -853,7 +853,7 @@ export default function CostExceptionPage() {
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700">Threshold High Cost Tunggal (Rp)</label>
+                  <label className="font-bold text-slate-700">Single High Cost Threshold (IDR)</label>
                   <input
                     type="number"
                     value={ruleHighCostLimit}
@@ -863,27 +863,27 @@ export default function CostExceptionPage() {
                 </div>
 
                 <div className="rounded-lg bg-sky-50 p-3 text-[11px] text-sky-800 border border-sky-100">
-                  <p className="font-bold">Ketentuan Sistem Otomatis:</p>
+                  <p className="font-bold">Automated System Rules:</p>
                   <p className="mt-0.5">
-                    • MISSING_EVIDENCE aktif jika kuitansi kosong[cite: 1, 11].<br />
-                    • JOB_NOT_FOUND otomatis aktif jika tidak ada referensi job valid di master operasional[cite: 1, 11].
+                    • MISSING_EVIDENCE active when receipt is empty.<br />
+                    • JOB_NOT_FOUND automatically active when no valid job reference exists in operational master.
                   </p>
                 </div>
               </div>
 
               <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
                 <CustomButton variant="outline" size="sm" onClick={() => setIsRuleModalOpen(false)}>
-                  Batal
+                  Cancel
                 </CustomButton>
                 <CustomButton
                   size="sm"
                   onClick={() => {
                     setIsRuleModalOpen(false);
-                    showToast("Aturan alert berhasil diperbarui dan diterapkan ke seluruh transaksi.");
+                    showToast("Alert rules successfully updated and applied to all transactions.");
                   }}
                   className="bg-[#0a7ebf] hover:bg-[#08689d]"
                 >
-                  Simpan Perubahan
+                  Save Changes
                 </CustomButton>
               </div>
             </div>

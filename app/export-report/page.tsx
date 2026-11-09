@@ -298,7 +298,7 @@ export default function ExportReportPage() {
               onClick={fetchExportData}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50"
             >
-              <RefreshCw className="h-3.5 w-3.5" /> Sinkronkan Supabase
+              <RefreshCw className="h-3.5 w-3.5" /> Sync Supabase
             </button>
 
             <button
@@ -363,7 +363,7 @@ export default function ExportReportPage() {
                     onChange={(e) => setCustomer(e.target.value)}
                     className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 shadow-sm outline-none focus:border-sky-400"
                   >
-                    <option value="Semua Customer">Semua Customer (PT Andima)</option>
+                    <option value="All Customers">All Customers (PT Andima)</option>
                     <option value="PT ATLANTIC CONTAINER LINI">PT ATLANTIC CONTAINER LINI</option>
                     <option value="PT CEVA AIR OCEAN">PT CEVA AIR OCEAN</option>
                     <option value="PT DSV TRANSPORT">PT DSV TRANSPORT</option>
@@ -378,7 +378,7 @@ export default function ExportReportPage() {
                 className="flex items-center gap-2 rounded-lg bg-[#0a7ebf] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#08689d] active:scale-95 disabled:opacity-50"
               >
                 {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-                Buat Laporan
+                Generate Report
               </button>
             </div>
 
@@ -532,9 +532,9 @@ export default function ExportReportPage() {
                   <Check className="h-4 w-4 stroke-[3]" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-emerald-950">Laporan Siap Diunduh</p>
+                  <p className="text-xs font-bold text-emerald-950">Report Ready to Download</p>
                   <p className="text-[11px] text-slate-500">
-                    CCR_Report_PT_Andima_{periode.replace(/\s+/g, "_")}.xlsx · {dbTransactions.length} baris data riil
+                    CCR_Report_PT_Andima_{periode.replace(/\s+/g, "_")}.xlsx · {dbTransactions.length} actual data rows
                   </p>
                 </div>
               </div>
@@ -542,7 +542,7 @@ export default function ExportReportPage() {
                 onClick={handleDownloadExcel}
                 className="flex items-center gap-1.5 rounded-lg bg-[#0a7ebf] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#08689d]"
               >
-                <Download className="h-3.5 w-3.5" /> Unduh Excel (.xlsx)
+                <Download className="h-3.5 w-3.5" /> Download Excel (.xlsx)
               </button>
             </div>
           </div>
@@ -555,7 +555,7 @@ export default function ExportReportPage() {
               </div>
               <h3 className="mt-3 text-base font-bold text-white">Cloud Vault Storage</h3>
               <p className="mt-1 text-[11px] text-sky-100 leading-relaxed max-w-[210px]">
-                Tautan unduhan aman berenkripsi AES-256 (Masa aktif 24 jam)[cite: 6].
+                Secure AES-256 encrypted download link (24-hour expiration).
               </p>
             </div>
 
@@ -563,7 +563,7 @@ export default function ExportReportPage() {
               onClick={handleDownloadExcel}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-[#18C7C0] py-2.5 text-xs font-bold text-slate-950 shadow transition hover:bg-[#14b2ab] active:scale-95"
             >
-              <Download className="h-3.5 w-3.5" /> Unduh Excel Sekarang
+              <Download className="h-3.5 w-3.5" /> Download Excel Now
             </button>
           </div>
         </div>

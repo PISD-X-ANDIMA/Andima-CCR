@@ -1,11 +1,15 @@
+import { requireSession } from "@/lib/server/http";
 import { NextRequest, NextResponse } from 'next/server';
 import { STATEMENT_AURORA_BLUE, INITIAL_CUSTOMERS } from '@/lib/customerData';
 import { fetchStatementFromSupabase } from '@/lib/supabaseApi';
+import { getCcrProfile, canUseCcr } from '@/lib/server/authorization';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ customerId: string }> }
 ) {
+  const session = await requireSession(); if (session.error) return session.error;
+  if (!canUseCcr(await getCcrProfile(session.client, session.user!.id))) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'CCR access is required.' } }, { status: 403 });
   try {
     const { customerId } = await params;
 
@@ -40,9 +44,9 @@ export async function GET(
           },
           credit_limit: foundCust.credit_limit,
           review_cycle: 'Aktif s/d Des 2026',
-          outstanding_balance: foundCust.total_outstanding,
+          outstanding_balance: foundCust.total_outstanding ?? 0,
           credit_usage_percent: Number(
-            ((foundCust.total_outstanding / foundCust.credit_limit) * 100).toFixed(2)
+            (((foundCust.total_outstanding ?? 0) / foundCust.credit_limit) * 100).toFixed(2)
           ),
           overdue_balance: 0,
           overdue_status_text: 'Semua dalam termin lancar',
@@ -56,7 +60,7 @@ export async function GET(
               cargo_description: 'Saldo Awal Piutang',
               debit: 0,
               credit: 0,
-              cumulative_balance: foundCust.total_outstanding,
+              cumulative_balance: foundCust.total_outstanding ?? 0,
               status: 'Saldo Awal',
             },
             {
@@ -65,9 +69,9 @@ export async function GET(
               bl_number: `BL-${foundCust.branch.slice(0, 3).toUpperCase()}-26-1020`,
               cargo_description: `Freight Multimodal Delivery ${foundCust.branch}`,
               due_date: '14-08-2026',
-              debit: foundCust.sales_profit,
+              debit: foundCust.sales_profit ?? 0,
               credit: 0,
-              cumulative_balance: foundCust.total_outstanding + foundCust.sales_profit,
+              cumulative_balance: (foundCust.total_outstanding ?? 0) + (foundCust.sales_profit ?? 0),
               status: 'Belum Lunas',
               doc_action: 'Lihat INV',
             },
@@ -76,7 +80,7 @@ export async function GET(
             {
               bank_name: 'Bank Mandiri Escrow Direct',
               account_no: 'TRF #559102',
-              reference_no: '15 Juli 2026 • Verified ERP Module',
+              reference_no: '15 Juli 2026 â€¢ Verified ERP Module',
               date: '15-07-2026',
               amount: foundCust.sales_profit,
               matched_invoice: `Matched INV-2026/07-9500`,
@@ -88,9 +92,9 @@ export async function GET(
     }
 
     return NextResponse.json(STATEMENT_AURORA_BLUE, { status: 200 });
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: 'Internal Server Error', message: error.message },
+      { error: 'Internal Server Error', message: 'Unable to process request.' },
       { status: 500 }
     );
   }

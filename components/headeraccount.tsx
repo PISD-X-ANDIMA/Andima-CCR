@@ -1,86 +1,76 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import { useAccount, accountRole, type Account } from "@/components/account-provider";
+import { readJsonResponse } from "@/lib/clientHttp";
 
-type Account = {
+type AccountState = {
   initials: string;
   name: string;
   role: string;
 };
 
-type AccountAccess = {
-  app_role: "EMPLOYEE" | "HR" | "MANAGER" | null;
-  full_name: string | null;
-};
-
-const fallbackAccount: Account = {
+const fallbackAccount: AccountState = {
   initials: "AU",
   name: "Andima User",
-  role: "HRMS User",
+  role: "CCR User",
 };
 
-function roleLabel(role: AccountAccess["app_role"]) {
-  if (role === "HR") return "HR";
-  if (role === "MANAGER") return "Manager";
-  if (role === "EMPLOYEE") return "Employee";
-  return "HRMS User";
-}
-
 export default function HeaderAccount() {
-  const [account, setAccount] = useState<Account>(fallbackAccount);
+  const { account: loaded } = useAccount();
+  const [account, setAccount] = useState<AccountState>(() => {
+    if (loaded) {
+      return {
+        initials: loaded.initials || "AU",
+        name: loaded.full_name || "Andima User",
+        role: accountRole(loaded.app_role, "CCR User"),
+      };
+    }
+    return fallbackAccount;
+  });
 
   useEffect(() => {
+    if (loaded) {
+      setAccount({
+        initials: loaded.initials || "AU",
+        name: loaded.full_name || "Andima User",
+        role: accountRole(loaded.app_role, "CCR User"),
+      });
+      return;
+    }
+
     let isMounted = true;
-
-    async function loadAccount() {
+    async function fetchAccountDirectly() {
       try {
-        const supabase = createClient();
-        const { data: userData } = await supabase.auth.getUser();
-        const user = userData.user;
-        if (!user || !isMounted) return;
-
-        const { data: access } = await supabase
-          .from("d3_user_access")
-          .select("app_role, d3_employee!d3_user_access_employee_id_fkey(full_name)")
-          .eq("auth_user_id", user.id)
-          .maybeSingle();
-
-        const accountAccess = access as unknown as { app_role: AccountAccess["app_role"]; d3_employee: { full_name: string } | null } | null;
-        const metadataName = user.user_metadata?.full_name;
-        const registeredName = typeof metadataName === "string" && metadataName.trim()
-          ? metadataName.trim()
-          : user.email?.split("@")[0] ?? fallbackAccount.name;
-        const name = accountAccess?.d3_employee?.full_name?.trim() || registeredName;
-        const initials = name
-          .split(" ")
-          .filter(Boolean)
-          .map((part) => part[0])
-          .join("")
-          .slice(0, 2)
-          .toUpperCase() || fallbackAccount.initials;
-
-        if (isMounted) {
-          setAccount({ initials, name, role: roleLabel(accountAccess?.app_role ?? null) });
+        const res = await fetch("/api/v1/account/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = await readJsonResponse<{ data?: Account }>(res);
+        const data = body?.data;
+        if (data && isMounted) {
+          setAccount({
+            initials: data.initials || "AU",
+            name: data.full_name || "Andima User",
+            role: accountRole(data.app_role, "CCR User"),
+          });
         }
       } catch {
-        // Keep the fallback account visible if account data cannot be loaded.
+        // Fallback gracefully
       }
     }
 
-    void loadAccount();
+    void fetchAccountDirectly();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loaded]);
 
   return (
-    <div className="hidden items-center gap-2 border-l border-[#d9e2fc] pl-3 sm:flex">
-      <span className="grid size-8 place-items-center rounded-full border border-[#006838]/30 bg-[#16834b]/15 text-xs font-bold text-[#006838]">
+    <div className="flex items-center gap-2 border-l border-[#BCD4EE] pl-3">
+      <span className="grid size-8 place-items-center rounded-full border border-[#0C68D5]/25 bg-[#E6F1FF] text-xs font-bold text-[#0C68D5] font-heading">
         {account.initials}
       </span>
-      <div className="text-left">
-        <p className="text-xs font-bold">{account.name}</p>
+      <div className="min-w-0 text-left">
+        <p className="max-w-40 truncate text-xs font-bold text-[#172033] font-heading">{account.name}</p>
         <p className="text-[10px] text-[#4d5f81]">{account.role}</p>
       </div>
     </div>

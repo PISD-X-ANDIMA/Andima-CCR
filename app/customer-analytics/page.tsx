@@ -1,433 +1,161 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import Header from "@/components/Header";
 import KpiSummaryCards from "@/components/KpiSummaryCards";
-import InspectionDrawer from "@/components/InspectionDrawer";
-import StatementOfAccountView from "@/components/StatementOfAccountView";
-import CustomDropdown from "@/components/CustomDropdown";
 import Pagination from "@/components/Pagination";
-import { CustomerAnalyticsItem, KpiSummary, BranchLocation } from "@/types/customer";
+import { CustomerAnalyticsItem, KpiSummary } from "@/types/customer";
+import { RefreshCw, Search } from "lucide-react";
+import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 
 export default function CustomerAnalyticsPage() {
-  const [activeMenu, setActiveMenu] = useState("customer-analytics");
-  const [activeView, setActiveView] = useState<"analytics" | "statement">("analytics");
-  const [statementCustomerId, setStatementCustomerId] = useState<string>("CUST-0192");
-
-  // Filter & Search states
-  const [selectedBranch, setSelectedBranch] = useState<string>("Semua Cabang");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [paymentCycleFilter, setPaymentCycleFilter] = useState<string>("Semua Siklus Pembayaran");
-  const [sortBy, setSortBy] = useState<string>("sales_profit");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [branch, setBranch] = useState("All Branches");
+  const [sortBy, setSortBy] = useState("sales_profit");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage] = useState<number>(5);
-
-  // Data states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hydrated, setHydrated] = useState(false);
   const [customers, setCustomers] = useState<CustomerAnalyticsItem[]>([]);
   const [kpiSummary, setKpiSummary] = useState<KpiSummary | null>(null);
-  const [totalItems, setTotalItems] = useState<number>(148);
-  const [totalPages, setTotalPages] = useState<number>(30);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const itemsPerPage = 5;
 
-  // Selected customer for Inspection Profile Drawer
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerAnalyticsItem | null>(null);
-  const [checkedIds, setCheckedIds] = useState<string[]>(["CUST-0192"]);
-
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
-
-  // Fetch data from REST API handler (/api/v1/customers/analytics)
-  const loadAnalyticsData = () => {
+  const loadAnalyticsData = useCallback(async () => {
+    if (!hydrated) return;
     setIsLoading(true);
-    const params = new URLSearchParams({
-      page: currentPage.toString(),
-      limit: itemsPerPage.toString(),
-      branch: selectedBranch,
-      search: searchQuery,
-      paymentCycle: paymentCycleFilter,
-      sortBy: sortBy,
-      sortOrder: sortOrder,
-    });
-
-    fetch(`/api/v1/customers/analytics?${params.toString()}`)
-      .then((res) => res.json())
-      .then((resData) => {
-        if (resData.data) {
-          setCustomers(resData.data);
-          setKpiSummary(resData.kpiSummary);
-          setTotalItems(resData.pagination.totalItems);
-          setTotalPages(resData.pagination.totalPages);
-
-          // Auto-select first item or current selected item
-          if (resData.data.length > 0) {
-            const exists = resData.data.find((item: CustomerAnalyticsItem) => item.id === selectedCustomer?.id);
-            if (!exists) {
-              setSelectedCustomer(resData.data[0]);
-            }
-          }
-        }
-      })
-      .catch((err) => console.error("Error fetching analytics data:", err))
-      .finally(() => setIsLoading(false));
-  };
+    const apiBranch = branch === "All Branches" ? "Semua Cabang" : branch;
+    const params = new URLSearchParams({ page: String(currentPage), limit: String(itemsPerPage), branch: apiBranch, search: searchQuery.trim(), sortBy, sortOrder });
+    try {
+      const response = await fetch(`/api/v1/customers/analytics?${params.toString()}`, { cache: "no-store" });
+      const body = (await readJsonResponse<{ data?: CustomerAnalyticsItem[]; kpiSummary?: KpiSummary; pagination?: { totalItems?: number; totalPages?: number }; error?: { message?: string }; message?: string }>(response)) ?? {};
+      if (!response.ok) throw new Error(responseMessage(body, "Failed to load customer analytics data."));
+      setCustomers(body.data ?? []);
+      setKpiSummary(body.kpiSummary ?? null);
+      setTotalItems(body.pagination?.totalItems ?? 0);
+      setTotalPages(body.pagination?.totalPages ?? 1);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load customer analytics data.");
+      setCustomers([]);
+      setKpiSummary(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [branch, currentPage, hydrated, searchQuery, sortBy, sortOrder]);
 
   useEffect(() => {
-    loadAnalyticsData();
-  }, [currentPage, selectedBranch, searchQuery, paymentCycleFilter, sortBy, sortOrder]);
+    const query = new URLSearchParams(window.location.search);
+    setSearchQuery(query.get("search") ?? "");
+    const initialBranch = query.get("branch") ?? "All Branches";
+    setBranch(initialBranch === "Semua Cabang" ? "All Branches" : initialBranch);
+    setSortBy(query.get("sortBy") ?? "sales_profit");
+    setSortOrder(query.get("sortOrder") === "asc" ? "asc" : "desc");
+    setCurrentPage(Math.max(1, Number(query.get("page") ?? "1") || 1));
+    setHydrated(true);
+  }, []);
+  useEffect(() => { void loadAnalyticsData(); }, [loadAnalyticsData]);
 
-  const handleOpenStatement = (customerId: string) => {
-    setStatementCustomerId(customerId);
-    setActiveView("statement");
-  };
-
-  const handleToggleCheckRow = (id: string) => {
-    if (checkedIds.includes(id)) {
-      setCheckedIds(checkedIds.filter((item) => item !== id));
-    } else {
-      setCheckedIds([...checkedIds, id]);
-    }
-  };
-
-  const handleSort = (field: string) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortBy(field);
-      setSortOrder("desc");
-    }
-  };
-
+  const returnTo = `/customer-analytics?${new URLSearchParams({ branch, search: searchQuery, page: String(currentPage), sortBy, sortOrder }).toString()}`;
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans">
       <div className="flex min-h-screen flex-col">
-        {/* Top Header */}
-        <Header
-          searchValue={searchQuery}
-          onSearchChange={(val) => {
-            setSearchQuery(val);
-            setCurrentPage(1);
-          }}
-        />
-
-        {/* View Switcher: Statement of Account OR Main Customer Analytics View */}
-        {activeView === "statement" ? (
-          <StatementOfAccountView
-            customerId={statementCustomerId}
-            onBack={() => setActiveView("analytics")}
-          />
-        ) : (
-          <main className="flex-1 p-6 md:p-8 space-y-6 w-full">
-            {/* Page Header Title & Subheader Actions */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                  CCR: CUSTOMER ANALYTICS
-                </h1>
+        <Header pageName="Customer Analytics" />
+        <main className="flex-1 space-y-6 p-6 md:p-8">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">Customer Analytics</h1>
+              <p className="mt-1 text-xs font-medium text-slate-500">Unique customer portfolio from validated C1 records.</p>
+            </div>
+            <button type="button" onClick={() => void loadAnalyticsData()} disabled={isLoading} className="inline-flex items-center gap-2 self-start rounded-xl bg-[#3B6FF5] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-blue-600 disabled:opacity-60 cursor-pointer">
+              <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />Refresh
+            </button>
+          </div>
+          {isLoading ? <CustomerKpiSkeleton /> : kpiSummary && <KpiSummaryCards kpi={kpiSummary} />}
+          {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{loadError}</div>}
+          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative w-full lg:w-96">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input type="search" value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1); }} placeholder="Search customer name or code..." className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20" />
               </div>
-
-              {/* Sub-header Actions */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-xs">
-                  <span>📅 Kuartal Berjalan:</span>
-                  <span className="font-extrabold text-slate-900">Q3-2026 (Juli - Sep)</span>
-                </div>
-
-                <button
-                  onClick={loadAnalyticsData}
-                  className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition"
-                >
-                  <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Sinkronisasi Data</span>
-                </button>
-
-                <button className="flex items-center gap-2 px-4 py-2 bg-[#0F172A] hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md transition">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  <span>Ekspor Portofolio (.xlsx)</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  Branch
+                  <select value={branch} onChange={(event) => { setBranch(event.target.value); setCurrentPage(1); }} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700">
+                    <option>All Branches</option>
+                    <option>Jakarta</option>
+                    <option>Semarang</option>
+                    <option>Surabaya</option>
+                    <option>Balikpapan</option>
+                    <option>Medan</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  Sort by
+                  <select value={sortBy} onChange={(event) => { setSortBy(event.target.value); setCurrentPage(1); }} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700">
+                    <option value="sales_profit">Profit</option>
+                    <option value="total_outstanding">Outstanding</option>
+                    <option value="customer_name">Name</option>
+                  </select>
+                </label>
+                <button type="button" onClick={() => setSortOrder((current) => current === "asc" ? "desc" : "asc")} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 cursor-pointer" aria-label="Toggle sort order">
+                  {sortOrder === "asc" ? "Ascending" : "Descending"}
                 </button>
               </div>
             </div>
-
-            {/* KPI Summary Cards */}
-            {kpiSummary && <KpiSummaryCards kpi={kpiSummary} />}
-
-            {/* Search & Filter Controls Bar */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-4">
-              <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-                {/* Left Search Box */}
-                <div className="w-full lg:w-96 relative">
-                  <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    placeholder="Search Customer name, NPWP..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                </div>
-
-                {/* Right Filter Dropdowns */}
-                <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
-                  <div className="w-56">
-                    <CustomDropdown
-                      placeholder={paymentCycleFilter}
-                      categoryTitle="SIKLUS PEMBAYARAN"
-                      categoryBadge="Filter"
-                      items={[
-                        { id: "all", label: "Semua Siklus Pembayaran" },
-                        { id: "safe", label: "Lancar (< 30 Hari)" },
-                        { id: "overdue", label: "Overdue (> 30 Hari)" },
-                      ]}
-                      value={paymentCycleFilter}
-                      onChange={(item) => {
-                        setPaymentCycleFilter(item.label);
-                        setCurrentPage(1);
-                      }}
-                    />
-                  </div>
-
-                  <button className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-2">
-                    <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    <span>Unduh CSV</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Branch Filter Tabs (KANTOR CABANG:) */}
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap text-xs">
-                <span className="font-extrabold text-slate-400 uppercase tracking-wider mr-2 text-[10px]">
-                  KANTOR CABANG:
-                </span>
-
-                {[
-                  { label: "Semua Cabang", count: 148 },
-                  { label: "Jakarta", count: 62 },
-                  { label: "Semarang", count: 26 },
-                  { label: "Surabaya", count: 38 },
-                  { label: "Balikpapan", count: 22 },
-                  { label: "Medan", count: 14 },
-                ].map((b) => {
-                  const isSelected = selectedBranch === b.label;
-                  return (
-                    <button
-                      key={b.label}
-                      onClick={() => {
-                        setSelectedBranch(b.label);
-                        setCurrentPage(1);
-                      }}
-                      className={`px-3.5 py-1.5 rounded-full font-bold transition-all ${
-                        isSelected
-                          ? "bg-[#0F172A] text-white shadow-xs"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      {b.label} ({b.count})
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Split View: Left Table & Right Inspection Profile Panel */}
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-              {/* Left Customer Analytics Table */}
-              <div className="xl:col-span-8 bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs min-w-[650px]">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-extrabold text-[10px] tracking-wider uppercase">
-                        <th className="w-10 px-4 py-3.5 text-center">
-                          <input
-                            type="checkbox"
-                            checked={customers.length > 0 && customers.every((c) => checkedIds.includes(c.id))}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setCheckedIds(customers.map((c) => c.id));
-                              } else {
-                                setCheckedIds([]);
-                              }
-                            }}
-                            className="w-4 h-4 rounded accent-[#0F172A]"
-                          />
-                        </th>
-
-                        <th
-                          onClick={() => handleSort("customer_name")}
-                          className="px-4 py-3.5 cursor-pointer hover:text-slate-800 transition"
-                        >
-                          <div className="flex items-center gap-1">
-                            <span>CUSTOMER NAME &amp; ID</span>
-                            {sortBy === "customer_name" && (sortOrder === "asc" ? "▲" : "▼")}
-                          </div>
-                        </th>
-
-                        <th className="px-4 py-3.5">BRANCH OFFICE</th>
-
-                        <th
-                          onClick={() => handleSort("sales_profit")}
-                          className="px-4 py-3.5 text-right cursor-pointer hover:text-slate-800 transition"
-                        >
-                          <div className="flex items-center justify-end gap-1">
-                            <span>SALES PROFIT (MO.)</span>
-                            {sortBy === "sales_profit" && (sortOrder === "asc" ? "▲" : "▼")}
-                          </div>
-                        </th>
-
-                        <th
-                          onClick={() => handleSort("cost")}
-                          className="px-4 py-3.5 text-right cursor-pointer hover:text-slate-800 transition"
-                        >
-                          <div className="flex items-center justify-end gap-1">
-                            <span>COST (MO.)</span>
-                            {sortBy === "cost" && (sortOrder === "asc" ? "▲" : "▼")}
-                          </div>
-                        </th>
-
-                        <th
-                          onClick={() => handleSort("total_outstanding")}
-                          className="px-4 py-3.5 text-right cursor-pointer hover:text-slate-800 transition"
-                        >
-                          <div className="flex items-center justify-end gap-1">
-                            <span>TOTAL OUTSTANDING</span>
-                            {sortBy === "total_outstanding" && (sortOrder === "asc" ? "▲" : "▼")}
-                          </div>
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-100">
-                      {isLoading ? (
-                        <tr>
-                          <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-medium">
-                            Memuat data pelanggan...
+          </section>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] border-collapse text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                    <th className="px-6 py-3.5">Company</th>
+                    <th className="px-6 py-3.5">Branch</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {isLoading ? (
+                    <tr><td colSpan={2} className="px-6 py-12 text-center font-medium text-slate-400">Loading company data...</td></tr>
+                  ) : customers.length === 0 ? (
+                    <tr><td colSpan={2} className="px-6 py-12 text-center font-medium text-slate-400">No companies found matching search criteria.</td></tr>
+                  ) : (
+                    customers.map((customer) => {
+                      const initials = customer.customer_name.split(" ").map((word) => word[0]).join("").slice(0, 2).toUpperCase();
+                      const codes = customer.customer_codes ?? (customer.customer_code ? [customer.customer_code] : []);
+                      const companyId = customer.company_group_id ?? customer.customer_id ?? customer.id;
+                      const href = `/customer-analytics/${encodeURIComponent(companyId)}?returnTo=${encodeURIComponent(returnTo)}`;
+                      return (
+                        <tr key={companyId} className="transition-colors hover:bg-blue-50/60">
+                          <td className="px-6 py-4">
+                            <Link href={href} className="flex items-center gap-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-xs font-bold text-blue-700">{initials}</span>
+                              <span className="min-w-0">
+                                <span className="block font-bold text-blue-700 font-heading">{customer.customer_name}</span>
+                                <span className="mt-1 block text-[11px] font-medium text-slate-500">{codes.length ? `${codes.length} customer codes` : "No customer codes"}</span>
+                              </span>
+                            </Link>
                           </td>
+                          <td className="px-6 py-4 font-medium text-slate-600">{customer.branch}</td>
                         </tr>
-                      ) : customers.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-medium">
-                            Tidak ada pelanggan ditemukan sesuai filter.
-                          </td>
-                        </tr>
-                      ) : (
-                        customers.map((c) => {
-                          const isSelected = selectedCustomer?.id === c.id;
-                          const isChecked = checkedIds.includes(c.id);
-                          const initials = c.customer_name
-                            .split(" ")
-                            .map((w) => w[0])
-                            .join("")
-                            .slice(0, 2)
-                            .toUpperCase();
-
-                          return (
-                            <tr
-                              key={c.id}
-                              onClick={() => setSelectedCustomer(c)}
-                              className={`transition-colors cursor-pointer ${
-                                isSelected ? "bg-blue-50/70" : "hover:bg-slate-50/80"
-                              }`}
-                            >
-                              <td
-                                className="px-4 py-4 text-center"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => handleToggleCheckRow(c.id)}
-                                  className="w-4 h-4 rounded accent-[#0F172A]"
-                                />
-                              </td>
-
-                              <td className="px-4 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-extrabold text-xs shrink-0">
-                                    {initials}
-                                  </div>
-                                  <div>
-                                    <div className="font-extrabold text-blue-600 hover:underline">
-                                      {c.customer_name}
-                                    </div>
-                                    <div className="text-[11px] text-slate-500 font-medium mt-0.5">
-                                      {c.id} / NPWP: {c.npwp}
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-
-                              <td className="px-4 py-4">
-                                <span className="px-2.5 py-1 rounded bg-slate-100 text-slate-800 font-bold text-[11px]">
-                                  {c.branch_office_badge}
-                                </span>
-                              </td>
-
-                              <td className="px-4 py-4 text-right">
-                                <div className="font-extrabold text-emerald-600 flex items-center justify-end gap-1">
-                                  <span>{formatRupiah(c.sales_profit)}</span>
-                                  <span className="text-[10px]">▲</span>
-                                </div>
-                              </td>
-
-                              <td className="px-4 py-4 text-right font-extrabold text-slate-500">
-                                {formatRupiah(c.cost)}
-                              </td>
-
-                              <td className="px-4 py-4 text-right font-extrabold text-slate-900">
-                                {formatRupiah(c.total_outstanding)}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Table Footer with Pagination */}
-                <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-xs text-slate-500 font-medium">
-                    Menampilkan <span className="font-bold text-slate-800">1 - {customers.length}</span> dari{" "}
-                    <span className="font-bold text-slate-800">{totalItems}</span> pelanggan
-                  </div>
-
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={(p) => setCurrentPage(p)}
-                  />
-                </div>
-              </div>
-
-              {/* Right Inspection Target Profile Drawer */}
-              <div className="xl:col-span-4">
-                <InspectionDrawer
-                  customer={selectedCustomer}
-                  onOpenStatement={handleOpenStatement}
-                  onRefreshData={loadAnalyticsData}
-                />
-              </div>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
-          </main>
-        )}
+            <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-200 bg-slate-50 px-6 py-4 text-xs text-slate-500 sm:flex-row">
+              <span>Showing {customers.length ? (currentPage - 1) * itemsPerPage + 1 : 0}-{(currentPage - 1) * itemsPerPage + customers.length} of {totalItems} companies</span>
+              {!isLoading && <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />}
+            </div>
+          </section>
+        </main>
       </div>
     </div>
   );
 }
+
+function CustomerKpiSkeleton() { return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Loading company summary" aria-busy="true">{Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white p-5"><div className="h-3 w-28 rounded bg-slate-200" /><div className="mt-6 h-7 w-36 rounded bg-slate-200" /><div className="mt-3 h-3 w-24 rounded bg-slate-200" /></div>)}</div>; }

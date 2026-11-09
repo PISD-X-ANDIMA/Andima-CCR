@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Upload, AlertCircle, ListOrdered,
+  LayoutDashboard, AlertCircle, ListOrdered,
   Users, FileCheck, Lock, FileDown,
 } from "lucide-react";
 
 const menus = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-  { label: "Data Upload", icon: Upload, href: "/data-upload" },
   { label: "Cost Exception", icon: AlertCircle, href: "/cost-exception" },
   { label: "Priority Exception", icon: ListOrdered, href: "/priority-exception" }, // ← tambahkan
   { label: "Customer Cost", icon: Users, href: "/customer-cost" },
