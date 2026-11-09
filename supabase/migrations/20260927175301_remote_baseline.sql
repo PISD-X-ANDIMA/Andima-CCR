@@ -1,0 +1,1 @@
+-- Already applied on the linked Supabase project. Local history placeholder.
