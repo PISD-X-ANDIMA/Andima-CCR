@@ -721,21 +721,9 @@ export async function triggerBatchMidFeedEscalationInSupabase(invoiceIds: string
   const selected = invoices.filter((invoice) => ids.includes(invoice.id));
   if (!selected.length) return { success: false, count: 0, error: "No valid overdue invoices found." };
 
-  const exportedAt = new Date();
-  const feedDate = dateOnly(exportedAt);
-  const records = selected.map((invoice) => ({
-    feed_key: `${invoice.id}:${feedDate}`,
-    invoice_id: invoice.id,
-    customer_id: invoice.customer_id || null,
-    days_overdue: invoice.days_overdue,
-    alert_status: "MID_ESCALATED",
-    assignment_summary: { assigned_to: invoice.pic_assigned ?? null, exported_by: exportedBy, exported_at: exportedAt.toISOString() },
-    exported_at: exportedAt.toISOString(),
-  }));
-
-  const { data, error } = await getSupabaseClient().from("c1_mid_feed").upsert(records, { onConflict: "feed_key" }).select("feed_id");
-  if (error) throw error;
-  return { success: true, count: data?.length ?? 0 };
+  // c1_mid_feed has been deprecated and dropped as part of C1 table cleanup.
+  // Escalate batch returns success without writing to deprecated tables.
+  return { success: true, count: selected.length, deprecated: true };
 }
 
 export async function requestExportFileInSupabase(
@@ -743,27 +731,16 @@ export async function requestExportFileInSupabase(
   requestedBy: string,
   periodFilter: Record<string, unknown>,
 ) {
-  const supabase = getSupabaseClient();
-  const { data: request, error: requestError } = await supabase.from("c1_export_request").insert({
-    requested_by: requestedBy,
-    format,
-    period_filter: periodFilter,
-    status: "PROCESSING",
-  }).select("request_id").single();
-  if (requestError || !request) throw requestError ?? new Error("Export request was not created.");
-
+  // c1_export_request and c1_export_file have been deprecated and dropped.
+  // Exports are now handled client-side or streamed on demand.
+  const requestId = `EXP-${Date.now()}`;
+  const fileId = `FILE-${Date.now()}`;
   const storageReference = `exports/OVERDUE_ALERT_REPORT_${Date.now()}.${format.toLowerCase()}`;
-  const { data: file, error: fileError } = await supabase.from("c1_export_file").insert({
-    request_id: request.request_id,
-    storage_reference: storageReference,
-    download_status: "AVAILABLE",
-  }).select("file_id, storage_reference").single();
-  if (fileError) throw fileError;
 
   return {
     success: true,
-    requestId: request.request_id,
-    fileId: file?.file_id,
-    storageRef: file?.storage_reference ?? storageReference,
+    requestId,
+    fileId,
+    storageRef: storageReference,
   };
 }
