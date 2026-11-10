@@ -153,8 +153,7 @@ test("supabaseOverdueApi source code is fully decoupled from dropped dead tables
   assert.doesNotMatch(overdueApiSource, /\.from\(\s*["']c1_export_request["']\s*\)/);
   assert.doesNotMatch(overdueApiSource, /\.from\(\s*["']c1_export_file["']\s*\)/);
 
-  // Ensure decoupled export and escalation functions return clean responses
-  assert.match(overdueApiSource, /triggerBatchMidFeedEscalationInSupabase/);
-  assert.match(overdueApiSource, /requestExportFileInSupabase/);
-  assert.match(overdueApiSource, /deprecated:\s*true/);
+  // Ensure deprecated MID feed and server export helpers are fully purged
+  assert.doesNotMatch(overdueApiSource, /triggerBatchMidFeedEscalationInSupabase/);
+  assert.doesNotMatch(overdueApiSource, /requestExportFileInSupabase/);
 });

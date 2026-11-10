@@ -726,34 +726,3 @@ export async function fetchAssignmentHistoryInSupabase(invoiceId: string) {
   return deduplicated;
 }
 
-export async function triggerBatchMidFeedEscalationInSupabase(invoiceIds: string[], exportedBy: string) {
-  const ids = [...new Set(invoiceIds.map((id) => id.trim()).filter(Boolean))];
-  if (!ids.length) return { success: false, count: 0, error: "Select at least one invoice." };
-
-  const { invoices } = await fetchOverdueAlertsFromSupabase({ onlyOverdue30: true });
-  const selected = invoices.filter((invoice) => ids.includes(invoice.id));
-  if (!selected.length) return { success: false, count: 0, error: "No valid overdue invoices found." };
-
-  // c1_mid_feed has been deprecated and dropped as part of C1 table cleanup.
-  // Escalate batch returns success without writing to deprecated tables.
-  return { success: true, count: selected.length, deprecated: true };
-}
-
-export async function requestExportFileInSupabase(
-  format: "PDF" | "XLSX" | "CSV",
-  requestedBy: string,
-  periodFilter: Record<string, unknown>,
-) {
-  // c1_export_request and c1_export_file have been deprecated and dropped.
-  // Exports are now handled client-side or streamed on demand.
-  const requestId = `EXP-${Date.now()}`;
-  const fileId = `FILE-${Date.now()}`;
-  const storageReference = `exports/OVERDUE_ALERT_REPORT_${Date.now()}.${format.toLowerCase()}`;
-
-  return {
-    success: true,
-    requestId,
-    fileId,
-    storageRef: storageReference,
-  };
-}

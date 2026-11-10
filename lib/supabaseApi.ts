@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/server/admin";
-import { CustomerAnalyticsItem, CustomerCodeDetail, CustomerCodeOutstandingRow, CustomerCodeSalesRow, InvoiceDetail, KpiSummary, StatementOfAccountData } from '@/types/customer';
-import { INITIAL_KPI_SUMMARY, STATEMENT_AURORA_BLUE } from './customerData';
+import { CustomerAnalyticsItem, CustomerCodeDetail, CustomerCodeOutstandingRow, CustomerCodeSalesRow, InvoiceDetail, KpiSummary } from '@/types/customer';
+import { INITIAL_KPI_SUMMARY } from './customerData';
 
 export const getSupabaseClient = createAdminClient;
 
@@ -573,54 +573,6 @@ export async function bulkCloseInvoicesInSupabase(customerId: string, invoiceIds
   }
 }
 
-/** Fetch statement of account for customer from Supabase DB. */
-export async function fetchStatementFromSupabase(customerId: string): Promise<StatementOfAccountData | null> {
-  try {
-    const supabase = getSupabaseClient();
-    const { data: cust, error: custErr } = await supabase.from('customer').select('*').or(`customer_id.eq.${customerId},customer_name.ilike.%${customerId}%`).single();
-    if (custErr || !cust) return null;
-    const { data: invoices } = await supabase.from('invoice_detail').select('*').eq('customer_id', cust.customer_id);
-    const mutations = (invoices || []).map((inv: any) => ({
-      trans_date: new Date(inv.created_at || Date.now()).toLocaleDateString('id-ID'),
-      reference_no: inv.invoice_number,
-      bl_number: inv.bl_number || undefined,
-      cargo_description: inv.description || 'Freight Delivery',
-      due_date: inv.due_date,
-      debit: Number(inv.amount),
-      credit: inv.payment_status === 'PAID' ? Number(inv.amount) : 0,
-      cumulative_balance: Number(inv.amount),
-      status: inv.payment_status === 'PAID' ? 'Lunas Terposting' : 'Belum Lunas',
-      doc_action: 'Lihat INV',
-      raw_inv_id: inv.invoice_id,
-    }));
-    return {
-      customer_id: cust.customer_id,
-      customer_name: cust.customer_name,
-      legal_entity: cust.customer_name,
-      npwp: cust.npwp || '01.345.890.1-021.000',
-      category: 'Multimodal Ocean & Inland Freight',
-      segmentation: 'Tier-1 Corporate Shipper',
-      status_badge: 'Kredit Aktif - Batas Toleransi Normal',
-      main_hub: `${cust.branch} Hub Terminal`,
-      pic_account_officer: { name: cust.pic_name || 'Hendrawan Kusuma', phone: cust.pic_phone || '+62 21 5082 1199' },
-      client_finance_contact: { name: `Finance Dept (${cust.customer_name})`, email: cust.finance_email || 'finance@customer.co.id' },
-      credit_limit: Number(cust.credit_limit || 5000000000),
-      review_cycle: 'Aktif s/d Des 2026',
-      outstanding_balance: 1082000000,
-      credit_usage_percent: 21.64,
-      overdue_balance: 0,
-      overdue_status_text: 'Semua dalam termin lancar',
-      payment_accuracy: Number(cust.payment_accuracy || 94.2),
-      avg_dso_days: Number(cust.dso_days || 22.4),
-      top_days_policy: 30,
-      mutations: mutations.length > 0 ? mutations : STATEMENT_AURORA_BLUE.mutations,
-      bank_reconciliations: STATEMENT_AURORA_BLUE.bank_reconciliations,
-    };
-  } catch (error) {
-    console.error(`Error querying Supabase statement for ${customerId}:`, error);
-    return null;
-  }
-}
 
 export type CustomerPaymentTransaction = {
   payment_id: string;

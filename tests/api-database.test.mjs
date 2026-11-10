@@ -765,7 +765,7 @@ test("customer invoices resolve legacy CUST ids and tolerate pre-analytics C1 sc
   });
   const api = load("lib/supabaseApi.ts", {
     "@/lib/server/admin": { createAdminClient: makeClient },
-    "./customerData": { INITIAL_KPI_SUMMARY: {}, STATEMENT_AURORA_BLUE: {} },
+    "./customerData": { INITIAL_KPI_SUMMARY: {} },
   });
   const invoices = await api.fetchInvoicesFromSupabase("CUST-0001");
   assert.equal(invoices.length, 1);
@@ -851,7 +851,7 @@ test("customer invoices query chunks large alias sets to prevent HTTP headers/UR
 
   const api = load("lib/supabaseApi.ts", {
     "@/lib/server/admin": { createAdminClient: makeClient },
-    "./customerData": { INITIAL_KPI_SUMMARY: {}, STATEMENT_AURORA_BLUE: {} },
+    "./customerData": { INITIAL_KPI_SUMMARY: {} },
   });
 
   const invoices = await api.fetchInvoicesFromSupabase(primaryId);

@@ -124,12 +124,3 @@ export interface StaffOption {
   employee_id: string;
   full_name: string;
 }
-
-export interface WarningLetterParams {
-  escalationLevel: 'SP-1' | 'SP-2' | 'SP-3';
-  registrationNumber: string;
-  issueDate: string;
-  deadlineDate: string;
-  picName: string;
-  internalNotes: string;
-}
