@@ -102,3 +102,4 @@ service-account*.json
 .history/
 .npm/
 .pnpm-store/
+.gemini/
