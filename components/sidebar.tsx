@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAccount, accountRole } from "@/components/account-provider";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import {
   ChevronDown,
   Menu,
@@ -37,6 +38,7 @@ function HrmsLink({ label, href }: { label: string; href: string }) {
 }
 
 export default function Sidebar({ userName, userRole, userInitials, onSignOut, isSigningOut = false }: SidebarProps) {
+  const { t } = useLanguage();
   const pathname = usePathname();
   const router = useRouter();
   const isPublicRoute = pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
@@ -97,10 +99,10 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
             {isCcrOpen && (
               <div className="ml-5 mt-2 border-l border-[#d9e2fc]/20 pl-3">
                 <SidebarGroup label="C1" open={isC1Open} active={isC1Route} onToggle={() => setIsC1Open((value) => !value)}>
-                  <HrmsLink label="Sales Overview" href="/sales-overview" />
-                  <HrmsLink label="Uploaded Documents" href="/uploaded-documents" />
-                  <HrmsLink label="Customer Analytics" href="/customer-analytics" />
-                  <HrmsLink label="Overdue Alert" href="/overdue-alert" />
+                  <HrmsLink label={t("nav.salesOverview", "Sales Overview")} href="/sales-overview" />
+                  <HrmsLink label={t("nav.uploadedDocuments", "Uploaded Documents")} href="/uploaded-documents" />
+                  <HrmsLink label={t("nav.customerAnalytics", "Customer Analytics")} href="/customer-analytics" />
+                  <HrmsLink label={t("nav.overdueAlert", "Overdue Alert")} href="/overdue-alert" />
                 </SidebarGroup>
               </div>
             )}
@@ -116,10 +118,10 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
               onClick={() => void handleSignOut()}
               disabled={isSigningOut || isInternalSigningOut}
               className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-red-600 px-3 py-1.5 text-red-500 transition hover:bg-red-500/10 disabled:opacity-50 cursor-pointer font-heading font-bold"
-              aria-label="Logout"
-              title="Logout"
+              aria-label={t("nav.logout", "Logout")}
+              title={t("nav.logout", "Logout")}
             >
-              <span className="text-sm font-bold text-align-center">Logout</span>
+              <span className="text-sm font-bold text-align-center">{t("nav.logout", "Logout")}</span>
             </button>
           </div>
         </div>

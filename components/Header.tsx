@@ -9,12 +9,27 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ pageName }) => {
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
+
+  const translatedPageName = (() => {
+    switch (pageName) {
+      case "Sales Overview":
+        return t("nav.salesOverview", pageName);
+      case "Uploaded Documents":
+        return t("nav.uploadedDocuments", pageName);
+      case "Customer Analytics":
+        return t("nav.customerAnalytics", pageName);
+      case "Overdue Alert":
+        return t("nav.overdueAlert", pageName);
+      default:
+        return pageName;
+    }
+  })();
 
   return (
     <header className="h-16 bg-white border-b border-slate-200/80 px-6 md:px-8 flex items-center justify-between gap-3 shrink-0">
       <div className="min-w-0 text-xs font-semibold tracking-wide text-[#0F2342] font-heading">
-        CCR / <span className="text-[#1D4ED8] font-bold">{pageName}</span>
+        CCR / <span className="text-[#1D4ED8] font-bold">{translatedPageName}</span>
       </div>
 
       <div className="flex shrink-0 items-center gap-3 md:gap-4">

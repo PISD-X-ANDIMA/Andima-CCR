@@ -8,7 +8,7 @@ import { QUICK_PERIODS, matchingQuickPeriod, quickPeriodRange } from "@/lib/sale
 import { DocumentPreviewModal, RecentDocumentsPanel } from "./DocumentsPanel";
 import SalesOverviewExportModal from "./SalesOverviewExportModal";
 import type { RecentDocument } from "@/lib/salesOverviewDocuments";
-import type { StaffOption } from "@/types/overdue";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export type { RecentDocument } from "@/lib/salesOverviewDocuments";
 
@@ -41,9 +41,6 @@ type Props = {
   documents: RecentDocument[];
   documentsLoading: boolean;
   documentsError: string | null;
-  staffOptions?: StaffOption[];
-  staffLoading?: boolean;
-  canAssign?: boolean;
 };
 
 const money = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
@@ -65,6 +62,7 @@ function periodLabel(period: string) {
 }
 
 function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, disabled, buttonLabel }: Pick<Props, "startPeriod" | "endPeriod" | "onStartPeriodChange" | "onEndPeriodChange"> & { disabled: boolean; buttonLabel?: string }) {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [calendarYear, setCalendarYear] = useState(() => periodParts(endPeriod).year);
   const [draftStart, setDraftStart] = useState(startPeriod);
@@ -125,8 +123,8 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
 
   return (
     <div ref={rootRef} className="relative">
-      <button ref={triggerRef} type="button" onClick={openPicker} disabled={disabled} className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60 ${buttonLabel ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50" : "border-slate-200 bg-white text-slate-600"}`} aria-label={buttonLabel ? `${buttonLabel}: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}` : undefined} aria-expanded={isOpen} aria-haspopup="dialog">
-        <Calendar className="size-4 text-indigo-600" />
+      <button ref={triggerRef} type="button" onClick={openPicker} disabled={disabled} className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60 cursor-pointer ${buttonLabel ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50" : "border-slate-200 bg-white text-slate-600"}`} aria-label={buttonLabel ? `${buttonLabel}: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}` : undefined} aria-expanded={isOpen} aria-haspopup="dialog">
+        <Calendar className="size-4 text-blue-600" />
         <span>{buttonLabel ?? `${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}`}</span>
       </button>
       {isOpen && (
@@ -137,7 +135,7 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
             <button type="button" onClick={() => setCalendarYear((year) => year + 1)} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 cursor-pointer" aria-label="Next year"><ArrowRight className="size-4" /></button>
           </div>
           <p className="text-xs font-semibold text-slate-700">{selecting === "start" ? "Select start month" : "Select end month"}</p>
-          <p className="mb-3 text-[11px] text-slate-500">Click start month, then click end month to select period range.</p>
+          <p className="mb-3 text-[11px] text-slate-500">{t("salesOverview.customInstruction", "Click start month, then click end month to select period range.")}</p>
           <div className="grid grid-cols-3 gap-2">
             {monthNames.map((name, index) => {
               const value = `${calendarYear}-${String(index + 1).padStart(2, "0")}`;
@@ -152,8 +150,8 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
             <span><i className="mr-1 inline-block size-2 rounded-sm bg-[#3B6FF5]" />End</span>
           </div>
           <div className="mt-3 flex justify-end gap-2">
-            {selecting === "end" && <button type="button" onClick={() => { setSelecting("start"); setDraftStart(startPeriod); setDraftEnd(endPeriod); }} className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">Back</button>}
-            <button type="button" onClick={cancelPicker} className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">Cancel</button>
+            {selecting === "end" && <button type="button" onClick={() => { setSelecting("start"); setDraftStart(startPeriod); setDraftEnd(endPeriod); }} className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">{t("common.back", "Back")}</button>}
+            <button type="button" onClick={cancelPicker} className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">{t("common.cancel", "Cancel")}</button>
           </div>
         </div>
       )}
@@ -162,17 +160,22 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
 }
 
 function QuickPeriodFilters({ startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, disabled }: Pick<Props, "startPeriod" | "endPeriod" | "onStartPeriodChange" | "onEndPeriodChange"> & { disabled: boolean }) {
+  const { t } = useLanguage();
   const activeMonths = matchingQuickPeriod(startPeriod, endPeriod);
   return <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-1" role="group" aria-label="Quick period filters">
     {QUICK_PERIODS.map((period) => {
       const active = activeMonths === period.months;
-      return <button key={period.months} type="button" onClick={() => { const range = quickPeriodRange(endPeriod, period.months); onStartPeriodChange(range.startPeriod); onEndPeriodChange(range.endPeriod); }} disabled={disabled} aria-pressed={active} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer ${active ? "bg-[#3B6FF5] text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}>{period.label}</button>;
+      const label = period.months === 1
+        ? t("salesOverview.thisMonth", "This Month")
+        : t("salesOverview.previousMonths", "Previous Months");
+      return <button key={period.months} type="button" onClick={() => { const range = quickPeriodRange(endPeriod, period.months); onStartPeriodChange(range.startPeriod); onEndPeriodChange(range.endPeriod); }} disabled={disabled} aria-pressed={active} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer ${active ? "bg-[#3B6FF5] text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}>{label}</button>;
     })}
-    <MonthRangePicker startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={disabled} buttonLabel="Custom" />
+    <MonthRangePicker startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={disabled} buttonLabel={t("salesOverview.custom", "Custom")} />
   </div>;
 }
 
-export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], documents, documentsLoading, documentsError, staffOptions = [], staffLoading = false, canAssign = false }: Props) {
+export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], documents, documentsLoading, documentsError }: Props) {
+  const { t } = useLanguage();
   const hasMacro = Boolean(summary);
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -187,10 +190,10 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
   }
   return (
     <main className="min-h-screen bg-slate-50 p-4 font-sans text-slate-800 md:p-8">
-      {downloadError && <div role="alert" className="fixed right-4 top-4 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900 shadow-xl"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-rose-600" /><span className="flex-1">{downloadError}</span><button type="button" onClick={() => setDownloadError(null)} aria-label="Dismiss notification" className="rounded p-1 text-rose-700 hover:bg-rose-100"><X className="size-4" /></button></div>}
+      {downloadError && <div role="alert" className="fixed right-4 top-4 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900 shadow-xl"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-rose-600" /><span className="flex-1">{downloadError}</span><button type="button" onClick={() => setDownloadError(null)} aria-label="Dismiss notification" className="rounded p-1 text-rose-700 hover:bg-rose-100 cursor-pointer"><X className="size-4" /></button></div>}
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">Sales Overview</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">{t("salesOverview.title", "Sales Overview")}</h1>
           <div className="flex flex-wrap items-center gap-3">
             <QuickPeriodFilters startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={isLoading} />
             <button
@@ -198,25 +201,25 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
               onClick={() => setIsExportModalOpen(true)}
               disabled={isLoading}
               className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer shadow-xs"
-              aria-label="Sales Overview Export"
+              aria-label={t("salesOverview.exportButton", "Sales Overview Export")}
             >
               <FileText className="size-4 text-blue-600" />
-              Sales Overview Export
+              {t("salesOverview.exportButton", "Sales Overview Export")}
             </button>
-            <button type="button" onClick={onRefresh} disabled={isLoading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-60 cursor-pointer"><RefreshCw className={isLoading ? "size-4 animate-spin" : "size-4"} />Refresh</button>
+            <button type="button" onClick={onRefresh} disabled={isLoading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-60 cursor-pointer"><RefreshCw className={isLoading ? "size-4 animate-spin" : "size-4"} />{t("common.refresh", "Refresh")}</button>
           </div>
         </header>
         <section>
-          <div className="mb-3 flex items-center justify-between"><h2 className="text-xs font-semibold text-slate-500 font-heading">Monthly Macro Analytics</h2></div>
-          {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label="Sales Profit Period" value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail="Total Revenue - Cost" formula="Sales Profit = Revenue - Cost" icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label="Cost Requirement Period" value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail="Total operational costs" icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label="Outstanding Period" value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail="Total uncollected invoices" icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label="Net Margin Ratio" value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail="Ratio across selected period" formula="Net Margin Ratio = (Sales Profit / Revenue) x 100" icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
+          <div className="mb-3 flex items-center justify-between"><h2 className="text-xs font-semibold text-slate-500 font-heading">{t("salesOverview.macroAnalytics", "Monthly Macro Analytics")}</h2></div>
+          {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label={t("salesOverview.salesProfit", "Sales Profit Period")} value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail={t("salesOverview.salesProfitFormula", "Sales Profit = Revenue - Cost")} formula="Sales Profit = Revenue - Cost" icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.costRequirement", "Cost Requirement Period")} value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail={t("salesOverview.costDetail", "Total operational costs")} icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.outstandingPeriod", "Outstanding Period")} value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail={t("salesOverview.outstandingDetail", "Total uncollected invoices")} icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.netMarginRatio", "Net Margin Ratio")} value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail={t("salesOverview.ratioAcrossPeriod", "Ratio across selected period")} formula="Net Margin Ratio = (Sales Profit / Revenue) x 100" icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
         </section>
         <section aria-label="Sales Overview Charts" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ChartAreaStacked title="Sales & Cost Performance Trend" series={series} metrics={["revenue", "cost", "total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} loading={isLoading} error={error} />
-          <ChartAreaStacked title="Revenue" series={series} metrics={["revenue"]} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} loading={isLoading} error={error} />
-          <ChartAreaStacked title="Cost" series={series} metrics={["cost"]} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} loading={isLoading} error={error} />
-          <ChartAreaStacked title="Outstanding" series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} loading={isLoading} error={error} />
+          <ChartAreaStacked title={t("salesOverview.chartsTitle", "Sales & Cost Performance Trend")} series={series} metrics={["revenue", "cost", "total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
+          <ChartAreaStacked title={t("salesOverview.revenue", "Revenue")} series={series} metrics={["revenue"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
+          <ChartAreaStacked title={t("salesOverview.cost", "Cost")} series={series} metrics={["cost"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
+          <ChartAreaStacked title={t("salesOverview.outstandingPeriod", "Outstanding")} series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
         </section>
-        <AlertPanel alerts={alerts} loading={isLoading} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />
+        <AlertPanel alerts={alerts} loading={isLoading} onRefresh={onRefresh} />
         <RecentDocumentsPanel documents={documents} loading={documentsLoading} error={documentsError} onPreview={setPreviewDocumentId} onOpenOriginal={(id) => void openOriginal(id)} onRejectedDownload={showRejectedDownload} />
       </div>
       {previewDocumentId && <DocumentPreviewModal documentId={previewDocumentId} onClose={() => setPreviewDocumentId(null)} />}
@@ -237,7 +240,9 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
 }
 
 function MetricCard({ label, value, detail, formula, icon, empty }: { label: string; value: string; detail: string; formula?: string; icon: React.ReactNode; empty: boolean }) { return <article className="min-h-32 rounded-xl border border-slate-100 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><div className="flex items-center gap-1.5"><h3 className="text-xs font-semibold text-slate-600 font-heading">{label}</h3>{formula && <span className="group relative inline-flex"><button type="button" className="inline-flex size-4 items-center justify-center rounded-full border border-blue-200 text-blue-600" aria-label={`Formula for ${label}`} title={formula}><HelpCircle className="size-3" /></button><span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-slate-900 px-2.5 py-2 text-left text-[11px] font-medium normal-case tracking-normal text-white shadow-lg group-hover:block group-focus-within:block">{formula}</span></span>}</div><p className="text-[11px] text-slate-400">{detail}</p></div><span className="rounded bg-blue-50 p-1.5 text-blue-600">{icon}</span></div><p className={`mt-4 text-2xl font-bold tracking-tight font-heading ${empty ? "text-slate-400" : "text-slate-900"}`}>{value}</p><div className="mt-3 flex items-center gap-1 text-xs text-slate-500">{empty ? "No data yet" : <><Activity className="size-3.5 text-teal-600" />Validated</>}</div></article>; }
-function AlertPanel({ alerts, loading, staffOptions, staffLoading, canAssign, onRefresh }: { alerts: AlertRow[]; loading: boolean; staffOptions: StaffOption[]; staffLoading: boolean; canAssign: boolean; onRefresh: () => void }) {
+
+function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loading: boolean; onRefresh: () => void }) {
+  const { t } = useLanguage();
   const pageSize = 5;
   const alertsVersion = alerts.map((alert) => `${alert.id}:${alert.due}:${alert.amount}`).join("|");
   const [pageState, setPageState] = useState({ version: alertsVersion, page: 1 });
@@ -253,8 +258,8 @@ function AlertPanel({ alerts, loading, staffOptions, staffLoading, canAssign, on
     <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 font-heading">Overdue Alerts List</h2>
-          <p className="text-xs text-slate-500">Validated invoices exceeding 30 days, sorted by oldest due date.</p>
+          <h2 className="text-lg font-bold text-slate-900 font-heading">{t("salesOverview.overdueAlertsList", "Overdue Alerts List")}</h2>
+          <p className="text-xs text-slate-500">{t("salesOverview.overdueSubtitle", "Validated invoices exceeding 30 days, sorted by oldest due date.")}</p>
         </div>
         <span className="text-xs font-medium text-slate-500">
           Total: <strong className="text-slate-800 font-semibold">{totalItems}</strong> overdue
@@ -272,9 +277,6 @@ function AlertPanel({ alerts, loading, staffOptions, staffLoading, canAssign, on
                   key={`alert-row-${alert.id}-${alert.due}-${rowNumber}`}
                   alert={alert}
                   rowNumber={rowNumber}
-                  staffOptions={staffOptions}
-                  staffLoading={staffLoading}
-                  canAssign={canAssign}
                   onRefresh={onRefresh}
                 />
               );
@@ -282,8 +284,11 @@ function AlertPanel({ alerts, loading, staffOptions, staffLoading, canAssign, on
           </div>
           <div className="mt-5 flex flex-col items-center justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row">
             <p className="text-xs text-slate-500 font-medium">
-              Showing <span className="font-semibold text-slate-700">{startItem}-{endItem}</span> of{" "}
-              <span className="font-semibold text-slate-700">{totalItems}</span> overdue invoices
+              {t("common.showing", "Showing")}{" "}
+              <span className="font-semibold text-slate-700">{startItem}-{endItem}</span>{" "}
+              {t("common.of", "of")}{" "}
+              <span className="font-semibold text-slate-700">{totalItems}</span>{" "}
+              {t("common.invoices", "overdue invoices")}
             </p>
             {totalPages > 1 && (
               <div className="flex min-w-0 justify-center overflow-hidden">
@@ -297,13 +302,13 @@ function AlertPanel({ alerts, loading, staffOptions, staffLoading, canAssign, on
           </div>
         </>
       ) : (
-        <PanelEmpty text="No overdue alert data found." />
+        <PanelEmpty text={t("common.noData", "No overdue alert data found.")} />
       )}
     </section>
   );
 }
 
-function AlertCard({ alert, rowNumber }: { alert: AlertRow; rowNumber: number; staffOptions?: StaffOption[]; staffLoading?: boolean; canAssign?: boolean; onRefresh?: () => void }) {
+function AlertCard({ alert, rowNumber }: { alert: AlertRow; rowNumber: number; onRefresh?: () => void }) {
   return (
     <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-200/60 hover:border-slate-300 transition-colors">
       <div className="flex items-center justify-between text-xs font-bold">

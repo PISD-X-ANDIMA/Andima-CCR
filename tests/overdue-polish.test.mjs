@@ -56,9 +56,9 @@ test("OverdueInvoicePreviewModal adjusts labels, role visibility, and removes ca
   assert.match(previewModal, /<UserCheck className="size-4 text-blue-600" \/> PIC/);
   assert.doesNotMatch(previewModal, /<UserCheck className="size-4 text-blue-600" \/> PIC Penagihan/);
 
-  // 2. "Ganti PIC" and "Edit PIC" buttons require canAssign
-  assert.match(previewModal, /canAssign && onAssign &&/);
-  assert.match(previewModal, /canAssign && \([\s\S]*?<span>Edit PIC<\/span>/);
+  // 2. PIC assignment actions removed
+  assert.doesNotMatch(previewModal, /Change PIC/);
+  assert.doesNotMatch(previewModal, /<span>Edit PIC<\/span>/);
 
   // 3. Removed "Overdue Threshold Active (≥ 30 Days)" callout
   assert.doesNotMatch(previewModal, /Overdue Threshold Active/);
@@ -157,6 +157,7 @@ test("Customer Analytics and Overdue workflow enhancements meet user requirement
   assert.match(createView, /userRole === "MANAGEMENT"/);
   assert.match(createView, /Follow-up Creation Restricted to Staff/);
   assert.match(editView, /isManagement \? null/);
-  assert.match(editView, /View-only for Management/);
+  assert.doesNotMatch(editView, /View-only for Management/);
+  assert.doesNotMatch(editView, /Edit Collection PIC/);
 });
 

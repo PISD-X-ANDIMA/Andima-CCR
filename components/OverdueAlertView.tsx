@@ -11,8 +11,6 @@ import {
   Plus,
   RefreshCw,
   Search,
-  UserRound,
-  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
@@ -21,6 +19,7 @@ import Pagination from "@/components/Pagination";
 import OverdueInvoicePreviewModal from "./OverdueInvoicePreviewModal";
 import type { AssignmentRecord, OverdueInvoiceItem, OverdueKpiSummary, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type OverdueAlertViewProps = Record<string, never>;
 
@@ -74,6 +73,7 @@ function agingClasses(days: number) {
 }
 
 export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
+  const { t } = useLanguage();
   const router = useRouter();
   const [invoices, setInvoices] = useState<OverdueInvoiceItem[]>([]);
   const [kpiSummary, setKpiSummary] = useState<OverdueKpiSummary | null>(null);
@@ -88,9 +88,6 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
   const [onlyOverdue30, setOnlyOverdue30] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
-  const [assignModalInvoice, setAssignModalInvoice] = useState<OverdueInvoiceItem | null>(null);
-  const [assignTargetPic, setAssignTargetPic] = useState("");
-  const [isAssigning, setIsAssigning] = useState(false);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [staffLoading, setStaffLoading] = useState(true);
   const [canAssign, setCanAssign] = useState(false);
@@ -201,34 +198,6 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
     }
   };
 
-  const handleAssignPicSubmit = async () => {
-    if (!assignModalInvoice || !assignTargetPic || !canAssign || isAssigning) {
-      if (!assignTargetPic) showToast("Please select a PIC staff member.");
-      return;
-    }
-    setIsAssigning(true);
-    try {
-      const response = await fetch(`/api/v1/overdue/${encodeURIComponent(assignModalInvoice.id)}/assign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedTo: assignTargetPic }),
-      });
-      const body = await readJsonResponse<{ error?: { message?: string } }>(response);
-      if (!response.ok) throw new Error(responseMessage(body, "Failed to assign PIC."));
-      const staff = staffOptions.find((item) => item.employee_id === assignTargetPic);
-      showToast(`PIC ${staff?.full_name ?? assignTargetPic} assigned successfully.`);
-      const currentAssignedId = assignModalInvoice.id;
-      setAssignModalInvoice(null);
-      setAssignTargetPic("");
-      loadOverdueData();
-      refreshAssignmentHistory(currentAssignedId);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Assignment failed.");
-    } finally {
-      setIsAssigning(false);
-    }
-  };
-
   const kpi = kpiSummary ?? EMPTY_KPI;
   const totalPages = Math.max(1, Math.ceil(invoices.length / PAGE_SIZE));
   const paginatedInvoices = invoices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -246,11 +215,11 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
         <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl font-heading">Overdue Alerts &amp; Receivables Monitoring</h1>
-            <p className="mt-1 max-w-2xl text-xs text-slate-500">Monitor overdue receivables, coordinate collection staff, and record follow-up progress.</p>
+            <p className="mt-1 max-w-2xl text-xs text-slate-500">{t("overdue.subtitle", "Monitor overdue receivables and track customer collection status.")}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => void handleRefresh()} disabled={loading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-wait disabled:opacity-60 cursor-pointer">
-              <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />Refresh
+              <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />{t("common.refresh", "Refresh")}
             </button>
           </div>
         </section>
@@ -258,25 +227,25 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
         {loading ? <KpiSkeleton /> : (
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
-              label="Total Overdue Invoices"
+              label={t("overdue.cardTotalInvoices", "Total Overdue Invoices")}
               value={`${kpi.totalOverdueInvoices ?? kpi.affectedInvoicesCount}`}
-              detail="Total quantity of overdue invoices"
+              detail={t("overdue.cardTotalInvoicesDetail", "Total quantity of overdue invoices")}
             />
             <KpiCard
-              label="Total Overdue Amount"
+              label={t("overdue.cardTotalAmount", "Total Overdue Amount")}
               value={formatRupiah(kpi.totalOverdueAmount ?? kpi.totalOverdueValue)}
-              detail="Accumulated unpaid receivables"
+              detail={t("overdue.cardTotalAmountDetail", "Accumulated unpaid receivables")}
             />
             <KpiCard
-              label="Oldest Invoice"
-              value={`${kpi.oldestInvoiceDays ?? 0} Days`}
-              detail={kpi.oldestInvoiceNumber ? `${kpi.oldestInvoiceNumber} · ${kpi.oldestInvoiceCustomer ?? ""}` : "Overdue aging"}
+              label={t("overdue.cardOldestInvoice", "Oldest Invoice")}
+              value={`${kpi.oldestInvoiceDays ?? 0} ${t("common.days", "Days")}`}
+              detail={kpi.oldestInvoiceNumber ? `${kpi.oldestInvoiceNumber} · ${kpi.oldestInvoiceCustomer ?? ""}` : t("overdue.cardOldestInvoiceDetail", "Longest overdue delay")}
               accent="text-red-600"
             />
             <KpiCard
-              label="Active Cases"
-              value={`${kpi.activeCasesCount ?? kpi.totalActiveCustomers} Customers`}
-              detail="Customers with active overdue receivables"
+              label={t("overdue.cardActiveCases", "Active Cases")}
+              value={`${kpi.activeCasesCount ?? kpi.totalActiveCustomers} ${t("common.customer", "Customers")}`}
+              detail={t("overdue.cardActiveCasesDetail", "Customers with active overdue receivables")}
               accent="text-blue-700"
             />
           </section>
@@ -286,7 +255,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <label className="relative block min-w-0 flex-1 xl:max-w-md">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search invoice number, customer, or tax ID..." className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" />
+              <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={t("overdue.searchPlaceholder", "Search invoice number, customer, or tax ID...")} className="w-full rounded-md border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" />
             </label>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               <div className="w-full sm:w-44">
@@ -328,7 +297,6 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
             totalItems={invoices.length}
             onRetry={loadOverdueData}
             onSelect={(invoice) => { setSelectedInvoice(invoice); setCheckedIds((current) => current.includes(invoice.id) ? current.filter((id) => id === invoice.id) : [invoice.id]); }}
-            onAssign={setAssignModalInvoice}
             onPageChange={setCurrentPage}
             onPreview={(invoice) => setPreviewModalInvoice(invoice)}
             onEdit={(invoice) => router.push(`/overdue-alert/${encodeURIComponent(invoice.id)}/edit`)}
@@ -337,25 +305,6 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
           />
         </section>
       </main>
-
-      {assignModalInvoice && (
-        <AssignmentModal
-          invoice={assignModalInvoice}
-          staffOptions={staffOptions}
-          staffLoading={staffLoading}
-          canAssign={canAssign}
-          value={assignTargetPic}
-          onChange={setAssignTargetPic}
-          onClose={() => {
-            if (!isAssigning) {
-              setAssignModalInvoice(null);
-              setAssignTargetPic("");
-            }
-          }}
-          onSubmit={() => void handleAssignPicSubmit()}
-          isSubmitting={isAssigning}
-        />
-      )}
 
       {previewModalInvoice && (
         <OverdueInvoicePreviewModal
@@ -372,9 +321,6 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
           onCreate={(invoice) => {
             setPreviewModalInvoice(null);
             router.push(`/overdue-alert/${encodeURIComponent(invoice.id)}/create`);
-          }}
-          onAssign={(invoice) => {
-            setAssignModalInvoice(invoice);
           }}
         />
       )}
@@ -416,7 +362,6 @@ function InvoiceTable({
   totalItems,
   onRetry,
   onSelect,
-  onAssign,
   onPageChange,
   onPreview,
   onEdit,
@@ -432,13 +377,13 @@ function InvoiceTable({
   totalItems: number;
   onRetry: () => void;
   onSelect: (invoice: OverdueInvoiceItem) => void;
-  onAssign: (invoice: OverdueInvoiceItem) => void;
   onPageChange: (page: number) => void;
   onPreview: (invoice: OverdueInvoiceItem) => void;
   onEdit: (invoice: OverdueInvoiceItem) => void;
   onCreate: (invoice: OverdueInvoiceItem) => void;
   canAssign?: boolean;
 }) {
+  const { t } = useLanguage();
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
   const [menuCoords, setMenuCoords] = useState<{ top: number; left: number } | null>(null);
   const [menuInvoice, setMenuInvoice] = useState<OverdueInvoiceItem | null>(null);
@@ -494,20 +439,20 @@ function InvoiceTable({
     <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3">
         <div>
-          <h2 className="text-sm font-bold text-slate-900 font-heading">Overdue Invoices List</h2>
-          <p className="mt-0.5 text-[11px] text-slate-500">{totalItems} invoices from validated data</p>
+          <h2 className="text-sm font-bold text-slate-900 font-heading">{t("overdue.tableTitle", "Overdue Invoices List")}</h2>
+          <p className="mt-0.5 text-[11px] text-slate-500">{totalItems} {t("overdue.tableSubtitle", "invoices from validated data")}</p>
         </div>
       </div>
       <div className="overflow-x-auto min-h-[440px]">
         <table className="w-full min-w-[840px] border-collapse text-left text-xs">
           <thead className="sticky top-0 z-10 bg-slate-100 text-xs font-semibold text-slate-600">
             <tr className="border-b border-slate-200">
-              <th className="px-3 py-3">Invoice</th>
-              <th className="px-3 py-3">Customer</th>
-              <th className="px-3 py-3 text-right">Outstanding</th>
-              <th className="px-3 py-3 text-center">Aging</th>
-              <th className="px-3 py-3 text-center">Risk Status</th>
-              <th className="w-20 px-3 py-3 text-center">Action</th>
+              <th className="px-3 py-3">{t("overdue.colInvoice", "Invoice")}</th>
+              <th className="px-3 py-3">{t("overdue.colCustomer", "Customer")}</th>
+              <th className="px-3 py-3 text-right">{t("overdue.colOutstanding", "Outstanding")}</th>
+              <th className="px-3 py-3 text-center">{t("overdue.colAging", "Aging")}</th>
+              <th className="px-3 py-3 text-center">{t("overdue.colRiskStatus", "Risk Status")}</th>
+              <th className="w-20 px-3 py-3 text-center">{t("overdue.colAction", "Action")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -519,7 +464,7 @@ function InvoiceTable({
                   <AlertCircle className="mx-auto mb-2 h-5 w-5 text-red-500" />
                   <p className="text-xs font-semibold text-red-700">{errorMessage}</p>
                   <button type="button" onClick={onRetry} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline cursor-pointer">
-                    <RefreshCw className="h-3.5 w-3.5" />Try again
+                    <RefreshCw className="h-3.5 w-3.5" />{t("common.refresh", "Try again")}
                   </button>
                 </td>
               </tr>
@@ -527,7 +472,7 @@ function InvoiceTable({
               <tr>
                 <td colSpan={6} className="px-4 py-14 text-center">
                   <FileWarning className="mx-auto mb-2 h-5 w-5 text-slate-300" />
-                  <p className="text-xs font-semibold text-slate-500">No invoices match the selected filter.</p>
+                  <p className="text-xs font-semibold text-slate-500">{t("overdue.emptyFilter", "No invoices match the selected filter.")}</p>
                 </td>
               </tr>
             ) : (
@@ -556,7 +501,7 @@ function InvoiceTable({
                       <p className="mt-0.5 text-[10px] text-slate-500">{invoice.payment_note || "No payments yet"}</p>
                     </td>
                     <td className="px-3 py-3 text-center">
-                      <span className={`inline-flex rounded px-2 py-1 text-[11px] font-semibold ${agingClasses(invoice.days_overdue)}`}>{invoice.days_overdue} days</span>
+                      <span className={`inline-flex rounded px-2 py-1 text-[11px] font-semibold ${agingClasses(invoice.days_overdue)}`}>{invoice.days_overdue} {t("common.days", "days")}</span>
                     </td>
                     <td className="px-3 py-3 text-center">
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${riskClasses(invoice.risk_status)}`}>{invoice.risk_status}</span>
@@ -609,7 +554,7 @@ function InvoiceTable({
             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
           >
             <Eye className="size-3.5 text-blue-600" />
-            <span>Preview</span>
+            <span>{t("common.preview", "Preview")}</span>
           </button>
           {!canAssign && (
             <button
@@ -624,7 +569,7 @@ function InvoiceTable({
               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
             >
               <Plus className="size-3.5 text-blue-600" />
-              <span>Create</span>
+              <span>{t("overdue.addProgress", "Add Progress")}</span>
             </button>
           )}
           <button
@@ -639,229 +584,15 @@ function InvoiceTable({
             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
           >
             <Pencil className="size-3.5 text-blue-600" />
-            <span>{canAssign ? "Edit PIC" : "Edit Log"}</span>
+            <span>{t("overdue.editLog", "Edit Log")}</span>
           </button>
         </div>
       )}
       <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-        <span>Showing {totalItems ? (currentPage - 1) * PAGE_SIZE + 1 : 0}-{Math.min(currentPage * PAGE_SIZE, totalItems)} of {totalItems} invoices</span>
+        <span>
+          {t("common.showing", "Showing")} {totalItems ? (currentPage - 1) * PAGE_SIZE + 1 : 0}-{Math.min(currentPage * PAGE_SIZE, totalItems)} {t("common.of", "of")} {totalItems} {t("common.invoices", "invoices")}
+        </span>
         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={onPageChange} />
-      </div>
-    </div>
-  );
-}
-
-function AssignmentModal({
-  invoice,
-  staffOptions,
-  staffLoading,
-  canAssign,
-  value,
-  onChange,
-  onClose,
-  onSubmit,
-  isSubmitting = false,
-}: {
-  invoice: OverdueInvoiceItem;
-  staffOptions: StaffOption[];
-  staffLoading: boolean;
-  canAssign: boolean;
-  value: string;
-  onChange: (value: string) => void;
-  onClose: () => void;
-  onSubmit: () => void;
-  isSubmitting?: boolean;
-}) {
-  const [searchStaff, setSearchStaff] = useState("");
-
-  const filteredStaff = React.useMemo(() => {
-    const q = searchStaff.trim().toLowerCase();
-    if (!q) return staffOptions;
-    return staffOptions.filter(
-      (s) =>
-        s.full_name.toLowerCase().includes(q) ||
-        s.employee_id.toLowerCase().includes(q)
-    );
-  }, [staffOptions, searchStaff]);
-
-  const selectedStaffObj = staffOptions.find((s) => s.employee_id === value);
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="assignment-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm animate-in fade-in"
-    >
-      <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 bg-slate-50/70">
-          <div>
-            <h2 id="assignment-modal-title" className="text-sm font-bold text-slate-900 font-heading">
-              Assign Collection PIC
-            </h2>
-            <p className="text-[11px] text-slate-500">
-              Select an active CCR staff member to handle this overdue invoice
-            </p>
-          </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition cursor-pointer"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-
-        {/* Invoice Summary Card */}
-        <div className="border-b border-slate-100 bg-blue-50/40 px-5 py-3 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-mono font-bold text-blue-700">{invoice.invoice_number}</span>
-            <span className="font-bold text-red-600 font-heading">{formatRupiah(invoice.amount_overdue)}</span>
-          </div>
-          <p className="mt-0.5 font-medium text-slate-800 truncate">{invoice.customer_name}</p>
-        </div>
-
-        {/* Search Bar */}
-        <div className="px-5 pt-4 pb-2">
-          <label className="relative block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              autoFocus
-              value={searchStaff}
-              onChange={(e) => setSearchStaff(e.target.value)}
-              placeholder="Search staff name or employee ID..."
-              disabled={!canAssign || staffLoading}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2 pl-9 pr-8 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
-            />
-            {searchStaff && (
-              <button
-                type="button"
-                onClick={() => setSearchStaff("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="size-3.5" />
-              </button>
-            )}
-          </label>
-        </div>
-
-        {/* Staff List Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-2 space-y-1.5 max-h-[300px]">
-          {staffLoading ? (
-            <div className="py-10 text-center text-xs text-slate-400 space-y-2">
-              <RefreshCw className="size-5 mx-auto animate-spin text-blue-600" />
-              <p>Loading active CCR staff list...</p>
-            </div>
-          ) : !canAssign ? (
-            <div className="py-8 text-center text-xs text-amber-700">
-              <p className="font-semibold">Restricted Access</p>
-              <p className="text-[11px] mt-1 text-slate-500">Only Management role is authorized to assign PIC.</p>
-            </div>
-          ) : filteredStaff.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
-              <UserRound className="size-6 mx-auto mb-1.5 opacity-40" />
-              <p className="font-medium text-slate-600">No matching staff found</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Try a different search keyword.</p>
-            </div>
-          ) : (
-            filteredStaff.map((staff) => {
-              const isSelected = value === staff.employee_id;
-              const staffInit = staff.full_name
-                .split(/\s+/)
-                .filter(Boolean)
-                .map((part) => part[0])
-                .join("")
-                .slice(0, 2)
-                .toUpperCase();
-
-              return (
-                <div
-                  key={staff.employee_id}
-                  onClick={() => onChange(staff.employee_id)}
-                  className={`flex items-center justify-between rounded-xl border p-3 transition cursor-pointer ${
-                    isSelected
-                      ? "border-blue-500 bg-blue-50/80 ring-1 ring-blue-500 shadow-xs"
-                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={`flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                        isSelected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {staffInit}
-                    </div>
-                    <div className="min-w-0">
-                      <p className={`truncate text-xs font-bold ${isSelected ? "text-blue-950" : "text-slate-900"}`}>
-                        {staff.full_name}
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[11px] text-slate-500 font-semibold">{staff.employee_id}</span>
-                        <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-bold text-slate-600 uppercase">
-                          CCR Staff
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="ml-3 shrink-0">
-                    <span
-                      className={`flex size-5 items-center justify-center rounded-full border transition ${
-                        isSelected
-                          ? "border-blue-600 bg-blue-600 text-white"
-                          : "border-slate-300 bg-white"
-                      }`}
-                    >
-                      {isSelected && <Check className="size-3 stroke-[3]" />}
-                    </span>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Selected Staff Indicator */}
-        {selectedStaffObj && (
-          <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-2.5 text-xs flex items-center justify-between">
-            <span className="text-[11px] text-slate-500">Selected Staff:</span>
-            <span className="font-bold text-blue-700">
-              {selectedStaffObj.full_name} ({selectedStaffObj.employee_id})
-            </span>
-          </div>
-        )}
-
-        {/* Modal Footer */}
-        <div className="flex items-center gap-2.5 border-t border-slate-200 bg-slate-50 px-5 py-3.5">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="flex-1 rounded-xl border border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={!canAssign || staffLoading || !value || isSubmitting}
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 transition cursor-pointer"
-          >
-            {isSubmitting ? (
-              <>
-                <RefreshCw className="size-3.5 animate-spin" />
-                <span>Assigning...</span>
-              </>
-            ) : (
-              <span>Save Assignment</span>
-            )}
-          </button>
-        </div>
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface OverdueInvoicePreviewModalProps {
   open: boolean;
@@ -89,6 +90,7 @@ export default function OverdueInvoicePreviewModal({
   onCreate,
   onAssign,
 }: OverdueInvoicePreviewModalProps) {
+  const { t } = useLanguage();
   if (!open || !invoice) return null;
 
   const assignedStaff = invoice.pic_assigned
@@ -191,18 +193,6 @@ export default function OverdueInvoicePreviewModal({
                 <span className="text-xs font-bold text-slate-800 font-heading flex items-center gap-1.5">
                   <UserCheck className="size-4 text-blue-600" /> PIC
                 </span>
-                {canAssign && onAssign && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onAssign(invoice);
-                    }}
-                    className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition cursor-pointer"
-                  >
-                    {picName === "-" ? "Assign PIC" : "Change PIC"}
-                  </button>
-                )}
               </div>
               <div className="mt-3 flex items-center gap-3">
                 <div
@@ -416,39 +406,35 @@ export default function OverdueInvoicePreviewModal({
             onClick={onClose}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
           >
-            Close
+            {t("common.cancel", "Close")}
           </button>
           <div className="flex items-center gap-2">
-            {canAssign && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onEdit(invoice);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            >
+              <Pencil className="size-3.5 text-slate-500" />
+              <span>{t("overdue.editLog", "Edit Log")}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                if (onCreate) {
+                  onCreate(invoice);
+                } else {
                   onEdit(invoice);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <Pencil className="size-3.5 text-slate-500" />
-                <span>Edit PIC</span>
-              </button>
-            )}
-            {!canAssign && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  if (onCreate) {
-                    onCreate(invoice);
-                  } else {
-                    onEdit(invoice);
-                  }
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition cursor-pointer"
-              >
-                <Plus className="size-3.5" />
-                <span>Add Progress</span>
-              </button>
-            )}
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition cursor-pointer"
+            >
+              <Plus className="size-3.5" />
+              <span>{t("overdue.addProgress", "Add Progress")}</span>
+            </button>
           </div>
         </footer>
       </div>

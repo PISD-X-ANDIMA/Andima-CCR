@@ -8,6 +8,8 @@ import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import CustomerCodeDetailModal from "@/components/CustomerCodeDetailModal";
 import InvoiceDetailModal from "@/components/InvoiceDetailModal";
 import CustomerPaymentTrendChart from "@/components/CustomerPaymentTrendChart";
+import Pagination from "@/components/Pagination";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type CustomerInvoice = InvoiceDetail & { job_number?: string | null; mawb?: string | null; payments?: Array<{ payment_id: string; amount: number; payment_date: string; reference_no: string }> };
 type Props = { customerId: string; returnTo: string };
@@ -16,6 +18,7 @@ const formatRupiah = (value: number | null | undefined) => value == null ? "No d
 function statusClass(status: string) { if (status === "PAID") return "border-emerald-200 bg-emerald-50 text-emerald-700"; if (status === "PARTIAL") return "border-amber-200 bg-amber-50 text-amber-700"; return "border-slate-200 bg-slate-50 text-slate-600"; }
 
 export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props) {
+  const { t } = useLanguage();
   const [customer, setCustomer] = useState<CustomerAnalyticsItem | null>(null);
   const [invoices, setInvoices] = useState<CustomerInvoice[]>([]);
   const [canRecordPayment, setCanRecordPayment] = useState(false);
@@ -24,6 +27,7 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [selectedInvoiceDetail, setSelectedInvoiceDetail] = useState<CustomerInvoice | null>(null);
   const [codeSearch, setCodeSearch] = useState("");
+  const [codePage, setCodePage] = useState(1);
   const [openInvoice, setOpenInvoice] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -85,6 +89,14 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
         (r.customer_id && String(r.customer_id).toLowerCase().includes(q))
     );
   }, [codeRows, codeSearch]);
+
+  const CODE_PAGE_SIZE = 10;
+  const totalCodePages = Math.max(1, Math.ceil(filteredCodeRows.length / CODE_PAGE_SIZE));
+  const paginatedCodeRows = useMemo(() => {
+    return filteredCodeRows.slice((codePage - 1) * CODE_PAGE_SIZE, codePage * CODE_PAGE_SIZE);
+  }, [filteredCodeRows, codePage]);
+  const startCodeIndex = filteredCodeRows.length ? (codePage - 1) * CODE_PAGE_SIZE + 1 : 0;
+  const endCodeIndex = Math.min(codePage * CODE_PAGE_SIZE, filteredCodeRows.length);
   const metrics = useMemo(() => customer ? [["Sales Profit", customer.sales_profit], ["Current Month Cost", customer.current_month_cost ?? customer.cost], ["Total Outstanding", customer.total_outstanding]] as const : [], [customer]);
   const overdueSummary = useMemo(() => {
     const today = Date.parse(new Date().toISOString().slice(0, 10));
@@ -132,14 +144,20 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
             <input
               type="text"
               value={codeSearch}
-              onChange={(e) => setCodeSearch(e.target.value)}
+              onChange={(e) => {
+                setCodeSearch(e.target.value);
+                setCodePage(1);
+              }}
               placeholder="Search code, name, or customer ID..."
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-8 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
             />
             {codeSearch && (
               <button
                 type="button"
-                onClick={() => setCodeSearch("")}
+                onClick={() => {
+                  setCodeSearch("");
+                  setCodePage(1);
+                }}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="size-3.5" />
@@ -148,36 +166,50 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
           </div>
         </div>
       </div>
-      <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-slate-200">
-        <table className="w-full min-w-[640px] text-left text-xs">
-          <thead className="sticky top-0 bg-slate-50 text-xs font-bold text-slate-800 border-b border-slate-200">
-            <tr>
-              <th className="px-4 py-3">Customer Code</th>
-              <th className="px-4 py-3">Source Name</th>
-              <th className="px-4 py-3">Customer ID</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredCodeRows.map((row) => (
-              <tr
-                key={row.code}
-                onClick={() => setSelectedCode(row.code)}
-                className="hover:bg-blue-50/60 cursor-pointer transition"
-              >
-                <td className="px-4 py-3 font-bold text-blue-700 underline-offset-2 hover:underline">
-                  {row.code}
-                </td>
-                <td className="max-w-[420px] px-4 py-3 text-slate-800 font-medium">{row.customer_name}</td>
-                <td className="px-4 py-3 font-mono text-[11px] text-slate-500">{row.customer_id ?? "-"}</td>
+      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-xs">
+            <thead className="bg-slate-50 text-xs font-bold text-slate-800 border-b border-slate-200">
+              <tr>
+                <th className="px-4 py-3">Customer Code</th>
+                <th className="px-4 py-3">Source Name</th>
+                <th className="px-4 py-3">Customer ID</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {!codeRows.length ? (
-          <p className="p-6 text-center text-xs font-medium text-slate-400">No customer codes available.</p>
-        ) : !filteredCodeRows.length ? (
-          <p className="p-6 text-center text-xs font-medium text-slate-400">No matching customer codes found.</p>
-        ) : null}
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {paginatedCodeRows.map((row) => (
+                <tr
+                  key={row.code}
+                  onClick={() => setSelectedCode(row.code)}
+                  className="hover:bg-blue-50/60 cursor-pointer transition"
+                >
+                  <td className="px-4 py-3 font-bold text-blue-700 underline-offset-2 hover:underline">
+                    {row.code}
+                  </td>
+                  <td className="max-w-[420px] px-4 py-3 text-slate-800 font-medium">{row.customer_name}</td>
+                  <td className="px-4 py-3 font-mono text-[11px] text-slate-500">{row.customer_id ?? "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!codeRows.length ? (
+            <p className="p-6 text-center text-xs font-medium text-slate-400">No customer codes available.</p>
+          ) : !filteredCodeRows.length ? (
+            <p className="p-6 text-center text-xs font-medium text-slate-400">No matching customer codes found.</p>
+          ) : null}
+        </div>
+        <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            {t("common.showing", "Showing")} {startCodeIndex}-{endCodeIndex} {t("common.of", "of")} {filteredCodeRows.length} customer codes
+          </span>
+          {totalCodePages > 1 && (
+            <Pagination
+              currentPage={codePage}
+              totalPages={totalCodePages}
+              onPageChange={setCodePage}
+            />
+          )}
+        </div>
       </div>
     </section>
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
