@@ -6,6 +6,7 @@ import { Download, Eye, FileText, MoreVertical, X } from "lucide-react";
 import Pagination from "@/components/Pagination";
 import type { DocumentPreview, RecentDocument } from "@/lib/salesOverviewDocuments";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
+import { FriendlyErrorCard } from "@/components/UploadForm/uploadform";
 
 const dateFormatter = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" });
 const numberFormatter = new Intl.NumberFormat("id-ID");
@@ -53,7 +54,25 @@ export function DocumentPreviewModal({ documentId, onClose }: { documentId: stri
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="font-bold text-slate-900 font-heading">{preview?.document.file_name ?? "Document Preview"}</h2>{preview && <p className="text-xs text-slate-500">{documentType(preview.document.document_type)} · {statusLabel(preview.document.validation_status)}</p>}</div><button type="button" onClick={onClose} aria-label="Close preview" className="rounded-md p-2 text-slate-500 hover:bg-slate-100 cursor-pointer"><X className="size-5" /></button></div>
       <div className="min-h-0 overflow-y-auto p-5">
         {error ? <p className="py-10 text-center text-sm text-red-700">{error}</p> : !preview ? <div className="space-y-3 py-10" aria-label="Loading preview"><div className="mx-auto h-5 w-48 animate-pulse rounded bg-slate-200" /><div className="h-64 animate-pulse rounded-lg bg-slate-100" /></div> : <div className="space-y-5">
-          {preview.document.validation_status === "rejected" && <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"><p className="font-semibold">Document upload failed</p><p className="mt-1">The original file was not saved. Review the validation details below.</p>{preview.document.error_summary && <p className="mt-2 text-xs">{preview.document.error_summary}</p>}</div>}
+          {preview.document.validation_status === "rejected" && (
+            <div className="space-y-3">
+              <FriendlyErrorCard
+                issues={preview.errors.map((e) => ({
+                  code: e.error_code,
+                  message: e.error_message,
+                  field: e.field_name,
+                  row: e.row_number ?? undefined,
+                  rawValue: e.raw_value ?? undefined,
+                }))}
+                documentType={preview.document.document_type}
+              />
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+                <p className="font-semibold">Document upload failed</p>
+                <p className="mt-1">The original file was not saved. Review the validation details below.</p>
+                {preview.document.error_summary && <p className="mt-2 text-xs">{preview.document.error_summary}</p>}
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500"><span>{dateFormatter.format(new Date(preview.document.uploaded_at))}</span><span>{numberFormatter.format(preview.document.valid_row_count)} valid rows</span><span>{numberFormatter.format(preview.errors.length)} warnings/errors</span>{preview.signedUrl && <a href={preview.signedUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline"><Download className="size-3.5" />Open Original File</a>}</div>
           {preview.document.mime_type === "application/pdf" && preview.signedUrl && <iframe title={`Preview ${preview.document.file_name}`} src={preview.signedUrl} className="h-[32rem] w-full rounded-lg border border-slate-200" />}
           <section aria-label="Extracted document data"><h3 className="mb-2 text-sm font-bold text-slate-900 font-heading">Extracted Data</h3><div className="overflow-x-auto rounded-lg border border-slate-200"><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 text-slate-600 font-semibold"><tr>{Object.keys(preview.rows[0] ?? {}).filter((key) => key !== "id" && key !== "document_id").map((key) => <th key={key} className="whitespace-nowrap px-3 py-2">{key}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{preview.rows.length ? pageRows.map((row, index) => <tr key={`${String(row.row_number ?? index)}-${index}`}>{Object.entries(row).filter(([key]) => key !== "id" && key !== "document_id").map(([key, value]) => <td key={key} className="max-w-64 whitespace-nowrap px-3 py-2 text-slate-700">{String(value ?? "-")}</td>)}</tr>) : <tr><td className="px-3 py-8 text-center text-slate-500" colSpan={Math.max(1, Object.keys(preview.rows[0] ?? {}).length)}>No staging data available.</td></tr>}</tbody></table></div>{preview.rows.length > 0 && <div className="mt-3 flex flex-col gap-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between"><span>{preview.rows.length} rows · Page {rowPage} of {rowTotalPages} · 25 per page</span>{rowTotalPages > 1 && <Pagination currentPage={rowPage} totalPages={rowTotalPages} onPageChange={setRowPage} />}</div>}</section>

@@ -2,12 +2,15 @@
 
 import React from "react";
 import HeaderAccount from "@/components/headeraccount";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface HeaderProps {
   pageName: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({ pageName }) => {
+  const { language, setLanguage } = useLanguage();
+
   return (
     <header className="h-16 bg-white border-b border-slate-200/80 px-6 md:px-8 flex items-center justify-between gap-3 shrink-0">
       <div className="min-w-0 text-xs font-semibold tracking-wide text-[#0F2342] font-heading">
@@ -15,6 +18,40 @@ export const Header: React.FC<HeaderProps> = ({ pageName }) => {
       </div>
 
       <div className="flex shrink-0 items-center gap-3 md:gap-4">
+        {/* Language Switcher Toggle */}
+        <div
+          role="group"
+          aria-label="Select language"
+          className="flex items-center rounded-lg border border-slate-200 bg-slate-100/80 p-0.5 text-xs font-semibold"
+        >
+          <button
+            type="button"
+            onClick={() => setLanguage("en")}
+            className={`rounded-md px-2.5 py-1 text-[11px] transition-colors cursor-pointer ${
+              language === "en"
+                ? "bg-white text-blue-700 shadow-xs font-bold"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+            aria-label="Switch language to English"
+            aria-pressed={language === "en"}
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={() => setLanguage("id")}
+            className={`rounded-md px-2.5 py-1 text-[11px] transition-colors cursor-pointer ${
+              language === "id"
+                ? "bg-white text-blue-700 shadow-xs font-bold"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+            aria-label="Ganti bahasa ke Bahasa Indonesia"
+            aria-pressed={language === "id"}
+          >
+            ID
+          </button>
+        </div>
+
         <button
           type="button"
           aria-label="Notifications"

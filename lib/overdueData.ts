@@ -1,6 +1,10 @@
 import { OverdueInvoiceItem, OverdueKpiSummary } from '@/types/overdue';
 
 export const INITIAL_OVERDUE_KPI: OverdueKpiSummary = {
+  totalOverdueInvoices: 48,
+  totalOverdueAmount: 8420000000,
+  oldestInvoiceDays: 75,
+  activeCasesCount: 14,
   totalActiveCustomers: 0,
   highRiskOutstanding: 0,
   topContributingCustomer: null,

@@ -108,7 +108,12 @@ export function calculateOverdueKpi(invoices: OverdueInvoiceItem[]): OverdueKpiS
     ? invoices.reduce((sum, invoice) => sum + invoice.days_overdue, 0) / invoices.length
     : 0;
   const customerTotals = new Map<string, { name: string; outstanding: number; invoiceCount: number }>();
+  let oldestInvoice: OverdueInvoiceItem | null = null;
+
   for (const invoice of invoices) {
+    if (!oldestInvoice || invoice.days_overdue > oldestInvoice.days_overdue) {
+      oldestInvoice = invoice;
+    }
     const customerId = invoice.customer_id?.trim().toLowerCase();
     const customerName = invoice.customer_name?.trim() || "Pelanggan tidak tersedia";
     const key = customerId ? `id:${customerId}` : `name:${customerName.toLowerCase()}`;
@@ -127,6 +132,12 @@ export function calculateOverdueKpi(invoices: OverdueInvoiceItem[]): OverdueKpiS
     .reduce((sum, invoice) => sum + invoice.amount_overdue, 0);
 
   return {
+    totalOverdueInvoices: invoices.length,
+    totalOverdueAmount: total,
+    oldestInvoiceDays: oldestInvoice ? oldestInvoice.days_overdue : 0,
+    oldestInvoiceNumber: oldestInvoice ? oldestInvoice.invoice_number : null,
+    oldestInvoiceCustomer: oldestInvoice ? oldestInvoice.customer_name : null,
+    activeCasesCount: customerTotals.size,
     totalActiveCustomers: customerTotals.size,
     highRiskOutstanding,
     topContributingCustomer,

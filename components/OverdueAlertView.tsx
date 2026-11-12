@@ -25,6 +25,12 @@ import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 type OverdueAlertViewProps = Record<string, never>;
 
 const EMPTY_KPI: OverdueKpiSummary = {
+  totalOverdueInvoices: 0,
+  totalOverdueAmount: 0,
+  oldestInvoiceDays: 0,
+  oldestInvoiceNumber: null,
+  oldestInvoiceCustomer: null,
+  activeCasesCount: 0,
   totalActiveCustomers: 0,
   highRiskOutstanding: 0,
   topContributingCustomer: null,
@@ -51,10 +57,6 @@ function formatDate(value?: string | null) {
   if (!value || value === "-") return "-";
   const date = new Date(`${value.slice(0, 10)}T00:00:00`);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function initials(name?: string) {
-  return name?.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "-";
 }
 
 function riskClasses(status: string) {
@@ -255,10 +257,28 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
 
         {loading ? <KpiSkeleton /> : (
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="Total Overdue Value" value={formatRupiah(kpi.totalOverdueValue)} detail={`${kpi.affectedInvoicesCount} invoices affected`} />
-            <KpiCard label="Critical Aging (>60 Days)" value={formatRupiah(kpi.criticalAgingValue)} detail={`${kpi.criticalAgingPercent.toFixed(1)}% of portfolio`} accent="text-red-600" />
-            <KpiCard label="Average DSO Delay" value={`${kpi.avgDsoDelay} days`} detail={`+${kpi.slaDiff} days above 30-day SLA`} />
-            <KpiCard label="Unassigned PIC" value={`${kpi.unassignedPicCount} invoices`} detail={`Floating value ${formatRupiah(kpi.unassignedFloatingValue)}`} accent="text-blue-700" />
+            <KpiCard
+              label="Total Overdue Invoices"
+              value={`${kpi.totalOverdueInvoices ?? kpi.affectedInvoicesCount}`}
+              detail="Total quantity of overdue invoices"
+            />
+            <KpiCard
+              label="Total Overdue Amount"
+              value={formatRupiah(kpi.totalOverdueAmount ?? kpi.totalOverdueValue)}
+              detail="Accumulated unpaid receivables"
+            />
+            <KpiCard
+              label="Oldest Invoice"
+              value={`${kpi.oldestInvoiceDays ?? 0} Days`}
+              detail={kpi.oldestInvoiceNumber ? `${kpi.oldestInvoiceNumber} · ${kpi.oldestInvoiceCustomer ?? ""}` : "Overdue aging"}
+              accent="text-red-600"
+            />
+            <KpiCard
+              label="Active Cases"
+              value={`${kpi.activeCasesCount ?? kpi.totalActiveCustomers} Customers`}
+              detail="Customers with active overdue receivables"
+              accent="text-blue-700"
+            />
           </section>
         )}
 
@@ -479,7 +499,7 @@ function InvoiceTable({
         </div>
       </div>
       <div className="overflow-x-auto min-h-[440px]">
-        <table className="w-full min-w-[940px] border-collapse text-left text-xs">
+        <table className="w-full min-w-[840px] border-collapse text-left text-xs">
           <thead className="sticky top-0 z-10 bg-slate-100 text-xs font-semibold text-slate-600">
             <tr className="border-b border-slate-200">
               <th className="px-3 py-3">Invoice</th>
@@ -487,16 +507,15 @@ function InvoiceTable({
               <th className="px-3 py-3 text-right">Outstanding</th>
               <th className="px-3 py-3 text-center">Aging</th>
               <th className="px-3 py-3 text-center">Risk Status</th>
-              <th className="px-3 py-3 text-center">PIC</th>
               <th className="w-20 px-3 py-3 text-center">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? [1, 2, 3, 4, 5].map((item) => (
-              <tr key={item}><td colSpan={7} className="px-4 py-4"><div className="h-8 animate-pulse rounded bg-slate-100" /></td></tr>
+              <tr key={item}><td colSpan={6} className="px-4 py-4"><div className="h-8 animate-pulse rounded bg-slate-100" /></td></tr>
             )) : errorMessage ? (
               <tr>
-                <td colSpan={7} className="px-4 py-14 text-center">
+                <td colSpan={6} className="px-4 py-14 text-center">
                   <AlertCircle className="mx-auto mb-2 h-5 w-5 text-red-500" />
                   <p className="text-xs font-semibold text-red-700">{errorMessage}</p>
                   <button type="button" onClick={onRetry} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline cursor-pointer">
@@ -506,14 +525,13 @@ function InvoiceTable({
               </tr>
             ) : !invoices.length ? (
               <tr>
-                <td colSpan={7} className="px-4 py-14 text-center">
+                <td colSpan={6} className="px-4 py-14 text-center">
                   <FileWarning className="mx-auto mb-2 h-5 w-5 text-slate-300" />
                   <p className="text-xs font-semibold text-slate-500">No invoices match the selected filter.</p>
                 </td>
               </tr>
             ) : (
               invoices.map((invoice) => {
-                const assigned = Boolean(invoice.pic_assigned);
                 const contactText = invoice.contact_person?.name && invoice.contact_person.name !== "-" && invoice.contact_person.name !== "Kontak tidak tersedia" && invoice.contact_person.name !== "Contact not available"
                   ? `${invoice.contact_person.name}${invoice.contact_person.phone && invoice.contact_person.phone !== "-" && invoice.contact_person.phone !== "Kontak tidak tersedia" && invoice.contact_person.phone !== "Contact not available" ? ` (${invoice.contact_person.phone})` : ""}`
                   : "Contact not available";
@@ -542,18 +560,6 @@ function InvoiceTable({
                     </td>
                     <td className="px-3 py-3 text-center">
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${riskClasses(invoice.risk_status)}`}>{invoice.risk_status}</span>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <div className="flex min-w-[126px] items-center justify-center gap-2">
-                        {assigned ? (
-                          <>
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">{invoice.pic_initials || initials(invoice.pic_assigned)}</span>
-                            <span className="max-w-[70px] truncate text-[11px] font-medium text-slate-700">{invoice.pic_assigned}</span>
-                          </>
-                        ) : (
-                          <button type="button" onClick={(event) => { event.stopPropagation(); onAssign(invoice); }} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-bold text-blue-700 hover:bg-blue-100 cursor-pointer">Assign PIC</button>
-                        )}
-                      </div>
                     </td>
                     <td className="px-3 py-3 text-center" onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-center">

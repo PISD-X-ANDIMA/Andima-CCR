@@ -100,6 +100,12 @@ export interface OverdueInvoiceItem {
 }
 
 export interface OverdueKpiSummary {
+  totalOverdueInvoices: number;
+  totalOverdueAmount: number;
+  oldestInvoiceDays: number;
+  oldestInvoiceNumber?: string | null;
+  oldestInvoiceCustomer?: string | null;
+  activeCasesCount: number;
   totalActiveCustomers: number;
   highRiskOutstanding: number;
   topContributingCustomer: {

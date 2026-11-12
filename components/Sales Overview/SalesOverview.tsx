@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
 import Pagination from "@/components/Pagination";
 import { AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Calendar, FileText, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle, X } from "lucide-react";
 import { ChartAreaStacked } from "./chart";
@@ -137,7 +136,8 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
             <span className="text-sm font-bold text-slate-900 font-heading">{calendarYear}</span>
             <button type="button" onClick={() => setCalendarYear((year) => year + 1)} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 cursor-pointer" aria-label="Next year"><ArrowRight className="size-4" /></button>
           </div>
-          <p className="mb-3 text-xs text-slate-500">{selecting === "start" ? "Select start month" : "Select end month"}</p>
+          <p className="text-xs font-semibold text-slate-700">{selecting === "start" ? "Select start month" : "Select end month"}</p>
+          <p className="mb-3 text-[11px] text-slate-500">Click start month, then click end month to select period range.</p>
           <div className="grid grid-cols-3 gap-2">
             {monthNames.map((name, index) => {
               const value = `${calendarYear}-${String(index + 1).padStart(2, "0")}`;
@@ -211,10 +211,10 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
           {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label="Sales Profit Period" value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail="Total Revenue - Cost" formula="Sales Profit = Revenue - Cost" icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label="Cost Requirement Period" value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail="Total operational costs" icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label="Outstanding Period" value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail="Total uncollected invoices" icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label="Net Margin Ratio" value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail="Ratio across selected period" formula="Net Margin Ratio = (Sales Profit / Revenue) x 100" icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
         </section>
         <section aria-label="Sales Overview Charts" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ChartAreaStacked title="Sales & Cost Performance Trend" series={series} metrics={["revenue", "cost", "total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
-          <ChartAreaStacked title="Revenue" series={series} metrics={["revenue"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
-          <ChartAreaStacked title="Cost" series={series} metrics={["cost"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
-          <ChartAreaStacked title="Outstanding" series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
+          <ChartAreaStacked title="Sales & Cost Performance Trend" series={series} metrics={["revenue", "cost", "total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} loading={isLoading} error={error} />
+          <ChartAreaStacked title="Revenue" series={series} metrics={["revenue"]} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} loading={isLoading} error={error} />
+          <ChartAreaStacked title="Cost" series={series} metrics={["cost"]} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} loading={isLoading} error={error} />
+          <ChartAreaStacked title="Outstanding" series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} loading={isLoading} error={error} />
         </section>
         <AlertPanel alerts={alerts} loading={isLoading} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />
         <RecentDocumentsPanel documents={documents} loading={documentsLoading} error={documentsError} onPreview={setPreviewDocumentId} onOpenOriginal={(id) => void openOriginal(id)} onRejectedDownload={showRejectedDownload} />
@@ -242,36 +242,85 @@ function AlertPanel({ alerts, loading, staffOptions, staffLoading, canAssign, on
   const alertsVersion = alerts.map((alert) => `${alert.id}:${alert.due}:${alert.amount}`).join("|");
   const [pageState, setPageState] = useState({ version: alertsVersion, page: 1 });
   const ordered = [...alerts].sort((a, b) => a.due.localeCompare(b.due));
-  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
+  const totalItems = ordered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const currentPage = pageState.version === alertsVersion ? Math.min(pageState.page, totalPages) : 1;
   const visible = ordered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  return <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-lg font-bold text-slate-900 font-heading">Overdue Alerts List</h2><p className="mb-4 text-xs text-slate-500">Validated invoices exceeding 30 days, sorted by oldest due date.</p>{loading ? <AlertSkeleton /> : ordered.length ? <><div className="space-y-3">{visible.map((alert, index) => <AlertCard key={`alert-row-${alert.id}-${alert.due}-${(currentPage - 1) * pageSize + index}`} alert={alert} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />)}</div>{totalPages > 1 && <div className="mt-5 flex min-w-0 justify-center overflow-hidden"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })} /></div>}</> : <PanelEmpty text="No overdue alert data found." />}</section>;
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  return (
+    <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 font-heading">Overdue Alerts List</h2>
+          <p className="text-xs text-slate-500">Validated invoices exceeding 30 days, sorted by oldest due date.</p>
+        </div>
+        <span className="text-xs font-medium text-slate-500">
+          Total: <strong className="text-slate-800 font-semibold">{totalItems}</strong> overdue
+        </span>
+      </div>
+      {loading ? (
+        <AlertSkeleton />
+      ) : ordered.length ? (
+        <>
+          <div className="space-y-3">
+            {visible.map((alert, index) => {
+              const rowNumber = (currentPage - 1) * pageSize + index + 1;
+              return (
+                <AlertCard
+                  key={`alert-row-${alert.id}-${alert.due}-${rowNumber}`}
+                  alert={alert}
+                  rowNumber={rowNumber}
+                  staffOptions={staffOptions}
+                  staffLoading={staffLoading}
+                  canAssign={canAssign}
+                  onRefresh={onRefresh}
+                />
+              );
+            })}
+          </div>
+          <div className="mt-5 flex flex-col items-center justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row">
+            <p className="text-xs text-slate-500 font-medium">
+              Showing <span className="font-semibold text-slate-700">{startItem}-{endItem}</span> of{" "}
+              <span className="font-semibold text-slate-700">{totalItems}</span> overdue invoices
+            </p>
+            {totalPages > 1 && (
+              <div className="flex min-w-0 justify-center overflow-hidden">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })}
+                />
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <PanelEmpty text="No overdue alert data found." />
+      )}
+    </section>
+  );
 }
 
-function AlertCard({ alert, canAssign = false }: { alert: AlertRow; staffOptions?: StaffOption[]; staffLoading?: boolean; canAssign?: boolean; onRefresh?: () => void }) {
+function AlertCard({ alert, rowNumber }: { alert: AlertRow; rowNumber: number; staffOptions?: StaffOption[]; staffLoading?: boolean; canAssign?: boolean; onRefresh?: () => void }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-3">
-      <div className="flex justify-between text-xs font-bold">
-        <span>{alert.id}</span>
-        <span className="text-red-600">{alert.days} Days</span>
+    <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-200/60 hover:border-slate-300 transition-colors">
+      <div className="flex items-center justify-between text-xs font-bold">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center justify-center rounded-md bg-blue-100 px-1.5 py-0.5 text-[11px] font-semibold text-blue-800 font-mono">
+            #{rowNumber}
+          </span>
+          <span className="text-slate-800">{alert.id}</span>
+        </div>
+        <span className="text-red-600 font-semibold">{alert.days} Days</span>
       </div>
       <p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p>
-      <p className="text-[10px] text-slate-500">Due: {alert.due} · {money.format(alert.amount)}</p>
+      <p className="text-[11px] text-slate-500">Due: {alert.due} · {money.format(alert.amount)}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
         <span>{alert.branch || "Branch unavailable"}</span>
-        {alert.picAssigned && <span className="font-semibold text-slate-700">PIC: {alert.picAssigned}</span>}
         {alert.riskStatus && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">{alert.riskStatus}</span>}
       </div>
-      {canAssign && (
-        <div className="mt-3 flex justify-end">
-          <Link
-            href="/overdue-alert"
-            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-xs hover:bg-blue-700 transition cursor-pointer"
-          >
-            Assign PIC
-          </Link>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,8 +1,6 @@
 export const QUICK_PERIODS = [
-  { months: 1, label: "1 Bulan" },
-  { months: 3, label: "3 Bulan" },
-  { months: 6, label: "6 Bulan" },
-  { months: 12, label: "12 Bulan" },
+  { months: 1, label: "This Month" },
+  { months: 3, label: "Previous Months" },
 ] as const;
 
 export function shiftPeriod(value: string, offset: number) {

@@ -45,9 +45,7 @@ export async function GET(req: NextRequest) {
     const databaseStarted = performance.now();
     const { invoices: allInvoices, fromDb } = await fetchOverdueAlertsFromSupabase({ onlyOverdue30 }, createAdminClient());
     const databaseDuration = performance.now() - databaseStarted;
-    const invoices = profile.resolved_role === "STAFF"
-      ? allInvoices.filter((invoice) => invoice.pic_assigned === profile.employee_id || invoice.pic_assigned === profile.full_name)
-      : allInvoices;
+    const invoices = allInvoices;
 
     const filtered = invoices.filter((invoice) => {
       const branchMatches = !branch || branch === "all" || matches(branch, "Semua Cabang") || matches(branch, "All Branches") || branch?.toLowerCase() === invoice.branch.toLowerCase();

@@ -42,10 +42,8 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   const isPublicRoute = pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isC1Route = ["/sales-overview", "/uploaded-documents", "/customer-analytics", "/overdue-alert"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
-  const isC2Route = ["/dashboard", "/cost-exception", "/priority-exception", "/customer-cost", "/evidence", "/monthly-closing", "/export-report"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const [isCcrOpen, setIsCcrOpen] = useState(true);
-  const [isC1Open, setIsC1Open] = useState(isC1Route);
-  const [isC2Open, setIsC2Open] = useState(isC2Route);
+  const [isC1Open, setIsC1Open] = useState(true);
   const [isInternalSigningOut, setIsInternalSigningOut] = useState(false);
   const { account: loaded, clearAccount } = useAccount();
   const account = { name: userName ?? loaded?.full_name ?? "Andima User", role: userRole ?? accountRole(loaded?.app_role, "CCR User"), initials: userInitials ?? loaded?.initials ?? "AU" };
@@ -103,15 +101,6 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
                   <HrmsLink label="Uploaded Documents" href="/uploaded-documents" />
                   <HrmsLink label="Customer Analytics" href="/customer-analytics" />
                   <HrmsLink label="Overdue Alert" href="/overdue-alert" />
-                </SidebarGroup>
-                <SidebarGroup label="C2" open={isC2Open} active={isC2Route} onToggle={() => setIsC2Open((value) => !value)}>
-                  <HrmsLink label="Dashboard" href="/dashboard" />
-                  <HrmsLink label="Cost Exception" href="/cost-exception" />
-                  <HrmsLink label="Priority Exception" href="/priority-exception" />
-                  <HrmsLink label="Customer Cost" href="/customer-cost" />
-                  <HrmsLink label="Evidence" href="/evidence" />
-                  <HrmsLink label="Monthly Closing" href="/monthly-closing" />
-                  <HrmsLink label="Export Report" href="/export-report" />
                 </SidebarGroup>
               </div>
             )}

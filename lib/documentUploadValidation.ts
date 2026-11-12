@@ -137,3 +137,105 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
   }
   return { errors, warnings, rows: valid, unmatchedCustomerCount: 0 };
 }
+
+export type FriendlyErrorReason = {
+  title: string;
+  description: string;
+  suggestions: string[];
+};
+
+export function getFriendlyErrorReason(
+  errors: { field?: string; row?: number; code?: string; message?: string }[] = [],
+  documentType?: DocumentType | string
+): FriendlyErrorReason {
+  if (!errors.length) {
+    return {
+      title: "Document Validation Notice",
+      description: "Validation did not pass. Please check the file formatting.",
+      suggestions: ["Check that the document matches the expected template."],
+    };
+  }
+
+  const codes = new Set(errors.map((e) => (e.code ?? "").toUpperCase()));
+  const messages = errors.map((e) => (e.message ?? "").toLowerCase()).join(" ");
+
+  if (codes.has("PARSE_FAILED") || messages.includes("parse") || messages.includes("extract")) {
+    return {
+      title: "File Could Not Be Read",
+      description: "We could not extract readable table data from this file. Scanned PDF documents without selectable text cannot be processed automatically.",
+      suggestions: [
+        "If uploading a PDF, export it directly as a digital PDF from your accounting or ERP software.",
+        "Ensure the file is not password-protected or corrupted.",
+        "For spreadsheets, save as a standard Excel (.xlsx or .xls) file.",
+      ],
+    };
+  }
+
+  if (codes.has("MISSING_HEADER") || messages.includes("kolom wajib") || messages.includes("missing header")) {
+    const isSales = documentType === "COMPANY_SALES_REPORT";
+    return {
+      title: "Required Columns Are Missing",
+      description: "Some required column headers were not recognized. The system uses column names to organize your data.",
+      suggestions: [
+        "Make sure the table headers are located on the first row of your spreadsheet.",
+        isSales
+          ? "Ensure required columns exist: Period, Customer, Revenue, Trucking Cost, Handling Cost, Storage Cost, Other Cost."
+          : "Ensure required columns exist: Invoice Number, Customer Name, Outstanding Amount, Due Date.",
+        "Check that column headers do not have accidental typos.",
+      ],
+    };
+  }
+
+  if (codes.has("DUPLICATE_INVOICE") || messages.includes("duplikat")) {
+    return {
+      title: "Duplicate Invoices in File",
+      description: "Multiple rows in your document have the exact same invoice number. To prevent recording duplicate receivables, each invoice must be unique.",
+      suggestions: [
+        "Search your document for duplicate invoice numbers highlighted in the list below.",
+        "Merge or delete duplicate entries before re-uploading.",
+      ],
+    };
+  }
+
+  if (codes.has("REQUIRED") && (messages.includes("customer") || messages.includes("pelanggan"))) {
+    return {
+      title: "Missing Customer Information",
+      description: "One or more transactions have an empty Customer field. Every entry must be linked to a customer for tracking.",
+      suggestions: [
+        "Check the highlighted rows below and fill in the customer name for each entry.",
+        "Make sure there are no blank lines between rows in your spreadsheet.",
+      ],
+    };
+  }
+
+  if (codes.has("INVALID_NUMBER") || messages.includes("angka tidak negatif") || messages.includes("nominal")) {
+    return {
+      title: "Incorrect Amount or Cost Format",
+      description: "Some financial values could not be parsed as valid numbers. Amounts cannot be negative and must not contain extra letters or broken formatting.",
+      suggestions: [
+        "Enter amounts as plain numbers (for example: 1250000 without 'Rp' or letters).",
+        "Make sure operational costs and revenues are zero or positive numbers.",
+      ],
+    };
+  }
+
+  if (codes.has("INVALID_DATE") || codes.has("INVALID_PERIOD") || messages.includes("due date") || messages.includes("periode")) {
+    return {
+      title: "Unrecognized Date or Period Format",
+      description: "Some dates or monthly periods do not match expected standard date formats.",
+      suggestions: [
+        "Format dates as YYYY-MM-DD (e.g. 2026-09-30) or DD/MM/YYYY.",
+        "For monthly reports, use the format YYYY-MM (e.g. 2026-09).",
+      ],
+    };
+  }
+
+  return {
+    title: "Document Contains Validation Errors",
+    description: "Some rows in your document do not meet the system requirements. Review the detailed findings below to see which rows need adjustment.",
+    suggestions: [
+      "Check the specific row numbers and fields indicated in the findings table.",
+      "Update your file and upload it again.",
+    ],
+  };
+}
