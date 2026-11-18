@@ -6,10 +6,15 @@ export const COMPANY_ALIASES = {
   customer: ["customer", "customer name", "company", "company name", "nama customer", "client", "nama pelanggan"],
   customerCode: ["customer code", "customer id", "company code", "company id", "kode customer", "kode pelanggan"],
   revenue: ["revenue", "sales", "sales value", "nilai penjualan", "nilai sales", "invoice nominal", "nominal invoice"],
+  subTotal: ["sub total", "subtotal", "cost sub total", "trucking cost", "trucking", "biaya trucking"],
+  vat: ["vat", "vat ppn", "ppn", "handling cost", "handling", "biaya handling"],
+  pph23: ["pph 23", "pph", "pph23", "storage cost", "storage", "biaya storage"],
+  others: ["others", "biaya lain"],
+  dipIata: ["dip iata", "dip", "iata"],
+  otherCost: ["other operational cost", "other cost", "operational cost", "biaya operasional lain", "others dip iata", "others / dip iata", "others"],
   trucking: ["trucking cost", "trucking", "biaya trucking", "sub total", "subtotal", "cost sub total"],
   handling: ["handling cost", "handling", "biaya handling", "vat", "vat ppn", "ppn"],
   storage: ["storage cost", "storage", "biaya storage", "pph 23", "pph", "pph23"],
-  otherCost: ["other operational cost", "other cost", "operational cost", "biaya operasional lain", "others", "dip iata", "dip", "others dip iata"],
   job: ["job", "job number", "nomor job"],
   mawb: ["mawb", "mawb no", "mawb number"],
 };
@@ -63,12 +68,26 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
   const header = (rows[0] ?? []).map(normalize);
   const aliases = type === "COMPANY_SALES_REPORT" ? COMPANY_ALIASES : OUTSTANDING_ALIASES;
   const indexes = Object.fromEntries(Object.entries(aliases).map(([key, values]) => [key, findHeader(header, values)]));
-  const required = type === "COMPANY_SALES_REPORT"
-    ? ["period", "customer", "revenue", "trucking", "handling", "storage", "otherCost"]
-    : ["invoice", "customer", "amount", "dueDate"];
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
-  for (const field of required) if (indexes[field] === -1) errors.push({ field, code: "MISSING_HEADER", message: `Kolom wajib ${field} tidak ditemukan.` });
+
+  const hasSeparateOthersDip = (indexes.others ?? -1) >= 0 && (indexes.dipIata ?? -1) >= 0;
+  const hasOtherCost = (indexes.otherCost ?? -1) >= 0;
+
+  if (type === "COMPANY_SALES_REPORT") {
+    if (indexes.period === -1) errors.push({ field: "period", code: "MISSING_HEADER", message: "Kolom wajib period tidak ditemukan." });
+    if (indexes.customer === -1) errors.push({ field: "customer", code: "MISSING_HEADER", message: "Kolom wajib customer tidak ditemukan." });
+    if (indexes.revenue === -1) errors.push({ field: "revenue", code: "MISSING_HEADER", message: "Kolom wajib revenue tidak ditemukan." });
+    if ((indexes.subTotal ?? -1) === -1 && indexes.trucking === -1) errors.push({ field: "trucking", code: "MISSING_HEADER", message: "Kolom wajib Sub Total tidak ditemukan." });
+    if ((indexes.vat ?? -1) === -1 && indexes.handling === -1) errors.push({ field: "handling", code: "MISSING_HEADER", message: "Kolom wajib VAT tidak ditemukan." });
+    if ((indexes.pph23 ?? -1) === -1 && indexes.storage === -1) errors.push({ field: "storage", code: "MISSING_HEADER", message: "Kolom wajib PPH 23 tidak ditemukan." });
+    if (!hasSeparateOthersDip && !hasOtherCost) {
+      errors.push({ field: "otherCost", code: "MISSING_HEADER", message: "Kolom wajib Others / DIP IATA tidak ditemukan." });
+    }
+  } else {
+    const required = ["invoice", "customer", "amount", "dueDate"];
+    for (const field of required) if (indexes[field] === -1) errors.push({ field, code: "MISSING_HEADER", message: `Kolom wajib ${field} tidak ditemukan.` });
+  }
   if (errors.length) return { errors, warnings, rows: [] as Record<string, unknown>[], unmatchedCustomerCount: 0 };
 
   const valid: Record<string, unknown>[] = [];
@@ -91,25 +110,49 @@ export function validateRows(rows: unknown[][], type: DocumentType, customerMap:
       const revenue = numberValue(value("revenue"));
       const period = periodValue(value("period"));
       if (!period) errors.push({ row, field: "period", code: "INVALID_PERIOD", message: "Periode bulan tidak valid." });
-      const costs = ["trucking", "handling", "storage", "otherCost"] as const;
-      const parsedCosts = costs.map((cost) => numberValue(value(cost)));
+
+      const subTotalKey = (indexes.subTotal ?? -1) >= 0 ? "subTotal" : "trucking";
+      const vatKey = (indexes.vat ?? -1) >= 0 ? "vat" : "handling";
+      const pphKey = (indexes.pph23 ?? -1) >= 0 ? "pph23" : "storage";
+
+      const subTotal = numberValue(value(subTotalKey));
+      const vat = numberValue(value(vatKey));
+      const pph = numberValue(value(pphKey));
+
+      let otherTotal = 0;
+      let othersVal: number | null = null;
+      let dipVal: number | null = null;
+      if (hasSeparateOthersDip) {
+        othersVal = numberValue(value("others"));
+        dipVal = numberValue(value("dipIata"));
+        if (othersVal === null || othersVal < 0) errors.push({ row, field: "others", code: "INVALID_NUMBER", message: "Komponen biaya Others harus berupa angka tidak negatif." });
+        if (dipVal === null || dipVal < 0) errors.push({ row, field: "dipIata", code: "INVALID_NUMBER", message: "Komponen biaya DIP IATA harus berupa angka tidak negatif." });
+        otherTotal = (othersVal ?? 0) + (dipVal ?? 0);
+      } else {
+        const otherVal = numberValue(value("otherCost"));
+        if (otherVal === null || otherVal < 0) errors.push({ row, field: "otherCost", code: "INVALID_NUMBER", message: "Komponen biaya operasional lain harus berupa angka tidak negatif." });
+        otherTotal = otherVal ?? 0;
+      }
+
       if (revenue === null || revenue < 0) errors.push({ row, field: "revenue", code: "INVALID_NUMBER", message: "Revenue harus berupa angka tidak negatif." });
-      parsedCosts.forEach((cost, costIndex) => {
-        if (cost === null || cost < 0) errors.push({ row, field: costs[costIndex], code: "INVALID_NUMBER", message: "Komponen biaya harus berupa angka tidak negatif." });
-      });
+      if (subTotal === null || subTotal < 0) errors.push({ row, field: "trucking", code: "INVALID_NUMBER", message: "Komponen biaya Sub Total harus berupa angka tidak negatif." });
+      if (vat === null || vat < 0) errors.push({ row, field: "handling", code: "INVALID_NUMBER", message: "Komponen biaya VAT harus berupa angka tidak negatif." });
+      if (pph === null || pph < 0) errors.push({ row, field: "storage", code: "INVALID_NUMBER", message: "Komponen biaya PPH 23 harus berupa angka tidak negatif." });
+
       const job = String(value("job") ?? "").trim();
       const mawb = String(value("mawb") ?? "").trim();
-      if (period && customerValue && revenue !== null && revenue >= 0 && parsedCosts.every((cost) => cost !== null && cost >= 0)) valid.push({
+      const validCost = subTotal !== null && subTotal >= 0 && vat !== null && vat >= 0 && pph !== null && pph >= 0 && (hasSeparateOthersDip ? (othersVal !== null && othersVal >= 0 && dipVal !== null && dipVal >= 0) : otherTotal >= 0);
+      if (period && customerValue && revenue !== null && revenue >= 0 && validCost) valid.push({
         row_number: row,
         period_month: period,
         customer_name: customer,
         ...(customerCode ? { customer_code: customerCode } : {}),
         customer_id: customerId,
         revenue,
-        trucking_cost: parsedCosts[0],
-        handling_cost: parsedCosts[1],
-        storage_cost: parsedCosts[2],
-        other_operational_cost: parsedCosts[3],
+        trucking_cost: subTotal,
+        handling_cost: vat,
+        storage_cost: pph,
+        other_operational_cost: otherTotal,
         ...(job ? { job_number: job } : {}),
         ...(mawb ? { mawb } : {}),
       });
@@ -179,7 +222,7 @@ export function getFriendlyErrorReason(
       suggestions: [
         "Make sure the table headers are located on the first row of your spreadsheet.",
         isSales
-          ? "Ensure required columns exist: Period, Customer, Revenue, Trucking Cost, Handling Cost, Storage Cost, Other Cost."
+          ? "Ensure required columns exist: Period, Customer, Revenue, Sub Total, VAT, PPH 23, Others, DIP IATA."
           : "Ensure required columns exist: Invoice Number, Customer Name, Outstanding Amount, Due Date.",
         "Check that column headers do not have accidental typos.",
       ],

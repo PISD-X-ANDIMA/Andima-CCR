@@ -440,7 +440,11 @@ function InvoiceTable({
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3">
         <div>
           <h2 className="text-sm font-bold text-slate-900 font-heading">{t("overdue.tableTitle", "Overdue Invoices List")}</h2>
-          <p className="mt-0.5 text-[11px] text-slate-500">{totalItems} {t("overdue.tableSubtitle", "invoices from validated data")}</p>
+          {loading ? (
+            <div className="mt-1 h-3.5 w-36 animate-pulse rounded bg-slate-200" />
+          ) : (
+            <p className="mt-0.5 text-[11px] text-slate-500">{totalItems} {t("overdue.tableSubtitle", "invoices from validated data")}</p>
+          )}
         </div>
       </div>
       <div className="overflow-x-auto min-h-[440px]">
@@ -456,15 +460,15 @@ function InvoiceTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {loading ? [1, 2, 3, 4, 5].map((item) => (
-              <tr key={item}><td colSpan={6} className="px-4 py-4"><div className="h-8 animate-pulse rounded bg-slate-100" /></td></tr>
-            )) : errorMessage ? (
+            {loading ? (
+              <InvoiceTableSkeleton />
+            ) : errorMessage ? (
               <tr>
                 <td colSpan={6} className="px-4 py-14 text-center">
                   <AlertCircle className="mx-auto mb-2 h-5 w-5 text-red-500" />
                   <p className="text-xs font-semibold text-red-700">{errorMessage}</p>
                   <button type="button" onClick={onRetry} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline cursor-pointer">
-                    <RefreshCw className="h-3.5 w-3.5" />{t("common.refresh", "Try again")}
+                    <RefreshCw className="h-3.5 w-3.5" />{t("common.tryAgain", "Try again")}
                   </button>
                 </td>
               </tr>
@@ -479,7 +483,7 @@ function InvoiceTable({
               invoices.map((invoice) => {
                 const contactText = invoice.contact_person?.name && invoice.contact_person.name !== "-" && invoice.contact_person.name !== "Kontak tidak tersedia" && invoice.contact_person.name !== "Contact not available"
                   ? `${invoice.contact_person.name}${invoice.contact_person.phone && invoice.contact_person.phone !== "-" && invoice.contact_person.phone !== "Kontak tidak tersedia" && invoice.contact_person.phone !== "Contact not available" ? ` (${invoice.contact_person.phone})` : ""}`
-                  : "Contact not available";
+                  : t("overdue.contactNotAvailable", "Contact not available");
                 return (
                   <tr
                     key={invoice.id}
@@ -498,7 +502,7 @@ function InvoiceTable({
                     </td>
                     <td className="px-3 py-3 text-right">
                       <p className="font-semibold text-slate-900">{formatRupiah(invoice.amount_overdue)}</p>
-                      <p className="mt-0.5 text-[10px] text-slate-500">{invoice.payment_note || "No payments yet"}</p>
+                      <p className="mt-0.5 text-[10px] text-slate-500">{invoice.payment_note || t("overdue.noPaymentsYet", "No payments yet")}</p>
                     </td>
                     <td className="px-3 py-3 text-center">
                       <span className={`inline-flex rounded px-2 py-1 text-[11px] font-semibold ${agingClasses(invoice.days_overdue)}`}>{invoice.days_overdue} {t("common.days", "days")}</span>
@@ -589,12 +593,59 @@ function InvoiceTable({
         </div>
       )}
       <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-        <span>
-          {t("common.showing", "Showing")} {totalItems ? (currentPage - 1) * PAGE_SIZE + 1 : 0}-{Math.min(currentPage * PAGE_SIZE, totalItems)} {t("common.of", "of")} {totalItems} {t("common.invoices", "invoices")}
-        </span>
-        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={onPageChange} />
+        {loading ? (
+          <div className="flex w-full items-center justify-between">
+            <div className="h-4 w-44 animate-pulse rounded bg-slate-200" />
+            <div className="h-8 w-48 animate-pulse rounded bg-slate-200" />
+          </div>
+        ) : (
+          <>
+            <span>
+              {t("common.showing", "Showing")} {totalItems ? (currentPage - 1) * PAGE_SIZE + 1 : 0}-{Math.min(currentPage * PAGE_SIZE, totalItems)} {t("common.of", "of")} {totalItems} {t("common.invoices", "invoices")}
+            </span>
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={onPageChange} />
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+function InvoiceTableSkeleton() {
+  return (
+    <>
+      {[1, 2, 3, 4, 5].map((item) => (
+        <tr key={item} className="animate-pulse">
+          <td className="px-3 py-3">
+            <div className="space-y-1.5">
+              <div className="h-4 w-28 rounded bg-slate-200" />
+              <div className="h-3 w-20 rounded bg-slate-100" />
+            </div>
+          </td>
+          <td className="px-3 py-3">
+            <div className="space-y-1.5">
+              <div className="h-4 w-36 rounded bg-slate-200" />
+              <div className="h-3 w-24 rounded bg-slate-100" />
+            </div>
+          </td>
+          <td className="px-3 py-3 text-right">
+            <div className="space-y-1.5 flex flex-col items-end">
+              <div className="h-4 w-24 rounded bg-slate-200" />
+              <div className="h-3 w-16 rounded bg-slate-100" />
+            </div>
+          </td>
+          <td className="px-3 py-3 text-center">
+            <div className="h-5 w-16 mx-auto rounded bg-slate-200" />
+          </td>
+          <td className="px-3 py-3 text-center">
+            <div className="h-5 w-20 mx-auto rounded-full bg-slate-200" />
+          </td>
+          <td className="px-3 py-3 text-center">
+            <div className="size-8 mx-auto rounded-full bg-slate-200" />
+          </td>
+        </tr>
+      ))}
+    </>
   );
 }
 

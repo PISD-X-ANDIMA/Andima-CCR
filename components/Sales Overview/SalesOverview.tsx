@@ -134,7 +134,7 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
             <span className="text-sm font-bold text-slate-900 font-heading">{calendarYear}</span>
             <button type="button" onClick={() => setCalendarYear((year) => year + 1)} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 cursor-pointer" aria-label="Next year"><ArrowRight className="size-4" /></button>
           </div>
-          <p className="text-xs font-semibold text-slate-700">{selecting === "start" ? "Select start month" : "Select end month"}</p>
+          <p className="text-xs font-semibold text-slate-700">{selecting === "start" ? t("salesOverview.selectStartMonth", "Select start month") : t("salesOverview.selectEndMonth", "Select end month")}</p>
           <p className="mb-3 text-[11px] text-slate-500">{t("salesOverview.customInstruction", "Click start month, then click end month to select period range.")}</p>
           <div className="grid grid-cols-3 gap-2">
             {monthNames.map((name, index) => {
@@ -146,8 +146,8 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
             })}
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-[10px] text-slate-500">
-            <span><i className="mr-1 inline-block size-2 rounded-sm bg-blue-200" />Start</span>
-            <span><i className="mr-1 inline-block size-2 rounded-sm bg-[#3B6FF5]" />End</span>
+            <span><i className="mr-1 inline-block size-2 rounded-sm bg-blue-200" />{t("salesOverview.start", "Start")}</span>
+            <span><i className="mr-1 inline-block size-2 rounded-sm bg-[#3B6FF5]" />{t("salesOverview.end", "End")}</span>
           </div>
           <div className="mt-3 flex justify-end gap-2">
             {selecting === "end" && <button type="button" onClick={() => { setSelecting("start"); setDraftStart(startPeriod); setDraftEnd(endPeriod); }} className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">{t("common.back", "Back")}</button>}
@@ -261,9 +261,13 @@ function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loadin
           <h2 className="text-lg font-bold text-slate-900 font-heading">{t("salesOverview.overdueAlertsList", "Overdue Alerts List")}</h2>
           <p className="text-xs text-slate-500">{t("salesOverview.overdueSubtitle", "Validated invoices exceeding 30 days, sorted by oldest due date.")}</p>
         </div>
-        <span className="text-xs font-medium text-slate-500">
-          Total: <strong className="text-slate-800 font-semibold">{totalItems}</strong> overdue
-        </span>
+        {loading ? (
+          <div className="h-4 w-28 animate-pulse rounded bg-slate-200" />
+        ) : (
+          <span className="text-xs font-medium text-slate-500">
+            Total: <strong className="text-slate-800 font-semibold">{totalItems}</strong> {t("salesOverview.totalOverdue", "overdue")}
+          </span>
+        )}
       </div>
       {loading ? (
         <AlertSkeleton />
@@ -288,7 +292,7 @@ function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loadin
               <span className="font-semibold text-slate-700">{startItem}-{endItem}</span>{" "}
               {t("common.of", "of")}{" "}
               <span className="font-semibold text-slate-700">{totalItems}</span>{" "}
-              {t("common.invoices", "overdue invoices")}
+              {t("common.overdueInvoices", "overdue invoices")}
             </p>
             {totalPages > 1 && (
               <div className="flex min-w-0 justify-center overflow-hidden">
@@ -309,6 +313,7 @@ function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loadin
 }
 
 function AlertCard({ alert, rowNumber }: { alert: AlertRow; rowNumber: number; onRefresh?: () => void }) {
+  const { t } = useLanguage();
   return (
     <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-200/60 hover:border-slate-300 transition-colors">
       <div className="flex items-center justify-between text-xs font-bold">
@@ -318,18 +323,61 @@ function AlertCard({ alert, rowNumber }: { alert: AlertRow; rowNumber: number; o
           </span>
           <span className="text-slate-800">{alert.id}</span>
         </div>
-        <span className="text-red-600 font-semibold">{alert.days} Days</span>
+        <span className="text-red-600 font-semibold">{alert.days} {t("common.days", "Days")}</span>
       </div>
       <p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p>
-      <p className="text-[11px] text-slate-500">Due: {alert.due} · {money.format(alert.amount)}</p>
+      <p className="text-[11px] text-slate-500">{t("common.due", "Due")}: {alert.due} · {money.format(alert.amount)}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-        <span>{alert.branch || "Branch unavailable"}</span>
+        <span>{alert.branch || t("common.branchUnavailable", "Branch unavailable")}</span>
         {alert.riskStatus && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">{alert.riskStatus}</span>}
       </div>
     </div>
   );
 }
-function MetricSkeleton() { return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">{[1, 2, 3, 4].map((item) => <div key={item} className="h-32 animate-pulse rounded-xl bg-white p-5"><div className="h-3 w-32 rounded bg-slate-200" /><div className="mt-6 h-7 w-40 rounded bg-slate-200" /><div className="mt-3 h-3 w-24 rounded bg-slate-200" /></div>)}</div>; }
-function AlertSkeleton() { return <div className="space-y-3" aria-label="Loading alerts">{[1, 2, 3, 4, 5].map((item) => <div key={item} className="animate-pulse rounded-lg bg-slate-50 p-3"><div className="flex justify-between"><div className="h-3 w-24 rounded bg-slate-200" /><div className="h-3 w-14 rounded bg-slate-200" /></div><div className="mt-3 h-4 w-36 rounded bg-slate-200" /><div className="mt-2 h-3 w-48 rounded bg-slate-200" /><div className="mt-3 h-5 w-20 rounded bg-slate-200" /></div>)}</div>; }
+function MetricSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4" aria-label="Loading metrics" aria-busy="true">
+      {[1, 2, 3, 4].map((item) => (
+        <article key={item} className="min-h-32 animate-pulse rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1.5">
+              <div className="h-3.5 w-32 rounded bg-slate-200" />
+              <div className="h-2.5 w-24 rounded bg-slate-100" />
+            </div>
+            <div className="size-7 rounded bg-slate-100" />
+          </div>
+          <div className="mt-4 h-7 w-36 rounded bg-slate-200" />
+          <div className="mt-3 flex items-center gap-1">
+            <div className="size-3.5 rounded-full bg-slate-100" />
+            <div className="h-3 w-16 rounded bg-slate-100" />
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+function AlertSkeleton() {
+  return (
+    <div className="space-y-3" aria-label="Loading alerts" aria-busy="true">
+      {[1, 2, 3, 4, 5].map((item) => (
+        <div key={item} className="animate-pulse rounded-lg border border-slate-200/60 bg-slate-50 p-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-7 rounded bg-slate-200" />
+              <div className="h-4 w-28 rounded bg-slate-200" />
+            </div>
+            <div className="h-4 w-16 rounded bg-slate-200" />
+          </div>
+          <div className="mt-2 h-4 w-48 rounded bg-slate-200" />
+          <div className="mt-1.5 h-3 w-40 rounded bg-slate-100" />
+          <div className="mt-2.5 flex items-center gap-2">
+            <div className="h-3 w-20 rounded bg-slate-100" />
+            <div className="h-4 w-16 rounded-full bg-slate-200" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 function PanelEmpty({ text }: { text: string }) { return <div className="my-6 rounded-lg border border-dashed border-slate-300 px-4 py-12 text-center text-sm text-slate-500">{text}</div>; }
 function PanelError({ message, onRetry }: { message: string; onRetry?: () => void }) { return <div className="my-6 rounded-lg border border-red-200 bg-red-50 px-4 py-8 text-center text-sm text-red-700"><AlertCircle className="mx-auto mb-2 size-5" />{message}{onRetry && <button type="button" onClick={onRetry} className="ml-2 inline-flex items-center gap-1 font-bold underline"><RefreshCw className="size-3" />Retry</button>}</div>; }

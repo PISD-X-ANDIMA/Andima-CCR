@@ -301,24 +301,31 @@ export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOption
   if (options.startDate) alertsQuery = alertsQuery.gte("due_date", options.startDate);
   if (options.endDateExclusive) alertsQuery = alertsQuery.lt("due_date", options.endDateExclusive);
 
-  const assignmentsQuery = supabase
-    .from("c1_assignment")
-    .select("invoice_id, assigned_to, assigned_at, follow_up_status")
-    .order("assigned_at", { ascending: false });
+  const assignmentsPromise = (async (): Promise<{ data: AssignmentRow[]; error: null }> => {
+    try {
+      const res = await supabase
+        .from("c1_assignment")
+        .select("invoice_id, assigned_to, assigned_at, follow_up_status")
+        .order("assigned_at", { ascending: false });
+      return { data: (res.data ?? []) as AssignmentRow[], error: null };
+    } catch {
+      return { data: [] as AssignmentRow[], error: null };
+    }
+  })();
 
   const [
     { data: alerts, error: alertsError },
-    { data: assignments, error: assignmentsError },
+    assignmentsResult,
     stagingRows,
     companyListResult,
   ] = await Promise.all([
     alertsQuery,
-    assignmentsQuery,
+    assignmentsPromise,
     readValidatedOutstanding(supabase),
     supabase.from("a1_company_list").select("company_name, name, pic_phone_number, customer_code, job_number"),
   ]);
   if (alertsError) throw alertsError;
-  if (assignmentsError) throw assignmentsError;
+  const assignments = assignmentsResult?.data ?? [];
 
   const companyRows = (companyListResult?.data ?? []) as any[];
   const companyByJob = new Map<string, any>();
@@ -711,29 +718,33 @@ export async function updateFollowUpProgressInSupabase(params: {
 }
 
 export async function fetchAssignmentHistoryInSupabase(invoiceId: string) {
-  const { data, error } = await getSupabaseClient()
-    .from("c1_assignment")
-    .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
-    .eq("invoice_id", invoiceId)
-    .order("assigned_at", { ascending: false });
-  if (error) throw error;
+  try {
+    const { data, error } = await getSupabaseClient()
+      .from("c1_assignment")
+      .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
+      .eq("invoice_id", invoiceId)
+      .order("assigned_at", { ascending: false });
+    if (error) return [];
 
-  // Deduplicate consecutive identical entries (e.g. rapid double-assignments)
-  const rows = (data ?? []) as any[];
-  const deduplicated: any[] = [];
-  for (const row of rows) {
-    const prev = deduplicated[deduplicated.length - 1];
-    if (
-      prev &&
-      prev.assigned_to === row.assigned_to &&
-      prev.follow_up_status === row.follow_up_status &&
-      Math.abs(new Date(prev.assigned_at).getTime() - new Date(row.assigned_at).getTime()) < 60_000
-    ) {
-      continue;
+    // Deduplicate consecutive identical entries (e.g. rapid double-assignments)
+    const rows = (data ?? []) as any[];
+    const deduplicated: any[] = [];
+    for (const row of rows) {
+      const prev = deduplicated[deduplicated.length - 1];
+      if (
+        prev &&
+        prev.assigned_to === row.assigned_to &&
+        prev.follow_up_status === row.follow_up_status &&
+        Math.abs(new Date(prev.assigned_at).getTime() - new Date(row.assigned_at).getTime()) < 60_000
+      ) {
+        continue;
+      }
+      deduplicated.push(row);
     }
-    deduplicated.push(row);
-  }
 
-  return deduplicated;
+    return deduplicated;
+  } catch {
+    return [];
+  }
 }
 
