@@ -1,23 +1,76 @@
 "use client";
 
 import React from "react";
+import HeaderAccount from "@/components/headeraccount";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface HeaderProps {
   pageName: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({ pageName }) => {
+  const { language, setLanguage, t } = useLanguage();
+
+  const translatedPageName = (() => {
+    switch (pageName) {
+      case "Sales Overview":
+        return t("nav.salesOverview", pageName);
+      case "Uploaded Documents":
+        return t("nav.uploadedDocuments", pageName);
+      case "Customer Analytics":
+        return t("nav.customerAnalytics", pageName);
+      case "Overdue Alert":
+        return t("nav.overdueAlert", pageName);
+      default:
+        return pageName;
+    }
+  })();
+
   return (
-    <header className="h-16 bg-white border-b border-slate-200/80 px-6 md:px-8 flex items-center justify-between gap-3 font-sans shrink-0">
-      <div className="min-w-0 text-xs font-bold tracking-wide text-[#0F2342]">
-        CCR/<span className="text-[#1D4ED8]">{pageName}</span>
+    <header className="h-16 bg-white border-b border-slate-200/80 px-6 md:px-8 flex items-center justify-between gap-3 shrink-0">
+      <div className="min-w-0 text-xs font-semibold tracking-wide text-[#0F2342] font-heading">
+        CCR / <span className="text-[#1D4ED8] font-bold">{translatedPageName}</span>
       </div>
 
       <div className="flex shrink-0 items-center gap-3 md:gap-4">
+        {/* Language Switcher Toggle */}
+        <div
+          role="group"
+          aria-label={t("nav.selectLanguage", "Select language")}
+          className="flex items-center rounded-lg border border-slate-200 bg-slate-100/80 p-0.5 text-xs font-semibold"
+        >
+          <button
+            type="button"
+            onClick={() => setLanguage("en")}
+            className={`rounded-md px-2.5 py-1 text-[11px] transition-colors cursor-pointer ${
+              language === "en"
+                ? "bg-white text-blue-700 shadow-xs font-bold"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+            aria-label={t("nav.switchToEnglish", "Switch language to English")}
+            aria-pressed={language === "en"}
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={() => setLanguage("id")}
+            className={`rounded-md px-2.5 py-1 text-[11px] transition-colors cursor-pointer ${
+              language === "id"
+                ? "bg-white text-blue-700 shadow-xs font-bold"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+            aria-label={t("nav.switchToIndonesian", "Switch language to Indonesian")}
+            aria-pressed={language === "id"}
+          >
+            ID
+          </button>
+        </div>
+
         <button
           type="button"
-          aria-label="Notifications"
-          className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+          aria-label={t("nav.notifications", "Notifications")}
+          className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -32,8 +85,8 @@ export const Header: React.FC<HeaderProps> = ({ pageName }) => {
 
         <button
           type="button"
-          aria-label="Filters"
-          className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+          aria-label={t("nav.filters", "Filters")}
+          className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -45,18 +98,7 @@ export const Header: React.FC<HeaderProps> = ({ pageName }) => {
           </svg>
         </button>
 
-        <div className="flex items-center gap-3 pl-1 border-l border-slate-200">
-          <div className="w-9 h-9 rounded-full bg-[#0F52BA] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-              />
-            </svg>
-          </div>
-        </div>
+        <HeaderAccount />
       </div>
     </header>
   );

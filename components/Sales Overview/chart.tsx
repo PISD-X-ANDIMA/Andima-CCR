@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, TrendingDown, TrendingUp } from "lucide-react";
 import {
   Area,
@@ -13,21 +13,27 @@ import {
 } from "recharts";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import type { MacroPoint } from "./SalesOverview";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export type Metric = "revenue" | "cost" | "total_outstanding";
 
 const chartConfig: Record<Metric, { label: string; color: string; fill: string }> = {
   revenue: { label: "Revenue", color: "#2563eb", fill: "#60a5fa" },
   cost: { label: "Cost", color: "#d97706", fill: "#fbbf24" },
-  total_outstanding: { label: "Total Outstanding", color: "#0f766e", fill: "#2dd4bf" },
+  total_outstanding: { label: "Outstanding", color: "#0f766e", fill: "#2dd4bf" },
 };
 
 const money = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
-const compactMoney = new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 });
-const monthFormat = new Intl.DateTimeFormat("id-ID", { month: "short", year: "numeric", timeZone: "UTC" });
+const monthNamesEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function periodParts(period: string) {
+  const [year, month] = period.split("-").map(Number);
+  return { year: year || 2026, month: month || 1 };
+}
 
 function monthLabel(period: string) {
-  return monthFormat.format(new Date(`${period.slice(0, 7)}-01T00:00:00Z`));
+  const { year, month } = periodParts(period);
+  return `${monthNamesEn[(month || 1) - 1]} ${year}`;
 }
 
 function useReducedMotion() {
@@ -42,16 +48,24 @@ function useReducedMotion() {
   return reduced;
 }
 
+function getMetricLabel(metric: Metric, t: (key: string, fallback?: string) => string) {
+  if (metric === "revenue") return t("salesOverview.revenue", "Revenue");
+  if (metric === "cost") return t("salesOverview.cost", "Cost");
+  return t("common.outstanding", "Outstanding");
+}
+
 function MacroTooltip({ active, payload, label }: { active?: boolean; payload?: ReadonlyArray<{ dataKey?: string | number; value?: number | string; color?: string; name?: string }>; label?: string }) {
+  const { t } = useLanguage();
   if (!active || !payload?.length) return null;
   return <div className="min-w-44 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
-    <p className="mb-1.5 font-semibold text-slate-900">{label ? monthLabel(label) : "Periode"}</p>
+    <p className="mb-1.5 font-semibold text-slate-900">{label ? monthLabel(label) : t("common.period", "Period")}</p>
     {payload.map((entry, index) => {
       const key = String(entry.dataKey ?? entry.name ?? "metric") as Metric;
       const config = chartConfig[key] ?? { label: key, color: entry.color ?? "#64748b" };
+      const labelText = key in chartConfig ? getMetricLabel(key, t) : config.label;
       return <div key={`${key}-${index}`} className="flex items-center gap-2 py-1">
         <span className="size-2 rounded-full" style={{ backgroundColor: config.color }} />
-        <span className="text-slate-500">{config.label}</span>
+        <span className="text-slate-500">{labelText}</span>
         <span className="ml-auto pl-3 font-mono font-medium text-slate-900">{money.format(Number(entry.value ?? 0))}</span>
       </div>;
     })}
@@ -59,14 +73,34 @@ function MacroTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 function ChartLegend({ metrics }: { metrics: Metric[] }) {
+  const { t } = useLanguage();
   return <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-semibold text-slate-500">
-    {metrics.map((metric) => <span key={metric} className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ backgroundColor: chartConfig[metric].color }} />{chartConfig[metric].label}</span>)}
+    {metrics.map((metric) => <span key={metric} className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ backgroundColor: chartConfig[metric].color }} />{getMetricLabel(metric, t)}</span>)}
   </div>;
 }
 
-export function ChartAreaStacked({ title, series, metrics, startPeriod, endPeriod, loading, error }: {
-  title: string; series: MacroPoint[]; metrics: Metric[]; startPeriod: string; endPeriod: string; loading: boolean; error: string | null;
+export function ChartAreaStacked({
+  title,
+  series,
+  metrics,
+  startPeriod,
+  endPeriod,
+  loading,
+  error,
+}: {
+  title: string;
+  series: MacroPoint[];
+  metrics: Metric[];
+  startPeriod: string;
+  endPeriod: string;
+  loading: boolean;
+  error: string | null;
 }) {
+  const { t, language } = useLanguage();
+  const compactMoney = useMemo(
+    () => new Intl.NumberFormat(language === "id" ? "id-ID" : "en-US", { notation: "compact", maximumFractionDigits: 1 }),
+    [language]
+  );
   const reduceMotion = useReducedMotion();
   const ordered = [...series].sort((a, b) => a.period_month.localeCompare(b.period_month));
   const maximum = Math.max(0, ...ordered.flatMap((point) => metrics.map((metric) => point[metric])));
@@ -81,17 +115,19 @@ export function ChartAreaStacked({ title, series, metrics, startPeriod, endPerio
   const chartId = `sales-chart-${metrics.join("-")}`;
 
   return <Card className="min-w-0 overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm">
-    <CardHeader className="gap-3 border-b border-slate-100 bg-slate-50/70">
+    <CardHeader className="gap-3 border-b border-slate-100 bg-white">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><CardTitle>{title}</CardTitle><CardDescription>Data hasil upload tervalidasi per bulan</CardDescription></div>
-        <Activity className="size-4 text-slate-400" aria-hidden="true" />
+        <div><CardTitle>{title}</CardTitle><CardDescription>{t("salesOverview.chartsSubtitle", "Monthly validated upload data")}</CardDescription></div>
+        <div className="flex items-center gap-2">
+          <Activity className="size-4 text-slate-400" aria-hidden="true" />
+        </div>
       </div>
       <ChartLegend metrics={metrics} />
     </CardHeader>
     <CardContent className="pt-5">
-      {loading ? <div aria-label="Memuat chart" className="h-72 animate-pulse rounded-lg bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100" />
-        : error ? <div role="alert" className="flex h-72 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-sm text-red-700">Chart tidak dapat dimuat.</div>
-          : !ordered.length ? <div className="flex h-72 items-center justify-center rounded-lg border border-dashed border-slate-300 text-sm text-slate-500">Belum ada data chart pada periode ini.</div>
+      {loading ? <div aria-label="Loading chart" className="h-72 animate-pulse rounded-lg bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100" />
+        : error ? <div role="alert" className="flex h-72 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-sm text-red-700">{t("salesOverview.chartLoadError", "Chart could not be loaded.")}</div>
+          : !ordered.length ? <div className="flex h-72 items-center justify-center rounded-lg border border-dashed border-slate-300 text-sm text-slate-500">{t("salesOverview.noChartData", "No chart data available for this period.")}</div>
             : <div className="h-72 w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <RechartsAreaChart data={ordered} margin={{ top: 10, right: 8, left: 0, bottom: 4 }}>
@@ -105,14 +141,14 @@ export function ChartAreaStacked({ title, series, metrics, startPeriod, endPerio
                   <XAxis dataKey="period_month" tickLine={false} axisLine={false} tickMargin={10} height={38} padding={{ left: 12, right: 12 }} interval="preserveStartEnd" minTickGap={24} tick={{ fontSize: 10, fill: "#64748b" }} tickFormatter={monthLabel} />
                   <YAxis width={70} domain={[0, yMaximum]} tickCount={5} tickLine={false} axisLine={false} tickMargin={8} tick={{ fontSize: 10, fill: "#64748b" }} tickFormatter={(value: number) => `Rp ${compactMoney.format(value)}`} />
                   <Tooltip cursor={{ stroke: "#94a3b8", strokeOpacity: 0.35, strokeDasharray: "4 4" }} content={<MacroTooltip />} />
-                  {metrics.map((metric) => <Area key={metric} type="monotone" dataKey={metric} name={chartConfig[metric].label} stroke={chartConfig[metric].color} strokeWidth={2.2} fill={`url(#${chartId}-${metric})`} fillOpacity={1} activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff" }} dot={false} isAnimationActive={!reduceMotion} animationDuration={650} />)}
+                  {metrics.map((metric) => <Area key={metric} type="monotone" dataKey={metric} name={getMetricLabel(metric, t)} stroke={chartConfig[metric].color} strokeWidth={2.2} fill={`url(#${chartId}-${metric})`} fillOpacity={1} activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff" }} dot={false} isAnimationActive={!reduceMotion} animationDuration={650} />)}
                 </RechartsAreaChart>
               </ResponsiveContainer>
             </div>}
     </CardContent>
-    <CardFooter className="border-t border-slate-100 bg-slate-50/40">
+    <CardFooter className="border-t border-slate-100 bg-white">
       <div className="grid gap-2 text-sm">
-        <div className="flex items-center gap-2 font-medium leading-none text-slate-700">{loading || error || change === null ? "Perubahan belum tersedia" : <>{chartConfig[trendMetric].label} {change > 0 ? "naik" : change < 0 ? "turun" : "tetap"} {Math.abs(change).toFixed(1)}%<Trend className="size-4" /></>}</div>
+        <div className="flex items-center gap-2 font-medium leading-none text-slate-700">{loading || error || change === null ? t("salesOverview.changeUnavailable", "Change unavailable") : <>{getMetricLabel(trendMetric, t)} {change > 0 ? t("salesOverview.trendUp", "up") : change < 0 ? t("salesOverview.trendDown", "down") : t("salesOverview.trendFlat", "flat")} {Math.abs(change).toFixed(1)}%<Trend className="size-4" /></>}</div>
         <div className="leading-none text-slate-500">{monthLabel(startPeriod)} - {monthLabel(endPeriod)}</div>
       </div>
     </CardFooter>

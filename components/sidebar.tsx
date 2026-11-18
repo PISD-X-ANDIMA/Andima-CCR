@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAccount, accountRole } from "@/components/account-provider";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 import {
   ChevronDown,
   Menu,
@@ -37,15 +38,14 @@ function HrmsLink({ label, href }: { label: string; href: string }) {
 }
 
 export default function Sidebar({ userName, userRole, userInitials, onSignOut, isSigningOut = false }: SidebarProps) {
+  const { t } = useLanguage();
   const pathname = usePathname();
   const router = useRouter();
   const isPublicRoute = pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const isC1Route = ["/sales-overview", "/customer-analytics", "/overdue-alert"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
-  const isC2Route = ["/dashboard", "/cost-exception", "/priority-exception", "/customer-cost", "/evidence", "/monthly-closing", "/export-report"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  const isC1Route = ["/sales-overview", "/uploaded-documents", "/customer-analytics", "/overdue-alert"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const [isCcrOpen, setIsCcrOpen] = useState(true);
-  const [isC1Open, setIsC1Open] = useState(isC1Route);
-  const [isC2Open, setIsC2Open] = useState(isC2Route);
+  const [isC1Open, setIsC1Open] = useState(true);
   const [isInternalSigningOut, setIsInternalSigningOut] = useState(false);
   const { account: loaded, clearAccount } = useAccount();
   const account = { name: userName ?? loaded?.full_name ?? "Andima User", role: userRole ?? accountRole(loaded?.app_role, "CCR User"), initials: userInitials ?? loaded?.initials ?? "AU" };
@@ -60,12 +60,12 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
     try {
       setSignOutError(null);
       const response = await fetch("/api/auth/logout", { method: "POST" });
-      if (!response.ok) throw new Error("Logout gagal. Silakan coba lagi.");
+      if (!response.ok) throw new Error("Logout failed. Please try again.");
       clearAccount();
       router.replace("/login");
       router.refresh();
     } catch {
-      setSignOutError("Logout gagal. Silakan coba lagi.");
+      setSignOutError("Logout failed. Please try again.");
     } finally {
       setIsInternalSigningOut(false);
     }
@@ -82,8 +82,8 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
       >
         <div className="flex items-center gap-3 px-2">
           <div className="size-9 shrink-0"><Image src="/images/Logo ANDIMA.png" alt="Logo ANDIMA" width={36} height={36} className="h-9 w-9 object-contain" /></div>
-          <div><p className="text-xl font-bold tracking-[-0.5px] text-white">ANDIMA</p><p className="text-xs text-[#d9e2fc]/80">Logistics Suite</p></div>
-          <button type="button" onClick={() => setIsSidebarOpen(false)} className="ml-auto rounded p-1 text-[#d9e2fc] lg:hidden" aria-label="Tutup navigasi"><X size={18} /></button>
+          <div><p className="text-xl font-bold tracking-[-0.5px] text-white font-heading">ANDIMA</p><p className="text-xs text-[#d9e2fc]/80 font-heading">Logistics Suite</p></div>
+          <button type="button" onClick={() => setIsSidebarOpen(false)} className="ml-auto rounded p-1 text-[#d9e2fc] lg:hidden cursor-pointer" aria-label="Close navigation"><X size={18} /></button>
         </div>
 
         <nav className="mt-8 space-y-1.5 text-sm font-semibold">
@@ -91,7 +91,7 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
             <button
               type="button"
               onClick={() => setIsCcrOpen((value) => !value)}
-              className="flex w-full items-center justify-between rounded-lg bg-[#155cfd] px-3 py-2.5 text-white shadow-sm"
+              className="flex w-full items-center justify-between rounded-lg bg-[#155cfd] px-3 py-2.5 text-white shadow-sm font-heading cursor-pointer"
             >
               <span className="flex items-center gap-3">CCR</span>
               <ChevronDown size={16} className={`transition-transform ${isCcrOpen ? "rotate-0" : "-rotate-90"}`} />
@@ -99,18 +99,10 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
             {isCcrOpen && (
               <div className="ml-5 mt-2 border-l border-[#d9e2fc]/20 pl-3">
                 <SidebarGroup label="C1" open={isC1Open} active={isC1Route} onToggle={() => setIsC1Open((value) => !value)}>
-                  <HrmsLink label="Sales Overview" href="/sales-overview" />
-                  <HrmsLink label="Customer Analytics" href="/customer-analytics" />
-                  <HrmsLink label="Overdue Alert" href="/overdue-alert" />
-                </SidebarGroup>
-                <SidebarGroup label="C2" open={isC2Open} active={isC2Route} onToggle={() => setIsC2Open((value) => !value)}>
-                  <HrmsLink label="Dashboard" href="/dashboard" />
-                  <HrmsLink label="Cost Exception" href="/cost-exception" />
-                  <HrmsLink label="Priority Exception" href="/priority-exception" />
-                  <HrmsLink label="Customer Cost" href="/customer-cost" />
-                  <HrmsLink label="Evidence" href="/evidence" />
-                  <HrmsLink label="Monthly Closing" href="/monthly-closing" />
-                  <HrmsLink label="Export Report" href="/export-report" />
+                  <HrmsLink label={t("nav.salesOverview", "Sales Overview")} href="/sales-overview" />
+                  <HrmsLink label={t("nav.uploadedDocuments", "Uploaded Documents")} href="/uploaded-documents" />
+                  <HrmsLink label={t("nav.customerAnalytics", "Customer Analytics")} href="/customer-analytics" />
+                  <HrmsLink label={t("nav.overdueAlert", "Overdue Alert")} href="/overdue-alert" />
                 </SidebarGroup>
               </div>
             )}
@@ -120,19 +112,16 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
         <div className="mt-auto space-y-3">
           {signOutError && <p role="alert" className="text-xs text-red-400">{signOutError}</p>}
           <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">
-            {/* <span className="grid size-7 place-items-center rounded-full bg-[#16834b] text-[10px] font-bold text-white">{account.initials}</span> */}
-            {/* <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-white">{account.name}</p><p className="text-[10px] text-[#d9e2fc]/75">{account.role}</p></div> */}
             <button
               type="button"
               data-account-role={account.role}
               onClick={() => void handleSignOut()}
               disabled={isSigningOut || isInternalSigningOut}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-red-600 px-3 py-1.5 text-red-500 transition hover:bg-red-500/10 disabled:opacity-50"
-              aria-label="Logout"
-              title="Logout"
+              className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-red-600 px-3 py-1.5 text-red-500 transition hover:bg-red-500/10 disabled:opacity-50 cursor-pointer font-heading font-bold"
+              aria-label={t("nav.logout", "Logout")}
+              title={t("nav.logout", "Logout")}
             >
-              {/* <LogOut size={16} /> */}
-              <span className="text-sm font-bold text-align-center">Logout</span>
+              <span className="text-sm font-bold text-align-center">{t("nav.logout", "Logout")}</span>
             </button>
           </div>
         </div>
@@ -141,8 +130,8 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
       <button
         type="button"
         onClick={() => setIsSidebarOpen(true)}
-        className="fixed left-4 top-4 z-30 rounded-lg bg-[#203d70] p-2 text-white lg:hidden"
-        aria-label="Buka navigasi"
+        className="fixed left-4 top-4 z-30 rounded-lg bg-[#203d70] p-2 text-white lg:hidden cursor-pointer"
+        aria-label="Open navigation"
       >
         <Menu size={20} />
       </button>

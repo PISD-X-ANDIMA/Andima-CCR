@@ -35,13 +35,98 @@ export interface InvoiceDetail {
   description?: string;
   due_date: string;
   amount: number;
+  paid_amount?: number;
+  remaining_amount?: number;
+  payment_date?: string;
   payment_status: 'PAID' | 'UNPAID' | 'PARTIAL';
   bulk_close_status: 'PENDING' | 'CLOSED';
   created_at?: string;
 }
 
+export interface InvoicePayment {
+  payment_id: string;
+  amount: number;
+  payment_date: string;
+  reference_no: string;
+}
+
+export type CustomerInvoice = InvoiceDetail & {
+  job_number?: string | null;
+  mawb?: string | null;
+  payments?: InvoicePayment[];
+};
+
+export interface PaymentTrendPoint {
+  period_month: string;
+  amount: number;
+}
+
+export interface PaymentTrendChange {
+  from_period: string;
+  to_period: string;
+  amount: number;
+  direction: 'up' | 'down' | 'flat';
+}
+
+export interface CustomerCodeAlias {
+  customer_id: string;
+  customer_code?: string | null;
+  customer_name: string;
+}
+
+export interface CustomerCodeSalesRow {
+  id: string;
+  document_id: string;
+  row_number: number;
+  period_month: string;
+  customer_name: string;
+  customer_id: string | null;
+  c1_customer_id: string | null;
+  revenue: number;
+  sub_total?: number;
+  trucking_cost: number;
+  vat?: number;
+  handling_cost: number;
+  pph_23?: number;
+  storage_cost: number;
+  others_dip_cost?: number;
+  other_operational_cost: number;
+  total_cost: number;
+  sales_profit: number;
+}
+
+export interface CustomerCodeOutstandingRow {
+  id: string;
+  document_id: string;
+  row_number: number;
+  invoice_number: string;
+  customer_name: string;
+  customer_id: string | null;
+  c1_customer_id: string | null;
+  outstanding_amount: number;
+  due_date: string;
+  create_date: string | null;
+  job_number: string | null;
+  mawb: string | null;
+  bulk_close_status: string;
+}
+
+export interface CustomerCodeDetail {
+  company_group_id: string;
+  customer_id: string;
+  code: string;
+  aliases: CustomerCodeAlias[];
+  sales_rows: CustomerCodeSalesRow[];
+  outstanding_rows: CustomerCodeOutstandingRow[];
+}
+
 export interface CustomerAnalyticsItem {
   id: string;
+  company_group_id?: string;
+  customer_id?: string;
+  customer_code?: string | null;
+  customer_codes?: string[];
+  customer_aliases?: CustomerCodeAlias[];
   customer_name: string;
   npwp: string;
   location_detail: string;
@@ -52,9 +137,13 @@ export interface CustomerAnalyticsItem {
   sales_profit_trend: 'up' | 'down' | 'flat';
   cost: number | null;
   total_outstanding: number | null;
+  dso_days?: number | null;
+  current_month_cost?: number | null;
   credit_limit: number;
   payment_accuracy: number;
   active_invoices_count: number;
+  payment_trend?: PaymentTrendPoint[];
+  payment_changes?: PaymentTrendChange[];
   dso_trend: {
     may_2026: number;
     june_2026: number;
@@ -81,6 +170,8 @@ export interface KpiSummary {
   period?: string | null;
   totalRevenue?: number | null;
   totalCost?: number | null;
+  currentMonthCost?: number | null;
+  currentMonthSalesProfit?: number | null;
   totalOutstanding?: number | null;
   overdueOutstanding?: number | null;
   totalActiveCustomers?: number;
@@ -102,57 +193,4 @@ export interface AnalyticsResponse {
     totalItems: number;
     itemsPerPage: number;
   };
-}
-
-export interface LedgerMutationItem {
-  trans_date: string;
-  reference_no: string;
-  bl_number?: string;
-  cargo_description: string;
-  due_date?: string;
-  debit: number;
-  credit: number;
-  cumulative_balance: number;
-  status: string;
-  doc_action?: string;
-  raw_inv_id?: string;
-}
-
-export interface BankReconciliationItem {
-  bank_name: string;
-  account_no: string;
-  reference_no: string;
-  date: string;
-  amount: number;
-  matched_invoice: string;
-}
-
-export interface StatementOfAccountData {
-  customer_id: string;
-  customer_name: string;
-  legal_entity: string;
-  npwp: string;
-  category: string;
-  segmentation: string;
-  status_badge: string;
-  main_hub: string;
-  pic_account_officer: {
-    name: string;
-    phone: string;
-  };
-  client_finance_contact: {
-    name: string;
-    email: string;
-  };
-  credit_limit: number;
-  review_cycle: string;
-  outstanding_balance: number;
-  credit_usage_percent: number;
-  overdue_balance: number;
-  overdue_status_text: string;
-  payment_accuracy: number;
-  avg_dso_days: number;
-  top_days_policy: number;
-  mutations: LedgerMutationItem[];
-  bank_reconciliations: BankReconciliationItem[];
 }

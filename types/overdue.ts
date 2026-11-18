@@ -1,4 +1,12 @@
-export type RiskStatus = 'LEGAL ESCALATION' | 'HIGH RISK' | 'WATCHLIST' | 'NEGOSIASI';
+export type RiskStatus =
+  | 'High Risk'
+  | 'Medium Risk'
+  | 'Watchlist'
+  | 'Negotiation'
+  | 'LEGAL ESCALATION'
+  | 'HIGH RISK'
+  | 'WATCHLIST'
+  | 'NEGOSIASI';
 
 export interface OverdueAlertRecord {
   alert_id: string;
@@ -20,7 +28,15 @@ export interface AssignmentRecord {
   assigned_by: string;
   assigned_at: string;
   follow_up_status: string;
-  notes?: string;
+  notes?: string | null;
+  follow_up_action?: string | null;
+  promise_date?: string | null;
+  attachment_url?: string | null;
+  updated_by?: string | null;
+  payment_amount?: number | null;
+  assigned_to_name?: string | null;
+  assigned_by_name?: string | null;
+  assigned_by_role?: string | null;
   created_at?: string;
 }
 
@@ -68,7 +84,7 @@ export interface OverdueInvoiceItem {
   pic_initials?: string;
   pic_display_name?: string;
   pic_role?: string;
-  action_type: 'SP-1' | 'SP-2' | 'SP-3' | 'AUDIT' | 'TERMIN' | 'TUGASKAN';
+  action_type: 'SP-1' | 'SP-2' | 'SP-3' | 'AUDIT' | 'TERMIN' | 'TUGASKAN' | 'ASSIGN';
   contact_person: {
     name: string;
     role: string;
@@ -84,6 +100,12 @@ export interface OverdueInvoiceItem {
 }
 
 export interface OverdueKpiSummary {
+  totalOverdueInvoices: number;
+  totalOverdueAmount: number;
+  oldestInvoiceDays: number;
+  oldestInvoiceNumber?: string | null;
+  oldestInvoiceCustomer?: string | null;
+  activeCasesCount: number;
   totalActiveCustomers: number;
   highRiskOutstanding: number;
   topContributingCustomer: {
@@ -107,13 +129,4 @@ export interface OverdueKpiSummary {
 export interface StaffOption {
   employee_id: string;
   full_name: string;
-}
-
-export interface WarningLetterParams {
-  escalationLevel: 'SP-1' | 'SP-2' | 'SP-3';
-  registrationNumber: string;
-  issueDate: string;
-  deadlineDate: string;
-  picName: string;
-  internalNotes: string;
 }

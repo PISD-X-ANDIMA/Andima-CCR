@@ -12,6 +12,10 @@ export type RecentDocument = {
   valid_row_count: number;
   invalid_row_count: number;
   error_summary: string | null;
+  uploader_user_id: string;
+  uploader_name: string;
+  uploader_email: string;
+  file_type: string;
 };
 
 export type DocumentPreview = {

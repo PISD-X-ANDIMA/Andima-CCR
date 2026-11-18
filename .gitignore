@@ -46,7 +46,11 @@ next-env.d.ts
 *dbml
 
 # FRTR documents and working files
+FRTR/
 /FRTR/
+FRTR
+backend-documentation.md
+chartnew.tsx
 
 *.pdf
 *.xlsx
@@ -98,3 +102,4 @@ service-account*.json
 .history/
 .npm/
 .pnpm-store/
+.gemini/

@@ -1,15 +1,76 @@
 "use client";
-import { useAccount, accountRole } from "@/components/account-provider";
+
+import { useEffect, useState } from "react";
+import { useAccount, accountRole, type Account } from "@/components/account-provider";
+import { readJsonResponse } from "@/lib/clientHttp";
+
+type AccountState = {
+  initials: string;
+  name: string;
+  role: string;
+};
+
+const fallbackAccount: AccountState = {
+  initials: "AU",
+  name: "Andima User",
+  role: "CCR User",
+};
+
 export default function HeaderAccount() {
   const { account: loaded } = useAccount();
-  const account = { name: loaded?.full_name ?? "Andima User", initials: loaded?.initials ?? "AU", role: accountRole(loaded?.app_role, "HRMS User") };
+  const [account, setAccount] = useState<AccountState>(() => {
+    if (loaded) {
+      return {
+        initials: loaded.initials || "AU",
+        name: loaded.full_name || "Andima User",
+        role: accountRole(loaded.app_role, "CCR User"),
+      };
+    }
+    return fallbackAccount;
+  });
+
+  useEffect(() => {
+    if (loaded) {
+      setAccount({
+        initials: loaded.initials || "AU",
+        name: loaded.full_name || "Andima User",
+        role: accountRole(loaded.app_role, "CCR User"),
+      });
+      return;
+    }
+
+    let isMounted = true;
+    async function fetchAccountDirectly() {
+      try {
+        const res = await fetch("/api/v1/account/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = await readJsonResponse<{ data?: Account }>(res);
+        const data = body?.data;
+        if (data && isMounted) {
+          setAccount({
+            initials: data.initials || "AU",
+            name: data.full_name || "Andima User",
+            role: accountRole(data.app_role, "CCR User"),
+          });
+        }
+      } catch {
+        // Fallback gracefully
+      }
+    }
+
+    void fetchAccountDirectly();
+    return () => {
+      isMounted = false;
+    };
+  }, [loaded]);
+
   return (
-    <div className="hidden items-center gap-2 border-l border-[#d9e2fc] pl-3 sm:flex">
-      <span className="grid size-8 place-items-center rounded-full border border-[#006838]/30 bg-[#16834b]/15 text-xs font-bold text-[#006838]">
+    <div className="flex items-center gap-2 border-l border-[#BCD4EE] pl-3">
+      <span className="grid size-8 place-items-center rounded-full border border-[#0C68D5]/25 bg-[#E6F1FF] text-xs font-bold text-[#0C68D5] font-heading">
         {account.initials}
       </span>
-      <div className="text-left">
-        <p className="text-xs font-bold">{account.name}</p>
+      <div className="min-w-0 text-left">
+        <p className="max-w-40 truncate text-xs font-bold text-[#172033] font-heading">{account.name}</p>
         <p className="text-[10px] text-[#4d5f81]">{account.role}</p>
       </div>
     </div>

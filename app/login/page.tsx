@@ -92,27 +92,27 @@ export default function LoginPage() {
       const body = await response.json().catch(() => null);
       if (!response.ok) {
         if (response.status === 403) {
-          setErrorMessage(body?.error?.message || 'Akun belum memiliki akses CCR.');
+          setErrorMessage(body?.error?.message || 'Account does not have CCR access.');
         } else {
-          handleFailedAttempt(body?.error?.message || 'Email atau password salah.');
+          handleFailedAttempt(body?.error?.message || 'Incorrect email or password.');
         }
         return;
       }
       setLoginAttempts(0);
-      setSuccessMessage('Login berhasil. Mengarahkan ke halaman utama...');
+      setSuccessMessage('Login successful. Redirecting to dashboard...');
       window.setTimeout(() => {
         router.replace(body?.data?.redirect_to || '/sales-overview');
         router.refresh();
       }, 700);
     } catch {
-      setErrorMessage('Koneksi login belum siap. Periksa .env.local lalu coba kembali.');
+      setErrorMessage('Login connection failed. Please try again.');
     } finally {
       setIsSigningIn(false);
     }
   };
 
   return (
-    <main className="relative min-h-screen w-full overflow-x-hidden bg-[#07111F] text-[#0D1B2A] selection:bg-[#3B6FF5] selection:text-white font-[family-name:var(--font-montserrat)]">
+    <main className="relative min-h-screen w-full overflow-x-hidden bg-[#07111F] text-[#0D1B2A] selection:bg-[#3B6FF5] selection:text-white font-[family-name:var(--font-inter)]">
       {/* 1. BACKGROUND GAMBAR LOGISTIK FULL SCREEN */}
       <div className="absolute inset-0 z-0">
         <img
@@ -129,7 +129,7 @@ export default function LoginPage() {
       <div className="absolute -top-20 -left-20 w-96 h-96 bg-[#18C7C0]/30 rounded-full blur-3xl pointer-events-none z-0" />
       <div className="absolute -bottom-20 left-1/3 w-96 h-96 bg-[#3B6FF5]/30 rounded-full blur-3xl pointer-events-none z-0" />
 
-      {/* 2. BRAND TEXT (TITLE) MENGGUNAKAN FONT SYNE */}
+      {/* 2. BRAND TEXT (TITLE) */}
       <div className="hidden md:flex absolute top-1/2 -translate-y-1/2 right-8 lg:right-16 xl:right-24 z-20 pointer-events-none flex-col items-end text-right max-w-lg">
         <div className="w-14 h-14 lg:w-16 lg:h-16 flex items-center justify-center shrink-0 mb-4">
           <img
@@ -138,9 +138,9 @@ export default function LoginPage() {
             className="h-full w-full object-contain drop-shadow-[0_3px_10px_rgba(0,0,0,0.55)]"
           />
         </div>
-        <h1 className="font-[family-name:var(--font-syne)] text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-wider text-white drop-shadow-[0_4px_20px_rgba(0,0,0,0.9)] leading-tight">
+        <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white drop-shadow-[0_4px_20px_rgba(0,0,0,0.9)] leading-tight">
           PT. ANDIMA<br />
-          <span className="font-[family-name:var(--font-syne)] text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-wider text-white drop-shadow-[0_4px_20px_rgba(0,0,0,0.9)] leading-tight">TRANSPORTINDO</span>
+          <span className="font-heading text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white drop-shadow-[0_4px_20px_rgba(0,0,0,0.9)] leading-tight">TRANSPORTINDO</span>
         </h1>
       </div>
 
@@ -156,19 +156,19 @@ export default function LoginPage() {
 
             {/* Greeting */}
             <div className="mb-7 text-left relative z-10">
-              <h2 className="font-[family-name:var(--font-syne)] text-xl sm:text-2xl font-bold text-[#0D1B2A] tracking-tight">
+              <h2 className="font-heading text-xl sm:text-2xl font-bold text-[#0D1B2A] tracking-tight">
                 {greeting},
               </h2>
-              <p className="font-[family-name:var(--font-montserrat)] text-sm text-[#334155] mt-1.5 font-medium">
+              <p className="text-sm text-[#334155] mt-1.5 font-medium">
                 Please sign in with your registered account to access the dashboard.
               </p>
             </div>
 
             {/* Form Fields */}
-            <form onSubmit={handleSubmit} className="space-y-6 font-[family-name:var(--font-montserrat)] relative z-10" noValidate>
+            <form onSubmit={handleSubmit} className="space-y-6 relative z-10" noValidate>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#0F172A] mb-2.5">
-                  Username
+                <label className="block text-xs font-bold text-[#0F172A] mb-2 font-heading">
+                  Username / Email
                 </label>
                 <input
                   type="email"
@@ -181,7 +181,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#0F172A] mb-2.5">
+                <label className="block text-xs font-bold text-[#0F172A] mb-2 font-heading">
                   Password
                 </label>
                 <div className="relative">
@@ -203,7 +203,7 @@ export default function LoginPage() {
                     onTouchEnd={() => setShowPassword(false)}
                     disabled={isLocked || isPermanentlyBlocked}
                     tabIndex={-1}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#3B6FF5] p-1 transition-colors disabled:opacity-50"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#3B6FF5] p-1 transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -237,22 +237,22 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Tombol Login Solid Blue #3B6FF5 dengan Hover #2B5CE5 */}
+              {/* Login Button */}
               <button
                 type="submit"
                 disabled={isLocked || isPermanentlyBlocked || isSigningIn}
-                className="w-full py-4 px-5 text-white font-extrabold rounded-xl text-sm tracking-wider uppercase transition-all mt-2 disabled:opacity-50 bg-[#3B6FF5] hover:bg-[#2B5CE5] shadow-[0_8px_25px_rgba(59,111,245,0.4)] active:scale-[0.99] cursor-pointer disabled:cursor-not-allowed font-[family-name:var(--font-montserrat)]"
+                className="w-full py-4 px-5 text-white font-extrabold rounded-xl text-sm transition-all mt-2 disabled:opacity-50 bg-[#3B6FF5] hover:bg-[#2B5CE5] shadow-[0_8px_25px_rgba(59,111,245,0.4)] active:scale-[0.99] cursor-pointer disabled:cursor-not-allowed font-heading"
               >
                 {isPermanentlyBlocked
-                  ? 'ACCOUNT BLOCKED'
+                  ? 'Account Blocked'
                   : isLocked
                   ? `Please wait ${countdown}s`
-                  : isSigningIn ? 'SIGNING IN…' : 'LOGIN'}
+                  : isSigningIn ? 'Signing In…' : 'Sign In'}
               </button>
             </form>
 
             <p className="relative z-10 mt-4 text-center text-sm text-[#334155]">
-              Not login ?{' '}
+              Don&apos;t have an account?{' '}
               <Link href="/register" className="font-bold text-[#3B6FF5] hover:underline">Register</Link>
             </p>
             {/* Info Demo Credentials
