@@ -87,6 +87,7 @@ id_ed25519*
 next-env.d.ts
 
 *.md
+!docs/*.md
 *dbml
 
 # FRTR documents and working files
