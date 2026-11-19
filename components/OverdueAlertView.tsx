@@ -52,10 +52,10 @@ function formatRupiah(value: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value || 0);
 }
 
-function formatDate(value?: string | null) {
+function formatDate(value?: string | null, language: string = "en") {
   if (!value || value === "-") return "-";
   const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(language === "id" ? "id-ID" : "en-US", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function riskClasses(status: string) {
@@ -73,7 +73,7 @@ function agingClasses(days: number) {
 }
 
 export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const router = useRouter();
   const [invoices, setInvoices] = useState<OverdueInvoiceItem[]>([]);
   const [kpiSummary, setKpiSummary] = useState<OverdueKpiSummary | null>(null);
@@ -169,7 +169,6 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
     }
   }, [previewInvoiceId, refreshAssignmentHistory]);
 
-
   const handleRefresh = async () => {
     setLoading(true);
     try {
@@ -191,8 +190,8 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
       fetch(`/api/v1/overdue/staff?refresh=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
         .then(async (res) => (await readJsonResponse<{ staff?: StaffOption[] }>(res))?.staff)
         .then((staff) => { if (staff) setStaffOptions(staff); })
-        .catch(() => {});
-      showToast("Overdue alerts data refreshed.");
+        .catch(() => { });
+      showToast(t("overdue.dataRefreshed", "Overdue alerts data refreshed."));
     } finally {
       // loading state managed by loadOverdueData
     }
@@ -214,7 +213,11 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
       <main className="mx-auto w-full max-w-[1800px] space-y-5 p-4 sm:p-6 lg:p-7">
         <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl font-heading">Overdue Alerts &amp; Receivables Monitoring</h1>
+            {language === "id" ? (
+              <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl font-heading">{t("overdue.title", "Peringatan Jatuh Tempo & Pemantauan Piutang")}</h1>
+            ) : (
+              <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl font-heading">Overdue Alerts &amp; Receivables Monitoring</h1>
+            )}
             <p className="mt-1 max-w-2xl text-xs text-slate-500">{t("overdue.subtitle", "Monitor overdue receivables and track customer collection status.")}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -260,23 +263,46 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               <div className="w-full sm:w-44">
                 <CustomDropdown
-                  placeholder={agingBucket}
-                  categoryTitle="Aging Bucket"
-                  items={[{ id: "all", label: "All Buckets" }, { id: "b1", label: "1 - 30 Days" }, { id: "b2", label: "31 - 60 Days" }, { id: "b3", label: "> 60 Days" }]}
+                  placeholder={
+                    agingBucket === "All Buckets"
+                      ? t("overdue.allBuckets", "All Buckets")
+                      : agingBucket === "1 - 30 Days"
+                        ? t("overdue.bucket1", "1 - 30 Days")
+                        : agingBucket === "31 - 60 Days"
+                          ? t("overdue.bucket2", "31 - 60 Days")
+                          : t("overdue.bucket3", "> 60 Days")
+                  }
+                  categoryTitle={t("overdue.agingBucket", "Aging Bucket")}
+                  items={[
+                    { id: "all", label: "All Buckets", displayLabel: t("overdue.allBuckets", "All Buckets") },
+                    { id: "b1", label: "1 - 30 Days", displayLabel: t("overdue.bucket1", "1 - 30 Days") },
+                    { id: "b2", label: "31 - 60 Days", displayLabel: t("overdue.bucket2", "31 - 60 Days") },
+                    { id: "b3", label: "> 60 Days", displayLabel: t("overdue.bucket3", "> 60 Days") },
+                  ]}
                   value={agingBucket}
                   onChange={(item) => setAgingBucket(item.label)}
                 />
               </div>
               <div className="w-full sm:w-44">
                 <CustomDropdown
-                  placeholder={selectedStatus}
-                  categoryTitle="Risk Status"
+                  placeholder={
+                    selectedStatus === "All"
+                      ? t("common.all", "All")
+                      : selectedStatus === "High Risk"
+                        ? t("overdue.riskHigh", "High Risk")
+                        : selectedStatus === "Medium Risk"
+                          ? t("overdue.riskMedium", "Medium Risk")
+                          : selectedStatus === "Watchlist"
+                            ? t("overdue.riskWatchlist", "Watchlist")
+                            : t("overdue.riskNegotiation", "Negotiation")
+                  }
+                  categoryTitle={t("overdue.colRiskStatus", "Risk Status")}
                   items={[
-                    { id: "all", label: "All" },
-                    { id: "high", label: "High Risk" },
-                    { id: "medium", label: "Medium Risk" },
-                    { id: "watch", label: "Watchlist" },
-                    { id: "nego", label: "Negotiation" },
+                    { id: "all", label: "All", displayLabel: t("common.all", "All") },
+                    { id: "high", label: "High Risk", displayLabel: t("overdue.riskHigh", "High Risk") },
+                    { id: "medium", label: "Medium Risk", displayLabel: t("overdue.riskMedium", "Medium Risk") },
+                    { id: "watch", label: "Watchlist", displayLabel: t("overdue.riskWatchlist", "Watchlist") },
+                    { id: "nego", label: "Negotiation", displayLabel: t("overdue.riskNegotiation", "Negotiation") },
                   ]}
                   value={selectedStatus}
                   onChange={(item) => setSelectedStatus(item.label)}
@@ -383,7 +409,7 @@ function InvoiceTable({
   onCreate: (invoice: OverdueInvoiceItem) => void;
   canAssign?: boolean;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
   const [menuCoords, setMenuCoords] = useState<{ top: number; left: number } | null>(null);
   const [menuInvoice, setMenuInvoice] = useState<OverdueInvoiceItem | null>(null);
@@ -483,7 +509,17 @@ function InvoiceTable({
               invoices.map((invoice) => {
                 const contactText = invoice.contact_person?.name && invoice.contact_person.name !== "-" && invoice.contact_person.name !== "Kontak tidak tersedia" && invoice.contact_person.name !== "Contact not available"
                   ? `${invoice.contact_person.name}${invoice.contact_person.phone && invoice.contact_person.phone !== "-" && invoice.contact_person.phone !== "Kontak tidak tersedia" && invoice.contact_person.phone !== "Contact not available" ? ` (${invoice.contact_person.phone})` : ""}`
-                  : t("overdue.contactNotAvailable", "Contact not available");
+                  : t("overdue.contactUnavailable", "Contact not available");
+                const riskLabel =
+                  invoice.risk_status === "High Risk"
+                    ? t("overdue.riskHigh", "High Risk")
+                    : invoice.risk_status === "Medium Risk"
+                      ? t("overdue.riskMedium", "Medium Risk")
+                      : invoice.risk_status === "Watchlist"
+                        ? t("overdue.riskWatchlist", "Watchlist")
+                        : invoice.risk_status === "Negotiation"
+                          ? t("overdue.riskNegotiation", "Negotiation")
+                          : invoice.risk_status;
                 return (
                   <tr
                     key={invoice.id}
@@ -494,7 +530,7 @@ function InvoiceTable({
                   >
                     <td className="px-3 py-3">
                       <p className="font-semibold text-blue-700">{invoice.invoice_number}</p>
-                      <p className="mt-0.5 text-[11px] text-slate-500">{formatDate(invoice.due_date)}</p>
+                      <p className="mt-0.5 text-[11px] text-slate-500">{formatDate(invoice.due_date, language)}</p>
                     </td>
                     <td className="px-3 py-3">
                       <p className="font-semibold text-slate-900">{invoice.customer_name}</p>
@@ -508,7 +544,7 @@ function InvoiceTable({
                       <span className={`inline-flex rounded px-2 py-1 text-[11px] font-semibold ${agingClasses(invoice.days_overdue)}`}>{invoice.days_overdue} {t("common.days", "days")}</span>
                     </td>
                     <td className="px-3 py-3 text-center">
-                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${riskClasses(invoice.risk_status)}`}>{invoice.risk_status}</span>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${riskClasses(invoice.risk_status)}`}>{riskLabel}</span>
                     </td>
                     <td className="px-3 py-3 text-center" onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-center">

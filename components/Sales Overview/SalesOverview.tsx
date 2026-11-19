@@ -211,7 +211,7 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
         </header>
         <section>
           <div className="mb-3 flex items-center justify-between"><h2 className="text-xs font-semibold text-slate-500 font-heading">{t("salesOverview.macroAnalytics", "Monthly Macro Analytics")}</h2></div>
-          {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label={t("salesOverview.salesProfit", "Sales Profit Period")} value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail={t("salesOverview.salesProfitFormula", "Sales Profit = Revenue - Cost")} formula="Sales Profit = Revenue - Cost" icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.costRequirement", "Cost Requirement Period")} value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail={t("salesOverview.costDetail", "Total operational costs")} icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.outstandingPeriod", "Outstanding Period")} value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail={t("salesOverview.outstandingDetail", "Total uncollected invoices")} icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.netMarginRatio", "Net Margin Ratio")} value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail={t("salesOverview.ratioAcrossPeriod", "Ratio across selected period")} formula="Net Margin Ratio = (Sales Profit / Revenue) x 100" icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
+          {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label={t("salesOverview.salesProfit", "Sales Profit Period")} value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail={t("salesOverview.salesProfitFormula", "Sales Profit = Revenue - Cost")} formula={t("salesOverview.salesProfitFormula", "Sales Profit = Revenue - Cost")} icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.costRequirement", "Cost Requirement Period")} value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail={t("salesOverview.costDetail", "Total operational costs")} icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.outstandingPeriod", "Outstanding Period")} value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail={t("salesOverview.outstandingDetail", "Total uncollected invoices")} icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.netMarginRatio", "Net Margin Ratio")} value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail={t("salesOverview.ratioAcrossPeriod", "Ratio across selected period")} formula={t("salesOverview.netMarginFormula", "Net Margin Ratio = (Sales Profit / Revenue) x 100")} icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
         </section>
         <section aria-label="Sales Overview Charts" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ChartAreaStacked title={t("salesOverview.chartsTitle", "Sales & Cost Performance Trend")} series={series} metrics={["revenue", "cost", "total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
@@ -239,7 +239,7 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
   );
 }
 
-function MetricCard({ label, value, detail, formula, icon, empty }: { label: string; value: string; detail: string; formula?: string; icon: React.ReactNode; empty: boolean }) { return <article className="min-h-32 rounded-xl border border-slate-100 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><div className="flex items-center gap-1.5"><h3 className="text-xs font-semibold text-slate-600 font-heading">{label}</h3>{formula && <span className="group relative inline-flex"><button type="button" className="inline-flex size-4 items-center justify-center rounded-full border border-blue-200 text-blue-600" aria-label={`Formula for ${label}`} title={formula}><HelpCircle className="size-3" /></button><span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-slate-900 px-2.5 py-2 text-left text-[11px] font-medium normal-case tracking-normal text-white shadow-lg group-hover:block group-focus-within:block">{formula}</span></span>}</div><p className="text-[11px] text-slate-400">{detail}</p></div><span className="rounded bg-blue-50 p-1.5 text-blue-600">{icon}</span></div><p className={`mt-4 text-2xl font-bold tracking-tight font-heading ${empty ? "text-slate-400" : "text-slate-900"}`}>{value}</p><div className="mt-3 flex items-center gap-1 text-xs text-slate-500">{empty ? "No data yet" : <><Activity className="size-3.5 text-teal-600" />Validated</>}</div></article>; }
+function MetricCard({ label, value, detail, formula, icon, empty }: { label: string; value: string; detail: string; formula?: string; icon: React.ReactNode; empty: boolean }) { const { t } = useLanguage(); return <article className="min-h-32 rounded-xl border border-slate-100 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><div className="flex items-center gap-1.5"><h3 className="text-xs font-semibold text-slate-600 font-heading">{label}</h3>{formula && <span className="group relative inline-flex"><button type="button" className="inline-flex size-4 items-center justify-center rounded-full border border-blue-200 text-blue-600" aria-label={`Formula for ${label}`} title={formula}><HelpCircle className="size-3" /></button><span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-slate-900 px-2.5 py-2 text-left text-[11px] font-medium normal-case tracking-normal text-white shadow-lg group-hover:block group-focus-within:block">{formula}</span></span>}</div><p className="text-[11px] text-slate-400">{detail}</p></div><span className="rounded bg-blue-50 p-1.5 text-blue-600">{icon}</span></div><p className={`mt-4 text-2xl font-bold tracking-tight font-heading ${empty ? "text-slate-400" : "text-slate-900"}`}>{value}</p><div className="mt-3 flex items-center gap-1 text-xs text-slate-500">{empty ? t("salesOverview.noDataYet", "No data yet") : <><Activity className="size-3.5 text-teal-600" />{t("salesOverview.validated", "Validated")}</>}</div></article>; }
 
 function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loading: boolean; onRefresh: () => void }) {
   const { t } = useLanguage();
@@ -306,7 +306,7 @@ function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loadin
           </div>
         </>
       ) : (
-        <PanelEmpty text={t("common.noData", "No overdue alert data found.")} />
+        <PanelEmpty text={t("salesOverview.noOverdueData", "No overdue alert data found.")} />
       )}
     </section>
   );
@@ -328,8 +328,20 @@ function AlertCard({ alert, rowNumber }: { alert: AlertRow; rowNumber: number; o
       <p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p>
       <p className="text-[11px] text-slate-500">{t("common.due", "Due")}: {alert.due} · {money.format(alert.amount)}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-        <span>{alert.branch || t("common.branchUnavailable", "Branch unavailable")}</span>
-        {alert.riskStatus && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">{alert.riskStatus}</span>}
+        <span>{alert.branch && alert.branch !== "Tidak tersedia" ? alert.branch : t("common.branchUnavailable", "Branch unavailable")}</span>
+        {alert.riskStatus && (
+          <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">
+            {alert.riskStatus === "High Risk"
+              ? t("overdue.riskHigh", "High Risk")
+              : alert.riskStatus === "Medium Risk"
+                ? t("overdue.riskMedium", "Medium Risk")
+                : alert.riskStatus === "Watchlist"
+                  ? t("overdue.riskWatchlist", "Watchlist")
+                  : alert.riskStatus === "Negotiation"
+                    ? t("overdue.riskNegotiation", "Negotiation")
+                    : alert.riskStatus}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -380,4 +392,4 @@ function AlertSkeleton() {
   );
 }
 function PanelEmpty({ text }: { text: string }) { return <div className="my-6 rounded-lg border border-dashed border-slate-300 px-4 py-12 text-center text-sm text-slate-500">{text}</div>; }
-function PanelError({ message, onRetry }: { message: string; onRetry?: () => void }) { return <div className="my-6 rounded-lg border border-red-200 bg-red-50 px-4 py-8 text-center text-sm text-red-700"><AlertCircle className="mx-auto mb-2 size-5" />{message}{onRetry && <button type="button" onClick={onRetry} className="ml-2 inline-flex items-center gap-1 font-bold underline"><RefreshCw className="size-3" />Retry</button>}</div>; }
+function PanelError({ message, onRetry }: { message: string; onRetry?: () => void }) { const { t } = useLanguage(); return <div className="my-6 rounded-lg border border-red-200 bg-red-50 px-4 py-8 text-center text-sm text-red-700"><AlertCircle className="mx-auto mb-2 size-5" />{message}{onRetry && <button type="button" onClick={onRetry} className="ml-2 inline-flex items-center gap-1 font-bold underline"><RefreshCw className="size-3" />{t("common.retry", "Retry")}</button>}</div>; }

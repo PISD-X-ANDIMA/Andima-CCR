@@ -5,6 +5,7 @@ import SalesOverview, { AlertRow, MacroPoint, MacroSummary, RecentDocument } fro
 import Header from "@/components/Header";
 import { shiftPeriod } from "@/lib/salesOverviewPeriod";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type ResponseBody = { data: { summary: MacroSummary; series: MacroPoint[]; alerts?: AlertRow[]; meta?: { can_upload?: boolean } } };
 type DocumentsBody = { data: RecentDocument[] };
@@ -15,6 +16,7 @@ function currentMonth() {
 }
 
 export default function SalesOverviewPage() {
+  const { t } = useLanguage();
   const endDefault = useMemo(() => currentMonth(), []);
   const [startPeriod, setStartPeriod] = useState(() => shiftPeriod(endDefault, -2));
   const [endPeriod, setEndPeriod] = useState(endDefault);
@@ -40,24 +42,24 @@ export default function SalesOverviewPage() {
       const body = await readJsonResponse<ResponseBody & { error?: { message?: string } }>(response);
       const documentsBody = await readJsonResponse<DocumentsBody & { error?: { message?: string } }>(documentsResponse);
       if (version !== requestVersion.current) return;
-      if (!response.ok || !body?.data) throw new Error(responseMessage(body, "Data Sales Overview gagal dimuat."));
+      if (!response.ok || !body?.data) throw new Error(responseMessage(body, t("salesOverview.loadError", "Failed to load Sales Overview data.")));
       setSummary(body.data.summary);
       setSeries(body.data.series);
       setAlerts(body.data.alerts ?? []);
       setDocuments(documentsResponse.ok ? documentsBody?.data ?? [] : []);
-      setDocumentsError(documentsResponse.ok ? null : responseMessage(documentsBody, "Daftar dokumen gagal dimuat."));
+      setDocumentsError(documentsResponse.ok ? null : responseMessage(documentsBody, t("salesOverview.loadDocumentsError", "Failed to load documents list.")));
     } catch (reason) {
       if (version !== requestVersion.current) return;
       setSummary(null);
       setSeries([]);
       setAlerts([]);
       setDocuments([]);
-      setDocumentsError(reason instanceof Error ? reason.message : "Daftar dokumen gagal dimuat.");
-      setError(reason instanceof Error ? reason.message : "Data Sales Overview gagal dimuat.");
+      setDocumentsError(reason instanceof Error ? reason.message : t("salesOverview.loadDocumentsError", "Failed to load documents list."));
+      setError(reason instanceof Error ? reason.message : t("salesOverview.loadError", "Failed to load Sales Overview data."));
     } finally {
       if (version === requestVersion.current) { setIsLoading(false); }
     }
-  }, [endPeriod, startPeriod]);
+  }, [endPeriod, startPeriod, t]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);

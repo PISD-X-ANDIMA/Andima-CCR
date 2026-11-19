@@ -23,6 +23,7 @@ import {
 import HeaderAccount from "@/components/headeraccount";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface OverdueInvoiceEditViewProps {
   invoiceId: string;
@@ -36,12 +37,12 @@ function formatRupiah(value: number) {
   }).format(value || 0);
 }
 
-function formatDate(value?: string | null) {
+function formatDate(value?: string | null, language: string = "en") {
   if (!value || value === "-") return "-";
   const date = new Date(`${value.slice(0, 10)}T00:00:00`);
   return Number.isNaN(date.getTime())
     ? value
-    : date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+    : date.toLocaleDateString(language === "id" ? "id-ID" : "en-US", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function riskClasses(status: string) {
@@ -68,6 +69,7 @@ function followUpStatusBadge(status: string) {
 }
 
 export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEditViewProps) {
+  const { t, language } = useLanguage();
   const cleanInvoiceId = useMemo(() => {
     try {
       return decodeURIComponent(invoiceId || "").trim();
@@ -119,7 +121,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
           setAssignmentHistory(result.body.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [cleanInvoiceId]);
 
   const loadData = useCallback(() => {
@@ -319,7 +321,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
             className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-700 transition group"
           >
             <ArrowLeft className="size-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Overdue Alerts</span>
+            <span>{t("overdue.backToOverdue", "Back to Overdue Alerts")}</span>
           </Link>
           <HeaderAccount />
         </div>
@@ -335,21 +337,21 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
         ) : errorMessage || !invoice ? (
           <div className="rounded-2xl border border-red-200 bg-white p-12 text-center shadow-sm">
             <AlertCircle className="mx-auto size-8 text-red-500 mb-3" />
-            <h2 className="text-base font-bold text-slate-900 font-heading">Failed to Load Invoice</h2>
-            <p className="mt-1 text-xs text-red-600">{errorMessage || "Invoice not found."}</p>
+            <h2 className="text-base font-bold text-slate-900 font-heading">{t("overdue.failedToLoadInvoice", "Failed to Load Invoice")}</h2>
+            <p className="mt-1 text-xs text-red-600">{errorMessage || t("overdue.invoiceNotFound", "Invoice not found.")}</p>
             <div className="mt-5 flex justify-center gap-3">
               <Link
                 href="/overdue-alert"
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Back to Overdue List
+                {t("overdue.backToOverdue", "Back to Overdue Alerts")}
               </Link>
               <button
                 type="button"
                 onClick={loadData}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 cursor-pointer"
               >
-                Try Again
+                {t("common.tryAgain", "Try Again")}
               </button>
             </div>
           </div>
@@ -361,13 +363,13 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                 <div>
                   <div className="flex flex-wrap items-center gap-2.5">
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 font-heading">
-                      <AlertTriangle className="size-4" /> Internal Overdue Alert
+                      <AlertTriangle className="size-4" /> {t("overdue.internalAlert", "Internal Overdue Alert")}
                     </span>
                     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${riskClasses(invoice.risk_status)}`}>
                       {invoice.risk_status}
                     </span>
                     <span className={`inline-flex rounded px-2 py-0.5 text-[11px] font-bold ${agingClasses(invoice.days_overdue)}`}>
-                      Aging: {invoice.days_overdue} Days
+                      {t("overdue.colAging", "Aging")}: {invoice.days_overdue} {t("common.days", "Days")}
                     </span>
                   </div>
 
@@ -375,19 +377,19 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                     {invoice.customer_name}
                   </h1>
                   <p className="mt-1 text-xs font-mono text-slate-500">
-                    Invoice No.: <strong className="text-slate-800">{invoice.invoice_number}</strong> · Due Date:{" "}
-                    <strong className="text-slate-800">{formatDate(invoice.due_date)}</strong>
+                    {t("overdue.invoiceNoLabel", "Invoice No.:")} <strong className="text-slate-800">{invoice.invoice_number}</strong> · {t("common.dueDate", "Due Date")}:{" "}
+                    <strong className="text-slate-800">{formatDate(invoice.due_date, language)}</strong>
                   </p>
                 </div>
 
                 <div className="flex flex-col items-start md:items-end gap-1.5 rounded-xl border border-red-100 bg-red-50/60 p-4">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 font-heading">
-                    Total Outstanding
+                    {t("overdue.totalOutstanding", "Total Outstanding")}
                   </span>
                   <span className="text-2xl font-extrabold text-red-600 font-heading">
                     {formatRupiah(invoice.amount_overdue)}
                   </span>
-                  <span className="text-[10px] text-slate-500">{invoice.payment_note || "No payments yet"}</span>
+                  <span className="text-[10px] text-slate-500">{invoice.payment_note || t("overdue.noPaymentsYet", "No payments yet")}</span>
                 </div>
               </div>
             </section>
@@ -397,15 +399,15 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 font-heading">
-                    Activity History &amp; Follow-up Log
+                    {t("overdue.historyTitle", "Activity & Follow-up History")}
                   </h2>
                   <p className="text-[11px] text-slate-500">
-                    Recorded collection progress, customer interactions, and payment logs.
+                    {t("overdue.historySubtitle", "Recorded collection progress, customer interactions, and payment logs.")}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700">
-                    {assignmentHistory.length} Records
+                    {assignmentHistory.length} {t("common.records", "Records")}
                   </span>
                 </div>
               </div>
@@ -413,8 +415,8 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
               {assignmentHistory.length === 0 ? (
                 <div className="py-10 text-center text-slate-400">
                   <History className="size-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-xs font-semibold text-slate-600">No follow-up history yet</p>
-                  <p className="text-[11px] mt-0.5">Add progress via the Create action in the Overdue Alert table.</p>
+                  <p className="text-xs font-semibold text-slate-600">{t("overdue.historyEmpty", "No follow-up activity recorded for this invoice yet.")}</p>
+                  <p className="text-[11px] mt-0.5">{t("overdue.historyEmptyEditHint", "Add progress via the Add Progress action in the Overdue Alert table.")}</p>
                 </div>
               ) : (
                 <div className="relative ml-2 space-y-4 border-l-2 border-slate-200 pl-4 py-2">
@@ -477,7 +479,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                             {record.promise_date && (
                               <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
                                 <Calendar className="size-3.5" />
-                                <span>Promise to Pay: {formatDate(record.promise_date)}</span>
+                                <span>Promise to Pay: {formatDate(record.promise_date, language)}</span>
                               </p>
                             )}
 
@@ -503,7 +505,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
                           <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 shrink-0">
                             <span className="text-[11px] text-slate-400">
-                              {new Date(record.assigned_at).toLocaleDateString("id-ID", {
+                              {new Date(record.assigned_at).toLocaleDateString(language === "id" ? "id-ID" : "en-US", {
                                 day: "2-digit",
                                 month: "short",
                                 year: "numeric",
@@ -517,7 +519,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                                   className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition cursor-pointer shadow-xs"
                                 >
                                   <Pencil className="size-3 text-blue-600" />
-                                  <span>Edit Log</span>
+                                  <span>{t("overdue.editLog", "Edit Log")}</span>
                                 </button>
                                 <button
                                   type="button"
@@ -525,7 +527,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                                   className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 transition cursor-pointer shadow-xs"
                                 >
                                   <Trash2 className="size-3 text-red-600" />
-                                  <span>Delete Log</span>
+                                  <span>{t("overdue.deleteLog", "Delete Log")}</span>
                                 </button>
                               </div>
                             )}
@@ -551,13 +553,13 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
           <div className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/80">
               <div>
-                  <h3 className="text-sm font-bold text-slate-900 font-heading">
-                    Edit Follow-up Progress
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Update follow-up history record details
-                  </p>
-                </div>
+                <h3 className="text-sm font-bold text-slate-900 font-heading">
+                  {t("overdue.editProgressTitle", "Edit Follow-up Progress")}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  {t("overdue.editProgressSubtitle", "Update follow-up history record details")}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingRecord(null)}
@@ -570,30 +572,30 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
             <form onSubmit={(e) => void handleEditProgressSubmit(e)} className="flex-1 overflow-y-auto p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  Status Invoice
+                  {t("overdue.invoiceStatusLabel", "Status Invoice")}
                 </label>
                 <select
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="IN_PROGRESS">In Progress</option>
-                  <option value="PROMISE_TO_PAY">Promise to Pay</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="DISPUTE">Dispute</option>
+                  <option value="IN_PROGRESS">{t("overdue.statusInProgress", "In Progress")}</option>
+                  <option value="PROMISE_TO_PAY">{t("overdue.statusPromiseToPay", "Promise to Pay")}</option>
+                  <option value="COMPLETED">{t("overdue.statusCompleted", "Completed")}</option>
+                  <option value="DISPUTE">{t("overdue.statusDispute", "Dispute")}</option>
                 </select>
               </div>
 
               {editStatus !== "COMPLETED" && (
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    Customer Contact Method
+                    {t("overdue.contactMethodLabel", "Customer Contact Method")}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
-                      { id: "Direct Visit", label: "Direct Visit", icon: Users },
-                      { id: "Chat (WhatsApp / Others)", label: "Chat (WhatsApp / Others)", icon: MessageSquare },
-                      { id: "Online Meeting", label: "Online Meeting", icon: Video },
+                      { id: "Direct Visit", label: t("overdue.directVisit", "Direct Visit"), icon: Users },
+                      { id: "Chat (WhatsApp / Others)", label: t("overdue.chatWhatsapp", "Chat (WhatsApp / Others)"), icon: MessageSquare },
+                      { id: "Online Meeting", label: t("overdue.onlineMeeting", "Online Meeting"), icon: Video },
                     ].map((item) => {
                       const IconComponent = item.icon;
                       const isSelected = editAction === item.id;
@@ -602,11 +604,10 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                           type="button"
                           key={item.id}
                           onClick={() => setEditAction(item.id)}
-                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                            isSelected
-                              ? "border-blue-600 bg-blue-50/80 ring-1 ring-blue-600"
-                              : "border-slate-200 bg-white hover:bg-slate-50"
-                          }`}
+                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition cursor-pointer ${isSelected
+                            ? "border-blue-600 bg-blue-50/80 ring-1 ring-blue-600"
+                            : "border-slate-200 bg-white hover:bg-slate-50"
+                            }`}
                         >
                           <IconComponent className="size-3.5 text-blue-600" />
                           <span className="text-xs font-semibold text-slate-800">{item.label}</span>
@@ -620,7 +621,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
               {editStatus === "PROMISE_TO_PAY" && (
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    Promise to Pay Date
+                    {t("overdue.promiseDateLabel", "Promise to Pay Date")}
                   </label>
                   <input
                     type="date"
@@ -635,7 +636,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
               {editStatus === "COMPLETED" && (
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    Payment Amount (IDR)
+                    {t("overdue.paymentAmountLabel", "Payment Amount (IDR)")}
                   </label>
                   <div className="relative">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
@@ -646,13 +647,13 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                       step="1"
                       value={editPaymentAmount}
                       onChange={(e) => setEditPaymentAmount(e.target.value)}
-                      placeholder="Enter total payment amount"
+                      placeholder={t("overdue.paymentAmountPlaceholder", "Enter total payment amount")}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-3.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
                   {editPaymentAmount && Number(editPaymentAmount) > 0 && (
                     <p className="mt-1 text-[11px] font-bold text-emerald-700">
-                      Recorded amount: {formatRupiah(Number(editPaymentAmount))}
+                      {t("overdue.recordedAmountLabel", "Recorded amount:")} {formatRupiah(Number(editPaymentAmount))}
                     </p>
                   )}
                 </div>
@@ -660,21 +661,21 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  Follow-up Notes
+                  {t("overdue.notesLabel", "Follow-up Notes")}
                 </label>
                 <textarea
                   rows={3}
                   required
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="Follow-up notes details..."
+                  placeholder={t("overdue.notesPlaceholder", "Follow-up notes details...")}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  Update Evidence File (Optional to replace previous file)
+                  {t("overdue.updateEvidenceLabel", "Update Evidence File (Optional to replace previous file)")}
                 </label>
                 <input
                   type="file"
@@ -690,7 +691,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                     className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
                   >
                     <Upload className="size-3.5 text-slate-500" />
-                    <span>{editFile ? "Replace File" : "Upload New Evidence"}</span>
+                    <span>{editFile ? t("overdue.replaceFile", "Replace File") : t("overdue.uploadNewEvidence", "Upload New Evidence")}</span>
                   </label>
                   {editFile ? (
                     <span className="text-xs text-blue-700 font-medium truncate max-w-[220px]">
@@ -698,7 +699,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                     </span>
                   ) : editingRecord.attachment_url ? (
                     <span className="text-xs text-slate-500 italic">
-                      Previous attachment exists
+                      {t("overdue.previousAttachmentExists", "Previous attachment exists")}
                     </span>
                   ) : null}
                 </div>
@@ -711,7 +712,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                   disabled={savingEdit}
                   className="flex-1 rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
-                  Cancel
+                  {t("common.cancel", "Cancel")}
                 </button>
                 <button
                   type="submit"
@@ -721,12 +722,12 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                   {savingEdit ? (
                     <>
                       <RefreshCw className="size-4 animate-spin" />
-                      <span>Saving Changes...</span>
+                      <span>{t("overdue.savingChanges", "Saving Changes...")}</span>
                     </>
                   ) : (
                     <>
                       <Check className="size-4" />
-                      <span>Save Changes</span>
+                      <span>{t("overdue.saveChanges", "Save Changes")}</span>
                     </>
                   )}
                 </button>
@@ -749,13 +750,13 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                 <Trash2 className="size-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900 font-heading">Delete Follow-up Log</h3>
-                <p className="text-[11px] text-slate-500">This action cannot be undone.</p>
+                <h3 className="text-sm font-bold text-slate-900 font-heading">{t("overdue.deleteLogTitle", "Delete Follow-up Log")}</h3>
+                <p className="text-[11px] text-slate-500">{t("overdue.deleteLogConfirm", "Are you sure you want to delete this follow-up log?")}</p>
               </div>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Are you sure you want to delete this follow-up record
-              {deletingRecord.follow_up_status ? ` with status "${deletingRecord.follow_up_status}"` : ""}?
+              {t("overdue.deleteLogConfirm", "Are you sure you want to delete this follow-up log?")}
+              {deletingRecord.follow_up_status ? ` (${deletingRecord.follow_up_status})` : ""}
               {deletingRecord.follow_up_status === "COMPLETED" && (
                 <span className="block mt-2 font-semibold text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
                   Note: Deleting this Completed record will reverse the recorded settlement payment and return the invoice to overdue status.
@@ -769,7 +770,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                 onClick={() => setDeletingRecord(null)}
                 className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
               >
-                Cancel
+                {t("common.cancel", "Cancel")}
               </button>
               <button
                 type="button"
@@ -780,10 +781,10 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                 {isDeleting ? (
                   <>
                     <RefreshCw className="size-3.5 animate-spin" />
-                    <span>Deleting...</span>
+                    <span>{t("common.deleting", "Deleting...")}</span>
                   </>
                 ) : (
-                  <span>Delete Record</span>
+                  <span>{t("overdue.deleteLog", "Delete Log")}</span>
                 )}
               </button>
             </div>

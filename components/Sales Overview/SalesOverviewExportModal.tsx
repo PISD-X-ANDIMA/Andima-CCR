@@ -22,6 +22,7 @@ import {
 import { jsPDF } from "jspdf";
 import ExcelJS from "exceljs";
 import type { AlertRow, MacroPoint, MacroSummary, RecentDocument } from "./SalesOverview";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export type ExportFormat = "PDF" | "XLSX" | "CSV";
 
@@ -68,6 +69,7 @@ export default function SalesOverviewExportModal({
   documents = [],
   defaultFormat = "PDF",
 }: SalesOverviewExportModalProps) {
+  const { t, language } = useLanguage();
   // Export Format State
   const [exportFormat, setExportFormat] = useState<ExportFormat>(defaultFormat);
 
@@ -190,7 +192,11 @@ export default function SalesOverviewExportModal({
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(8);
           pdf.setTextColor(0, 0, 0);
-          pdf.text("PT ANDIMA TRANSPORTINDO - SALES OVERVIEW REPORT (Lanjutan)", left, y);
+          pdf.text(
+            `PT ANDIMA TRANSPORTINDO - SALES OVERVIEW REPORT (${t("salesOverview.continued", "Continued")})`,
+            left,
+            y
+          );
           pdf.setFont("helvetica", "normal");
           pdf.text(`${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}`, right, y, { align: "right" });
           pdf.setDrawColor(0, 0, 0);
@@ -209,7 +215,7 @@ export default function SalesOverviewExportModal({
       pdf.setFontSize(8.5);
       pdf.setTextColor(0, 0, 0);
       pdf.setFont("helvetica", "normal");
-      const todayStr = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+      const todayStr = new Date().toLocaleDateString(language === "id" ? "id-ID" : "en-US", { day: "2-digit", month: "short", year: "numeric" });
       pdf.text(`Generated: ${todayStr}`, right, y, { align: "right" });
       y += 6;
 
@@ -222,7 +228,7 @@ export default function SalesOverviewExportModal({
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(8.5);
       pdf.setTextColor(0, 0, 0);
-      pdf.text(`Periode Evaluasi: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}`, left, y);
+      pdf.text(`${t("salesOverview.evaluationPeriod", "Evaluation Period")}: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}`, left, y);
       y += 3;
 
       // Divider (Clean Black Line)
@@ -521,7 +527,7 @@ export default function SalesOverviewExportModal({
       onClose();
     } catch (err) {
       console.error("PDF export failed:", err);
-      alert("Gagal mengekspor PDF. Silakan coba lagi.");
+      alert(t("salesOverview.exportPdfFailed", "Failed to export PDF. Please try again."));
     } finally {
       setIsExporting(false);
     }
@@ -551,7 +557,7 @@ export default function SalesOverviewExportModal({
 
       worksheet.mergeCells("A3:E3");
       const metaCell = worksheet.getCell("A3");
-      const todayStr = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+      const todayStr = new Date().toLocaleDateString(language === "id" ? "id-ID" : "en-US", { day: "2-digit", month: "short", year: "numeric" });
       metaCell.value = `Evaluation Period: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)} | Export Date: ${todayStr}`;
       metaCell.font = { name: "Calibri", size: 9, italic: true, color: { argb: "FF64748B" } };
 
@@ -776,7 +782,7 @@ export default function SalesOverviewExportModal({
       lines.push("PT ANDIMA TRANSPORTINDO");
       lines.push("SALES OVERVIEW REPORT");
       lines.push(`Evaluation Period: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}`);
-      lines.push(`Export Date: ${new Date().toLocaleDateString("id-ID")}`);
+      lines.push(`Export Date: ${new Date().toLocaleDateString(language === "id" ? "id-ID" : "en-US")}`);
       lines.push("");
 
       if (anyCardsSelected && summary) {
@@ -867,11 +873,11 @@ export default function SalesOverviewExportModal({
         </div>
         <div className="text-right text-[10px] text-slate-500">
           <p>Format: {exportFormat} Document</p>
-          <p>{new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</p>
+          <p>{new Date().toLocaleDateString(language === "id" ? "id-ID" : "en-US", { day: "2-digit", month: "short", year: "numeric" })}</p>
         </div>
       </div>
       <div className="mt-2 flex items-center justify-between text-[10px] text-slate-700 bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
-        <span>Periode Evaluasi: <strong>{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</strong></span>
+        <span>{t("salesOverview.evaluationPeriod", "Evaluation Period")}: <strong>{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</strong></span>
         <span>PT Andima Transportindo Internal Report</span>
       </div>
     </div>
@@ -885,7 +891,7 @@ export default function SalesOverviewExportModal({
             PT ANDIMA TRANSPORTINDO
           </h2>
           <p className="text-[10px] font-bold text-slate-800 uppercase tracking-tight">
-            Sales Overview Report (Lanjutan)
+            Sales Overview Report ({t("salesOverview.continued", "Continued")})
           </p>
         </div>
         <div className="text-right text-[9.5px] text-slate-600">
@@ -1075,12 +1081,12 @@ export default function SalesOverviewExportModal({
         <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/80">
           <div>
             <h2 id="export-modal-title" className="text-base font-bold text-slate-900 font-heading">
-              Sales Overview Export
+              {t("salesOverview.exportButton", "Sales Overview Export")}
             </h2>
             <p className="text-xs text-slate-500">
-                Periode: <strong className="text-slate-700">{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</strong>
-              </p>
-            </div>
+              {t("common.period", "Period")}: <strong className="text-slate-700">{periodLabel(startPeriod)} - {periodLabel(endPeriod)}</strong>
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -1098,17 +1104,16 @@ export default function SalesOverviewExportModal({
             {/* Format File Output Selector */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-700 font-heading">
-                Format File Output
+                {t("salesOverview.exportFormatTitle", "Export Format")}
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setExportFormat("PDF")}
-                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition cursor-pointer ${
-                    exportFormat === "PDF"
-                      ? "border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-600/20 shadow-xs"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition cursor-pointer ${exportFormat === "PDF"
+                    ? "border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-600/20 shadow-xs"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
                 >
                   <FileText className="size-3.5 text-rose-600" />
                   <span>PDF</span>
@@ -1116,11 +1121,10 @@ export default function SalesOverviewExportModal({
                 <button
                   type="button"
                   onClick={() => setExportFormat("XLSX")}
-                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition cursor-pointer ${
-                    exportFormat === "XLSX"
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-600/20 shadow-xs"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition cursor-pointer ${exportFormat === "XLSX"
+                    ? "border-emerald-600 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-600/20 shadow-xs"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
                 >
                   <FileSpreadsheet className="size-3.5 text-emerald-600" />
                   <span>Excel</span>
@@ -1128,11 +1132,10 @@ export default function SalesOverviewExportModal({
                 <button
                   type="button"
                   onClick={() => setExportFormat("CSV")}
-                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition cursor-pointer ${
-                    exportFormat === "CSV"
-                      ? "border-indigo-600 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-600/20 shadow-xs"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition cursor-pointer ${exportFormat === "CSV"
+                    ? "border-indigo-600 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-600/20 shadow-xs"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
                 >
                   <Table className="size-3.5 text-indigo-600" />
                   <span>CSV</span>
@@ -1144,18 +1147,22 @@ export default function SalesOverviewExportModal({
             <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-200">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 font-heading">
-                  Pilih Konten Laporan
+                  {t("salesOverview.selectExportContent", "Select Report Content")}
                 </h3>
-                <p className="text-[11px] text-slate-500">{selectedCount} dari {totalSelectableCount} elemen dipilih</p>
+                <p className="text-[11px] text-slate-500">
+                  {t("salesOverview.selectedElements", "{selected} of {total} elements selected", {
+                    selected: selectedCount,
+                    total: totalSelectableCount,
+                  })}
+                </p>
               </div>
               <label
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer shadow-xs select-none ${
-                  isAllSelected
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : isPartiallySelected
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer shadow-xs select-none ${isAllSelected
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : isPartiallySelected
                     ? "bg-blue-600/90 text-white hover:bg-blue-700"
                     : "border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                }`}
+                  }`}
               >
                 <input
                   type="checkbox"
@@ -1166,7 +1173,7 @@ export default function SalesOverviewExportModal({
                   onChange={toggleMasterSelectAll}
                   className="size-4 rounded accent-blue-600 cursor-pointer"
                 />
-                <span>Select All</span>
+                <span>{t("common.selectAll", "Select All")}</span>
               </label>
             </div>
 
@@ -1180,7 +1187,7 @@ export default function SalesOverviewExportModal({
                     onChange={toggleAllCards}
                     className="size-4 rounded accent-blue-600 cursor-pointer"
                   />
-                  <span>1. Metric Cards</span>
+                  <span>{t("salesOverview.exportMetricCards", "1. Metric Cards")}</span>
                 </label>
                 <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
                   {Object.values(selectedCards).filter(Boolean).length}/4
@@ -1194,7 +1201,7 @@ export default function SalesOverviewExportModal({
                     onChange={(e) => setSelectedCards({ ...selectedCards, salesProfit: e.target.checked })}
                     className="size-3.5 accent-blue-600 cursor-pointer"
                   />
-                  <span>Sales Profit Period</span>
+                  <span>{t("salesOverview.salesProfit", "Sales Profit Period")}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -1203,7 +1210,7 @@ export default function SalesOverviewExportModal({
                     onChange={(e) => setSelectedCards({ ...selectedCards, cost: e.target.checked })}
                     className="size-3.5 accent-blue-600 cursor-pointer"
                   />
-                  <span>Cost Requirement Period</span>
+                  <span>{t("salesOverview.costRequirement", "Cost Requirement Period")}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -1212,7 +1219,7 @@ export default function SalesOverviewExportModal({
                     onChange={(e) => setSelectedCards({ ...selectedCards, outstanding: e.target.checked })}
                     className="size-3.5 accent-blue-600 cursor-pointer"
                   />
-                  <span>Outstanding Period</span>
+                  <span>{t("salesOverview.outstandingPeriod", "Outstanding Period")}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -1221,7 +1228,7 @@ export default function SalesOverviewExportModal({
                     onChange={(e) => setSelectedCards({ ...selectedCards, netMargin: e.target.checked })}
                     className="size-3.5 accent-blue-600 cursor-pointer"
                   />
-                  <span>Net Margin Ratio</span>
+                  <span>{t("salesOverview.netMarginRatio", "Net Margin Ratio")}</span>
                 </label>
               </div>
             </div>
@@ -1237,14 +1244,14 @@ export default function SalesOverviewExportModal({
                     className="mt-0.5 size-4 rounded accent-blue-600 cursor-pointer"
                   />
                   <div>
-                    <span className="font-bold text-slate-900">2. Monthly Financial Performance</span>
+                    <span className="font-bold text-slate-900">{t("salesOverview.exportMonthlyPerformance", "2. Monthly Financial Performance")}</span>
                     <p className="text-[10px] font-normal text-slate-500 mt-0.5">
-                      Monthly trend table of Revenue, Cost, Profit &amp; Outstanding
+                      {t("salesOverview.exportMonthlyPerformanceDesc", "Monthly trend table of Revenue, Cost, Profit & Outstanding")}
                     </p>
                   </div>
                 </div>
                 <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
-                  {filteredSeries.length} Months
+                  {filteredSeries.length} {t("common.months", "Months")}
                 </span>
               </label>
             </div>
@@ -1259,10 +1266,10 @@ export default function SalesOverviewExportModal({
                     onChange={(e) => setIncludeAlerts(e.target.checked)}
                     className="size-4 rounded accent-blue-600 cursor-pointer"
                   />
-                  <span>3. Overdue Alerts List</span>
+                  <span>{t("salesOverview.exportOverdueAlerts", "3. Overdue Alerts List")}</span>
                 </div>
                 <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
-                  {alerts.length} Invoices
+                  {alerts.length} {t("common.invoicesTitle", "Invoices")}
                 </span>
               </label>
             </div>
@@ -1277,10 +1284,10 @@ export default function SalesOverviewExportModal({
                     onChange={(e) => setIncludeDocuments(e.target.checked)}
                     className="size-4 rounded accent-blue-600 cursor-pointer"
                   />
-                  <span>4. Recent Documents</span>
+                  <span>{t("salesOverview.exportRecentDocuments", "4. Recent Documents")}</span>
                 </div>
                 <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
-                  {documents.length} Files
+                  {documents.length} {t("common.files", "Files")}
                 </span>
               </label>
             </div>
@@ -1290,9 +1297,9 @@ export default function SalesOverviewExportModal({
           <section className="flex flex-col items-center bg-slate-200/70 p-4 md:p-8 overflow-y-auto">
             <div className="mb-3 flex items-center justify-between w-full max-w-[620px] text-xs text-slate-500 font-medium">
               <span>
-                Report Document Preview ({exportFormat}){" "}
+                {t("salesOverview.reportPreview", "Report Document Preview")} ({exportFormat}){" "}
                 <strong className="text-slate-700">
-                  {exportFormat === "PDF" && `(${selectedCount === 0 ? "1" : previewPages.length} Pages)`}
+                  {exportFormat === "PDF" && `(${selectedCount === 0 ? "1" : previewPages.length} ${t("common.pages", "Pages")})`}
                 </strong>
               </span>
               <span className="text-[11px] text-slate-600 font-semibold">
@@ -1306,8 +1313,8 @@ export default function SalesOverviewExportModal({
                   {renderFullHeader()}
                   <div className="py-28 text-center text-slate-400">
                     <Square className="size-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs font-semibold">No content selected yet.</p>
-                    <p className="text-[11px]">Check the components on the left menu to display them in the report.</p>
+                    <p className="text-xs font-semibold">{t("salesOverview.noContentSelected", "No content selected yet.")}</p>
+                    <p className="text-[11px]">{t("salesOverview.noContentSelectedHint", "Check the components on the left menu to display them in the report.")}</p>
                   </div>
                 </div>
                 {renderPageFooter(1, 1)}
@@ -1340,10 +1347,14 @@ export default function SalesOverviewExportModal({
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-6 py-3.5">
           <p className="text-xs text-slate-600">
             {selectedCount === 0 ? (
-              <span className="text-amber-700 font-semibold">Select at least 1 component to export.</span>
+              <span className="text-amber-700 font-semibold">{t("salesOverview.selectAtLeastOne", "Select at least 1 component to export.")}</span>
             ) : (
               <span>
-                Ready to export <strong className="text-slate-900">{selectedCount} selected section(s)</strong> to{" "}
+                {t("salesOverview.readyToExport", "Ready to export")}{" "}
+                <strong className="text-slate-900">
+                  {t("salesOverview.selectedSections", "{count} selected section(s)", { count: selectedCount })}
+                </strong>{" "}
+                {t("salesOverview.toFormat", "to")}{" "}
                 <strong className="text-blue-700">
                   {exportFormat === "PDF" ? "PDF (.pdf)" : exportFormat === "XLSX" ? "Excel (.xlsx)" : "CSV (.csv)"}
                 </strong>
@@ -1358,28 +1369,27 @@ export default function SalesOverviewExportModal({
               disabled={isExporting}
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
             >
-              Cancel
+              {t("common.cancel", "Cancel")}
             </button>
             <button
               type="button"
               onClick={handleExport}
               disabled={isExporting || selectedCount === 0}
-              className={`inline-flex items-center gap-2 rounded-lg px-5 py-2 text-xs font-bold text-white shadow-sm disabled:opacity-50 transition cursor-pointer ${
-                exportFormat === "PDF"
-                  ? "bg-rose-600 hover:bg-rose-700"
-                  : exportFormat === "XLSX"
+              className={`inline-flex items-center gap-2 rounded-lg px-5 py-2 text-xs font-bold text-white shadow-sm disabled:opacity-50 transition cursor-pointer ${exportFormat === "PDF"
+                ? "bg-rose-600 hover:bg-rose-700"
+                : exportFormat === "XLSX"
                   ? "bg-emerald-600 hover:bg-emerald-700"
                   : "bg-indigo-600 hover:bg-indigo-700"
-              }`}
+                }`}
             >
               <Download className="size-4" />
               {isExporting
-                ? `Generating ${exportFormat}...`
+                ? t("salesOverview.generating", "Generating {format}...", { format: exportFormat })
                 : exportFormat === "PDF"
-                ? "Export PDF"
-                : exportFormat === "XLSX"
-                ? "Export Excel (.xlsx)"
-                : "Export CSV (.csv)"}
+                  ? t("salesOverview.exportPdf", "Export PDF")
+                  : exportFormat === "XLSX"
+                    ? t("salesOverview.exportExcel", "Export Excel (.xlsx)")
+                    : t("salesOverview.exportCsv", "Export CSV (.csv)")}
             </button>
           </div>
         </footer>

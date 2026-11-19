@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, TrendingDown, TrendingUp } from "lucide-react";
 import {
   Area,
@@ -17,14 +17,13 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export type Metric = "revenue" | "cost" | "total_outstanding";
 
-const chartConfig: Record<Metric, { labelEn: string; labelId: string; color: string; fill: string }> = {
-  revenue: { labelEn: "Revenue", labelId: "Pendapatan", color: "#2563eb", fill: "#60a5fa" },
-  cost: { labelEn: "Cost", labelId: "Biaya Operasional", color: "#d97706", fill: "#fbbf24" },
-  total_outstanding: { labelEn: "Outstanding", labelId: "Sisa Piutang", color: "#0f766e", fill: "#2dd4bf" },
+const chartConfig: Record<Metric, { color: string; fill: string }> = {
+  revenue: { color: "#2563eb", fill: "#60a5fa" },
+  cost: { color: "#d97706", fill: "#fbbf24" },
+  total_outstanding: { color: "#0f766e", fill: "#2dd4bf" },
 };
 
 const money = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
-const compactMoney = new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 });
 const monthNamesEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const monthNamesId = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -51,31 +50,35 @@ function useReducedMotion() {
   return reduced;
 }
 
+function getMetricLabel(metric: Metric, t: (key: string, fallback?: string) => string) {
+  if (metric === "revenue") return t("salesOverview.revenue", "Revenue");
+  if (metric === "cost") return t("salesOverview.cost", "Cost");
+  return t("common.outstanding", "Outstanding");
+}
+
 function MacroTooltip({
   active,
   payload,
   label,
-  isIndonesian,
-  periodLabelFallback,
 }: {
   active?: boolean;
   payload?: ReadonlyArray<{ dataKey?: string | number; value?: number | string; color?: string; name?: string }>;
   label?: string;
-  isIndonesian?: boolean;
-  periodLabelFallback?: string;
 }) {
+  const { t, language } = useLanguage();
+  const isId = language === "id";
   if (!active || !payload?.length) return null;
   return (
     <div className="min-w-44 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
-      <p className="mb-1.5 font-semibold text-slate-900">{label ? monthLabel(label, isIndonesian) : (periodLabelFallback || "Period")}</p>
+      <p className="mb-1.5 font-semibold text-slate-900">{label ? monthLabel(label, isId) : t("common.period", "Period")}</p>
       {payload.map((entry, index) => {
         const key = String(entry.dataKey ?? entry.name ?? "metric") as Metric;
-        const config = chartConfig[key];
-        const displayLabel = config ? (isIndonesian ? config.labelId : config.labelEn) : String(entry.name ?? key);
+        const config = chartConfig[key] ?? { color: entry.color ?? "#64748b" };
+        const labelText = key in chartConfig ? getMetricLabel(key, t) : String(entry.name ?? key);
         return (
           <div key={`${key}-${index}`} className="flex items-center gap-2 py-1">
-            <span className="size-2 rounded-full" style={{ backgroundColor: config?.color ?? entry.color ?? "#64748b" }} />
-            <span className="text-slate-500">{displayLabel}</span>
+            <span className="size-2 rounded-full" style={{ backgroundColor: config.color }} />
+            <span className="text-slate-500">{labelText}</span>
             <span className="ml-auto pl-3 font-mono font-medium text-slate-900">{money.format(Number(entry.value ?? 0))}</span>
           </div>
         );
@@ -84,19 +87,16 @@ function MacroTooltip({
   );
 }
 
-function ChartLegend({ metrics, isIndonesian }: { metrics: Metric[]; isIndonesian: boolean }) {
+function ChartLegend({ metrics }: { metrics: Metric[] }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-semibold text-slate-500">
-      {metrics.map((metric) => {
-        const item = chartConfig[metric];
-        const label = isIndonesian ? item.labelId : item.labelEn;
-        return (
-          <span key={metric} className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full" style={{ backgroundColor: item.color }} />
-            {label}
-          </span>
-        );
-      })}
+      {metrics.map((metric) => (
+        <span key={metric} className="inline-flex items-center gap-1.5">
+          <span className="size-2 rounded-full" style={{ backgroundColor: chartConfig[metric].color }} />
+          {getMetricLabel(metric, t)}
+        </span>
+      ))}
     </div>
   );
 }
@@ -118,8 +118,12 @@ export function ChartAreaStacked({
   loading: boolean;
   error: string | null;
 }) {
-  const { language, t } = useLanguage();
+  const { t, language } = useLanguage();
   const isId = language === "id";
+  const compactMoney = useMemo(
+    () => new Intl.NumberFormat(language === "id" ? "id-ID" : "en-US", { notation: "compact", maximumFractionDigits: 1 }),
+    [language]
+  );
   const reduceMotion = useReducedMotion();
   const ordered = [...series].sort((a, b) => a.period_month.localeCompare(b.period_month));
   const maximum = Math.max(0, ...ordered.flatMap((point) => metrics.map((metric) => point[metric])));
@@ -132,8 +136,6 @@ export function ChartAreaStacked({
     : null;
   const Trend = change !== null && change < 0 ? TrendingDown : TrendingUp;
   const chartId = `sales-chart-${metrics.join("-")}`;
-  const trendConfig = chartConfig[trendMetric];
-  const trendLabel = isId ? trendConfig.labelId : trendConfig.labelEn;
 
   return (
     <Card className="min-w-0 overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm">
@@ -167,7 +169,7 @@ export function ChartAreaStacked({
                 <Activity className="size-4 text-slate-400" aria-hidden="true" />
               </div>
             </div>
-            <ChartLegend metrics={metrics} isIndonesian={isId} />
+            <ChartLegend metrics={metrics} />
           </>
         )}
       </CardHeader>
@@ -219,14 +221,14 @@ export function ChartAreaStacked({
                 />
                 <Tooltip
                   cursor={{ stroke: "#94a3b8", strokeOpacity: 0.35, strokeDasharray: "4 4" }}
-                  content={<MacroTooltip isIndonesian={isId} periodLabelFallback={t("salesOverview.period", "Period")} />}
+                  content={<MacroTooltip />}
                 />
                 {metrics.map((metric) => (
                   <Area
                     key={metric}
                     type="monotone"
                     dataKey={metric}
-                    name={isId ? chartConfig[metric].labelId : chartConfig[metric].labelEn}
+                    name={getMetricLabel(metric, t)}
                     stroke={chartConfig[metric].color}
                     strokeWidth={2.2}
                     fill={`url(#${chartId}-${metric})`}
@@ -255,8 +257,8 @@ export function ChartAreaStacked({
                 t("salesOverview.changeUnavailable", "Change unavailable")
               ) : (
                 <>
-                  {trendLabel}{" "}
-                  {change > 0 ? t("salesOverview.up", "up") : change < 0 ? t("salesOverview.down", "down") : t("salesOverview.flat", "flat")}{" "}
+                  {getMetricLabel(trendMetric, t)}{" "}
+                  {change > 0 ? t("salesOverview.trendUp", "up") : change < 0 ? t("salesOverview.trendDown", "down") : t("salesOverview.trendFlat", "flat")}{" "}
                   {Math.abs(change).toFixed(1)}%
                   <Trend className="size-4" />
                 </>

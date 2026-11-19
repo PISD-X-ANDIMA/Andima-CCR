@@ -135,3 +135,4 @@ logs/
 .history/
 .npm/
 .pnpm-store/
+.gemini/

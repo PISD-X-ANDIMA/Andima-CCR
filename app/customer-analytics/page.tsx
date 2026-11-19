@@ -11,7 +11,7 @@ import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export default function CustomerAnalyticsPage() {
-  const { language, t } = useLanguage();
+  const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [branch, setBranch] = useState("All Branches");
   const [sortBy, setSortBy] = useState("sales_profit");
@@ -72,6 +72,13 @@ export default function CustomerAnalyticsPage() {
   }, []);
   useEffect(() => { void loadAnalyticsData(); }, [loadAnalyticsData]);
 
+  const formatBranch = (value?: string | null) => {
+    if (!value || value === "-" || value.toLowerCase() === "tidak tersedia") {
+      return t("common.unavailable", "Unavailable");
+    }
+    return value;
+  };
+
   const returnTo = `/customer-analytics?${new URLSearchParams({ branch, search: searchQuery, page: String(currentPage), sortBy, sortOrder }).toString()}`;
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans">
@@ -81,7 +88,7 @@ export default function CustomerAnalyticsPage() {
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
               {language === "id" ? (
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">Analisis Pelanggan</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">{t("customerAnalytics.title", "Analisis Pelanggan")}</h1>
               ) : (
                 <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">Customer Analytics</h1>
               )}
@@ -118,7 +125,7 @@ export default function CustomerAnalyticsPage() {
                   </select>
                 </label>
                 <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                  {t("customerAnalytics.sortBy", "Sort by")}
+                  {t("common.sortBy", "Sort by")}
                   <select value={sortBy} onChange={(event) => { setSortBy(event.target.value); setCurrentPage(1); }} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700">
                     <option value="sales_profit">{t("customerAnalytics.profit", "Profit")}</option>
                     <option value="total_outstanding">{t("common.outstanding", "Outstanding")}</option>
@@ -126,7 +133,7 @@ export default function CustomerAnalyticsPage() {
                   </select>
                 </label>
                 <button type="button" onClick={() => setSortOrder((current) => current === "asc" ? "desc" : "asc")} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 cursor-pointer" aria-label="Toggle sort order">
-                  {sortOrder === "asc" ? t("customerAnalytics.ascending", "Ascending") : t("customerAnalytics.descending", "Descending")}
+                  {sortOrder === "asc" ? t("common.ascending", "Ascending") : t("common.descending", "Descending")}
                 </button>
               </div>
             </div>
@@ -136,7 +143,7 @@ export default function CustomerAnalyticsPage() {
               <table className="w-full min-w-[560px] border-collapse text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
-                    <th className="px-6 py-3.5">{t("customerAnalytics.company", "Company")}</th>
+                    <th className="px-6 py-3.5">{t("common.company", "Company")}</th>
                     <th className="px-6 py-3.5">{t("common.branch", "Branch")}</th>
                   </tr>
                 </thead>
@@ -159,12 +166,14 @@ export default function CustomerAnalyticsPage() {
                               <span className="min-w-0">
                                 <span className="block font-bold text-blue-700 font-heading">{customer.customer_name}</span>
                                 <span className="mt-1 block text-[11px] font-medium text-slate-500">
-                                  {codes.length ? `${codes.length} ${t("customerAnalytics.customerCodesCount", "customer codes")}` : t("customerAnalytics.noCustomerCodes", "No customer codes")}
+                                  {codes.length
+                                    ? t("customerAnalytics.customerCodesCount", "{count} customer codes", { count: codes.length })
+                                    : t("customerAnalytics.noCustomerCodes", "No customer codes")}
                                 </span>
                               </span>
                             </Link>
                           </td>
-                          <td className="px-6 py-4 font-medium text-slate-600">{customer.branch}</td>
+                          <td className="px-6 py-4 font-medium text-slate-600">{formatBranch(customer.branch)}</td>
                         </tr>
                       );
                     })
@@ -181,7 +190,7 @@ export default function CustomerAnalyticsPage() {
               ) : (
                 <>
                   <span>
-                    {t("common.showing", "Showing")} {customers.length ? (currentPage - 1) * itemsPerPage + 1 : 0}-{(currentPage - 1) * itemsPerPage + customers.length} {t("common.of", "of")} {totalItems} {t("customerAnalytics.companies", "companies")}
+                    {t("common.showing", "Showing")} {customers.length ? (currentPage - 1) * itemsPerPage + 1 : 0}-{(currentPage - 1) * itemsPerPage + customers.length} {t("common.of", "of")} {totalItems} {t("common.companies", "companies")}
                   </span>
                   <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                 </>

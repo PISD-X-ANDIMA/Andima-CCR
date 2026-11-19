@@ -36,7 +36,7 @@ export const Header: React.FC<HeaderProps> = ({ pageName }) => {
         {/* Language Switcher Toggle */}
         <div
           role="group"
-          aria-label="Select language"
+          aria-label={t("nav.selectLanguage", "Select language")}
           className="flex items-center rounded-lg border border-slate-200 bg-slate-100/80 p-0.5 text-xs font-semibold"
         >
           <button
@@ -47,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({ pageName }) => {
                 ? "bg-white text-blue-700 shadow-xs font-bold"
                 : "text-slate-500 hover:text-slate-800"
             }`}
-            aria-label="Switch language to English"
+            aria-label={t("nav.switchToEnglish", "Switch language to English")}
             aria-pressed={language === "en"}
           >
             EN
@@ -60,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({ pageName }) => {
                 ? "bg-white text-blue-700 shadow-xs font-bold"
                 : "text-slate-500 hover:text-slate-800"
             }`}
-            aria-label="Ganti bahasa ke Bahasa Indonesia"
+            aria-label={t("nav.switchToIndonesian", "Switch language to Indonesian")}
             aria-pressed={language === "id"}
           >
             ID
@@ -69,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({ pageName }) => {
 
         <button
           type="button"
-          aria-label="Notifications"
+          aria-label={t("nav.notifications", "Notifications")}
           className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({ pageName }) => {
 
         <button
           type="button"
-          aria-label="Filters"
+          aria-label={t("nav.filters", "Filters")}
           className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

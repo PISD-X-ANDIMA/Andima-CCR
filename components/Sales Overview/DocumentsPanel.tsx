@@ -1,27 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Download, Eye, FileText, MoreVertical, X } from "lucide-react";
 import Pagination from "@/components/Pagination";
-import type { DocumentPreview, RecentDocument } from "@/lib/salesOverviewDocuments";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
+import type { DocumentPreview, RecentDocument } from "@/lib/salesOverviewDocuments";
 import { FriendlyErrorCard } from "@/components/UploadForm/uploadform";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
-const dateFormatter = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" });
-const numberFormatter = new Intl.NumberFormat("id-ID");
-
-function documentType(value: RecentDocument["document_type"], isId = false) {
-  if (value === "COMPANY_SALES_REPORT") return isId ? "Laporan Penjualan" : "Sales Report";
-  return isId ? "Laporan Piutang" : "Outstanding";
+function documentType(value: RecentDocument["document_type"], t: (key: string, fallback?: string) => string) {
+  return value === "COMPANY_SALES_REPORT" ? t("upload.salesLabel", "Sales Report") : t("upload.outstandingShort", "Outstanding");
 }
 
-function statusLabel(value: RecentDocument["validation_status"], isId = false) {
-  if (value === "validated") return isId ? "Tervalidasi" : "Validated";
-  if (value === "rejected") return isId ? "Ditolak" : "Rejected";
-  if (value === "processing") return isId ? "Diproses" : "Processing";
-  return isId ? "Terunggah" : "Uploaded";
+function statusLabel(value: RecentDocument["validation_status"], t: (key: string, fallback?: string) => string) {
+  return value === "validated"
+    ? t("upload.statusValidated", "Validated")
+    : value === "rejected"
+      ? t("upload.statusRejected", "Rejected")
+      : value === "processing"
+        ? t("upload.statusProcessing", "Processing")
+        : t("upload.statusUploaded", "Uploaded");
 }
 
 function formatDocumentStagingKey(key: string, isId: boolean): string {
@@ -93,7 +92,8 @@ export function RecentDocumentsPanel({
   onRejectedDownload: (message: string) => void;
 }) {
   const { language, t } = useLanguage();
-  const isId = language === "id";
+  const dateFormatter = useMemo(() => new Intl.DateTimeFormat(language === "id" ? "id-ID" : "en-US", { dateStyle: "medium", timeStyle: "short" }), [language]);
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(language === "id" ? "id-ID" : "en-US"), [language]);
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm" aria-label="Recent documents">
@@ -130,18 +130,18 @@ export function RecentDocumentsPanel({
           </div>
         </div>
       ) : documents.length === 0 ? (
-        <p className="px-5 py-10 text-center text-sm text-slate-500">{t("salesOverview.noDocumentsYet", "No documents uploaded yet.")}</p>
+        <p className="px-5 py-10 text-center text-sm text-slate-500">{t("upload.noDocumentsYet", "No documents uploaded yet.")}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs text-slate-600 font-semibold">
               <tr>
-                <th className="px-5 py-3">{t("upload.colDocument", "File")}</th>
+                <th className="px-5 py-3">{t("upload.colFile", "File")}</th>
                 <th className="px-5 py-3">{t("upload.colType", "Type")}</th>
-                <th className="px-5 py-3">{t("upload.colUploaded", "Upload Date")}</th>
-                <th className="px-5 py-3">{t("upload.colStatus", "Status")}</th>
+                <th className="px-5 py-3">{t("upload.colUploadDate", "Upload Date")}</th>
+                <th className="px-5 py-3">{t("common.status", "Status")}</th>
                 <th className="px-5 py-3">{t("upload.colRows", "Rows")}</th>
-                <th className="px-5 py-3 text-right">{t("upload.colActions", "Action")}</th>
+                <th className="px-5 py-3 text-right">{t("common.action", "Action")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -153,7 +153,7 @@ export function RecentDocumentsPanel({
                     </span>
                     <span className="text-[11px] text-slate-400">{numberFormatter.format(document.file_size_bytes)} bytes</span>
                   </td>
-                  <td className="whitespace-nowrap px-5 py-3 text-xs">{documentType(document.document_type, isId)}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-xs">{documentType(document.document_type, t)}</td>
                   <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-500">{dateFormatter.format(new Date(document.uploaded_at))}</td>
                   <td className="whitespace-nowrap px-5 py-3">
                     <span
@@ -165,7 +165,7 @@ export function RecentDocumentsPanel({
                           : "bg-amber-50 text-amber-700"
                       }`}
                     >
-                      {statusLabel(document.validation_status, isId)}
+                      {statusLabel(document.validation_status, t)}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-5 py-3 text-xs">
@@ -200,7 +200,7 @@ function DocumentActionMenu({
   onOpenOriginal: (id: string) => void;
   onRejectedDownload: (message: string) => void;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -235,14 +235,14 @@ function DocumentActionMenu({
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
           >
             <Eye className="size-3.5" />
-            {t("salesOverview.viewPreview", "View Preview")}
+            {t("upload.viewPreview", "View Preview")}
           </button>
           <button
             type="button"
             onClick={() => {
               if (row.validation_status === "rejected") {
-                const reason = row.error_summary ? ` ${row.error_summary}` : "";
-                onRejectedDownload(`${t("salesOverview.fileNotAvailableRejected", "Original file is not available because the document was rejected.")}${reason}`);
+                const baseMsg = language === "id" ? "File asli tidak tersedia karena dokumen ditolak." : t("salesOverview.originalFileRejected", "Original file is not available because the document was rejected.");
+                onRejectedDownload(`${baseMsg}${row.error_summary ? ` ${row.error_summary}` : ""}`);
               } else {
                 onOpenOriginal(row.id);
               }
@@ -251,7 +251,7 @@ function DocumentActionMenu({
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
           >
             <Download className="size-3.5" />
-            {t("salesOverview.openOriginalFile", "Open Original File")}
+            {t("upload.openOriginalFile", "Open Original File")}
           </button>
         </div>
       )}
@@ -262,6 +262,9 @@ function DocumentActionMenu({
 export function DocumentPreviewModal({ documentId, onClose }: { documentId: string; onClose: () => void }) {
   const { language, t } = useLanguage();
   const isId = language === "id";
+  const dateFormatter = useMemo(() => new Intl.DateTimeFormat(language === "id" ? "id-ID" : "en-US", { dateStyle: "medium", timeStyle: "short" }), [language]);
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(language === "id" ? "id-ID" : "en-US"), [language]);
+
   const [preview, setPreview] = useState<DocumentPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rowPage, setRowPage] = useState(1);
@@ -310,10 +313,10 @@ export function DocumentPreviewModal({ documentId, onClose }: { documentId: stri
       <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div>
-            <h2 className="font-bold text-slate-900 font-heading">{preview?.document.file_name ?? (isId ? "Pratinjau Dokumen" : "Document Preview")}</h2>
+            <h2 className="font-bold text-slate-900 font-heading">{preview?.document.file_name ?? t("upload.documentPreview", "Document Preview")}</h2>
             {preview && (
               <p className="text-xs text-slate-500">
-                {documentType(preview.document.document_type, isId)} · {statusLabel(preview.document.validation_status, isId)}
+                {documentType(preview.document.document_type, t)} · {statusLabel(preview.document.validation_status, t)}
               </p>
             )}
           </div>
@@ -344,11 +347,9 @@ export function DocumentPreviewModal({ documentId, onClose }: { documentId: stri
                     documentType={preview.document.document_type}
                   />
                   <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
-                    <p className="font-semibold">{isId ? "Penyimpanan dokumen gagal" : "Document upload failed"}</p>
+                    <p className="font-semibold">{t("upload.uploadFailedTitle", "Document upload failed")}</p>
                     <p className="mt-1">
-                      {isId
-                        ? "Berkas asli tidak disimpan. Tinjau rincian validasi di bawah ini."
-                        : "The original file was not saved. Review the validation details below."}
+                      {t("upload.uploadFailedDetail", "The original file was not saved. Review the validation details below.")}
                     </p>
                     {preview.document.error_summary && <p className="mt-2 text-xs">{preview.document.error_summary}</p>}
                   </div>
@@ -357,15 +358,15 @@ export function DocumentPreviewModal({ documentId, onClose }: { documentId: stri
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                 <span>{dateFormatter.format(new Date(preview.document.uploaded_at))}</span>
                 <span>
-                  {numberFormatter.format(preview.document.valid_row_count)} {isId ? "baris valid" : "valid rows"}
+                  {numberFormatter.format(preview.document.valid_row_count)} {t("upload.validRowsCount", "valid rows")}
                 </span>
                 <span>
-                  {numberFormatter.format(preview.errors.length)} {isId ? "peringatan/galat" : "warnings/errors"}
+                  {numberFormatter.format(preview.errors.length)} {t("upload.warningsErrorsCount", "warnings/errors")}
                 </span>
                 {preview.signedUrl && (
                   <a href={preview.signedUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline">
                     <Download className="size-3.5" />
-                    {t("salesOverview.openOriginalFile", "Open Original File")}
+                    {t("upload.openOriginalFile", "Open Original File")}
                   </a>
                 )}
               </div>
@@ -373,7 +374,7 @@ export function DocumentPreviewModal({ documentId, onClose }: { documentId: stri
                 <iframe title={`Preview ${preview.document.file_name}`} src={preview.signedUrl} className="h-[32rem] w-full rounded-lg border border-slate-200" />
               )}
               <section aria-label="Extracted document data">
-                <h3 className="mb-2 text-sm font-bold text-slate-900 font-heading">{isId ? "Data Terekstraksi" : "Extracted Data"}</h3>
+                <h3 className="mb-2 text-sm font-bold text-slate-900 font-heading">{t("upload.extractedData", "Extracted Data")}</h3>
                 <div className="overflow-x-auto rounded-lg border border-slate-200">
                   <table className="min-w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-600 font-semibold">
@@ -409,7 +410,7 @@ export function DocumentPreviewModal({ documentId, onClose }: { documentId: stri
                       ) : (
                         <tr>
                           <td className="px-3 py-8 text-center text-slate-500" colSpan={Math.max(1, Object.keys(preview.rows[0] ?? {}).filter((k) => k !== "id" && k !== "document_id" && k !== "c1_customer_id" && k !== "customer_id" && k !== "created_at").length)}>
-                            {isId ? "Data staging tidak tersedia." : "No staging data available."}
+                            {t("upload.noStagingData", "No staging data available.")}
                           </td>
                         </tr>
                       )}
@@ -419,7 +420,7 @@ export function DocumentPreviewModal({ documentId, onClose }: { documentId: stri
                 {preview.rows.length > 0 && (
                   <div className="mt-3 flex flex-col gap-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between">
                     <span>
-                      {preview.rows.length} {isId ? "baris" : "rows"} · {isId ? `Halaman ${rowPage} dari ${rowTotalPages}` : `Page ${rowPage} of ${rowTotalPages}`} · 25 {isId ? "per halaman" : "per page"}
+                      {preview.rows.length} {t("common.rows", "rows")} · {t("common.page", "Page")} {rowPage} {t("common.of", "of")} {rowTotalPages} · 25 {t("common.perPage", "per page")}
                     </span>
                     {rowTotalPages > 1 && <Pagination currentPage={rowPage} totalPages={rowTotalPages} onPageChange={setRowPage} />}
                   </div>
@@ -427,7 +428,7 @@ export function DocumentPreviewModal({ documentId, onClose }: { documentId: stri
               </section>
               {preview.customers.length > 0 && (
                 <div>
-                  <h3 className="mb-2 text-sm font-bold text-slate-900 font-heading">{isId ? "Pelanggan C1 Terkait" : "Associated C1 Customers"}</h3>
+                  <h3 className="mb-2 text-sm font-bold text-slate-900 font-heading">{t("upload.associatedCustomers", "Associated C1 Customers")}</h3>
                   <div className="grid gap-2 md:grid-cols-2">
                     {preview.customers.map((customer) => (
                       <div key={customer.customer_id} className="rounded-lg bg-slate-50 p-3 text-xs">
@@ -442,16 +443,16 @@ export function DocumentPreviewModal({ documentId, onClose }: { documentId: stri
               )}
               {preview.errors.length > 0 && (
                 <section aria-label="Validation warnings and errors">
-                  <h3 className="mb-2 text-sm font-bold text-slate-900 font-heading">{isId ? "Peringatan & Galat Validasi" : "Validation Warnings &amp; Errors"}</h3>
+                  <h3 className="mb-2 text-sm font-bold text-slate-900 font-heading">{language === "id" ? t("upload.validationWarningsErrors", "Peringatan & Galat Validasi") : <>Validation Warnings &amp; Errors</>}</h3>
                   <div className="overflow-x-auto rounded-lg border border-slate-200">
                     <table className="min-w-full text-left text-xs">
                       <thead className="bg-slate-50 font-semibold text-slate-600">
                         <tr>
-                          <th className="whitespace-nowrap px-3 py-2">{isId ? "Tingkat" : "Severity"}</th>
-                          <th className="whitespace-nowrap px-3 py-2">{isId ? "Baris" : "Row"}</th>
-                          <th className="whitespace-nowrap px-3 py-2">{isId ? "Kolom" : "Field"}</th>
-                          <th className="px-3 py-2">{isId ? "Pesan" : "Message"}</th>
-                          <th className="px-3 py-2">{isId ? "Nilai Asal" : "Source value"}</th>
+                          <th className="whitespace-nowrap px-3 py-2">{t("upload.severity", "Severity")}</th>
+                          <th className="whitespace-nowrap px-3 py-2">{t("upload.row", "Row")}</th>
+                          <th className="whitespace-nowrap px-3 py-2">{t("upload.field", "Field")}</th>
+                          <th className="px-3 py-2">{t("upload.message", "Message")}</th>
+                          <th className="px-3 py-2">{t("upload.sourceValue", "Source value")}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -473,7 +474,7 @@ export function DocumentPreviewModal({ documentId, onClose }: { documentId: stri
                   </div>
                   <div className="mt-3 flex flex-col gap-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between">
                     <span>
-                      {numberFormatter.format(preview.errors.length)} {isId ? "temuan" : "findings"} · {isId ? `Halaman ${errorPage} dari ${errorTotalPages}` : `Page ${errorPage} of ${errorTotalPages}`} · 25 {isId ? "per halaman" : "per page"}
+                      {numberFormatter.format(preview.errors.length)} {t("upload.findings", "findings")} · {t("common.page", "Page")} {errorPage} {t("common.of", "of")} {errorTotalPages} · 25 {t("common.perPage", "per page")}
                     </span>
                     {errorTotalPages > 1 && <Pagination currentPage={errorPage} totalPages={errorTotalPages} onPageChange={setErrorPage} />}
                   </div>
