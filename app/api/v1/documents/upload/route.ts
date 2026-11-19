@@ -82,7 +82,51 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const parseCode = error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "PARSING_FAILED";
     const parseError: ValidationError = { field: "file", code: parseCode, message: parseFailureMessage(parseCode) };
-    return withTiming(jsonError(parseError.message, 422, parseError.code, [parseError]), startedAt, { auth: authDuration, parse: performance.now() - parseStarted });
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const checksum = createHash("sha256").update(bytes).digest("hex");
+    const storagePath = `${userData.user.id}/${crypto.randomUUID()}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const { data: rejectedDoc } = await persistenceClient
+      .from("c1_document_uploads")
+      .insert({
+        file_name: file.name,
+        document_type: documentType,
+        storage_path: storagePath,
+        mime_type: file.type || "application/octet-stream",
+        file_size_bytes: file.size,
+        checksum,
+        uploader_user_id: userData.user.id,
+        validation_status: "rejected",
+        processing_started_at: new Date().toISOString(),
+        processed_at: new Date().toISOString(),
+        row_count: 0,
+        valid_row_count: 0,
+        invalid_row_count: 0,
+        error_summary: parseError.message,
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (rejectedDoc?.id) {
+      await persistenceClient.from("c1_document_validation_errors").insert([
+        {
+          document_id: rejectedDoc.id,
+          row_number: null,
+          field_name: parseError.field,
+          error_code: parseError.code,
+          error_message: parseError.message,
+          raw_value: null,
+          severity: "ERROR",
+        },
+      ]);
+    }
+
+    return withTiming(
+      jsonError(parseError.message, 422, "VALIDATION_FAILED", [parseError], {
+        documentId: rejectedDoc?.id,
+      }),
+      startedAt,
+      { auth: authDuration, parse: performance.now() - parseStarted }
+    );
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -174,7 +218,15 @@ export async function POST(request: NextRequest) {
         c1_customer_id: resolvedCustomer.c1_customer_id,
         ...(documentType === "OUTSTANDING_REPORT"
           ? { create_date: row.create_date ?? null, job_number: row.job_number ?? null, mawb: row.mawb ?? null }
-          : { job_number: row.job_number ?? null, mawb: row.mawb ?? null }),
+          : {
+              job_number: row.job_number ?? null,
+              mawb: row.mawb ?? null,
+              sub_total: Number(row.sub_total ?? row.trucking_cost ?? 0),
+              vat: Number(row.vat ?? row.handling_cost ?? 0),
+              pph_23: Number(row.pph_23 ?? row.storage_cost ?? 0),
+              others: Number(row.others ?? row.other_operational_cost ?? 0),
+              dip_iata: Number(row.dip_iata ?? 0),
+            }),
       };
     });
     const { error: stagingError } = await persistenceClient.from(table).insert(stagingRows);

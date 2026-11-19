@@ -22,7 +22,6 @@
 
 # misc
 .DS_Store
-*.pem
 
 # debug
 npm-debug.log*
@@ -30,10 +29,55 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# environment variables and secrets
+.env
 .env*
-!.env.example
+.env*.local
 *.env
+*.env.*
+!.env.example
+!.env.template
+
+# credentials, secret keys, API tokens, and certificates
+*.key
+*.pem
+*.crt
+*.cer
+*.cert
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.secret
+*.secrets
+*.token
+*.tokens
+secret.txt
+secrets/
+credentials*.json
+credential*.json
+service-account*.json
+service_account*.json
+client_secret*.json
+auth*.json
+id_rsa*
+id_ecdsa*
+id_ed25519*
+*.pub.key
+
+# AI tooling, agent configurations, skills, and plugins (Gemini, Antigravity, Claude, Cursor, etc.)
+.gemini
+.gemini/
+**/.gemini/**
+.antigravity
+.antigravity/
+**/.antigravity/**
+.agents
+.agents/
+.claude/
+.cursor/
+.codex/
+.cline/
 
 # vercel
 .vercel
@@ -46,7 +90,9 @@ next-env.d.ts
 *dbml
 
 # FRTR documents and working files
+FRTR/
 /FRTR/
+FRTR
 backend-documentation.md
 chartnew.tsx
 
@@ -76,17 +122,6 @@ temp/
 # additional runtime logs
 *.log
 logs/
-
-# credentials, secrets, and certificates
-*.key
-*.crt
-*.cer
-*.p12
-*.pfx
-*.secret
-*.token
-credentials*.json
-service-account*.json
 
 # local databases and backups
 *.sqlite

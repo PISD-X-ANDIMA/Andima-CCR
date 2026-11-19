@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   AlertTriangle,
@@ -14,12 +13,9 @@ import {
   MessageSquare,
   Paperclip,
   Pencil,
-  Phone,
   RefreshCw,
-  Search,
   Trash2,
   Upload,
-  UserRound,
   Users,
   Video,
   X,
@@ -72,7 +68,6 @@ function followUpStatusBadge(status: string) {
 }
 
 export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEditViewProps) {
-  const router = useRouter();
   const cleanInvoiceId = useMemo(() => {
     try {
       return decodeURIComponent(invoiceId || "").trim();
@@ -86,10 +81,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
   const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
   const [canAssign, setCanAssign] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>("");
-  const [searchStaff, setSearchStaff] = useState("");
   const [loading, setLoading] = useState(true);
-  const [submittingPic, setSubmittingPic] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -191,10 +183,6 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
         setCanAssign(staffRes.body?.canAssign ?? true);
         setAssignmentHistory(historyRes.body?.data ?? []);
 
-        // Pre-select current assigned staff if available
-        if (found.pic_assigned) {
-          setSelectedStaffId(found.pic_assigned);
-        }
       })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : "Failed to load data.";
@@ -206,54 +194,6 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const filteredStaff = useMemo(() => {
-    const q = searchStaff.trim().toLowerCase();
-    if (!q) return staffOptions;
-    return staffOptions.filter(
-      (s) =>
-        s.full_name.toLowerCase().includes(q) ||
-        s.employee_id.toLowerCase().includes(q)
-    );
-  }, [staffOptions, searchStaff]);
-
-  const selectedStaffObj = useMemo(
-    () => staffOptions.find((s) => s.employee_id === selectedStaffId),
-    [staffOptions, selectedStaffId]
-  );
-
-  const currentAssignedStaff = useMemo(
-    () => (invoice?.pic_assigned ? staffOptions.find((s) => s.employee_id === invoice.pic_assigned) : undefined),
-    [invoice, staffOptions]
-  );
-
-  const handlePicSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!invoice || !selectedStaffId || !canAssign || submittingPic) {
-      if (!selectedStaffId) showToast("Please select a PIC staff member.");
-      return;
-    }
-
-    setSubmittingPic(true);
-    try {
-      const response = await fetch(`/api/v1/overdue/${encodeURIComponent(invoice.id || cleanInvoiceId)}/assign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedTo: selectedStaffId }),
-      });
-
-      const body = await readJsonResponse<{ error?: { message?: string } }>(response);
-      if (!response.ok) throw new Error(responseMessage(body, "Failed to assign PIC."));
-
-      const staff = staffOptions.find((item) => item.employee_id === selectedStaffId);
-      showToast(`PIC ${staff?.full_name ?? selectedStaffId} updated successfully.`);
-      refreshHistory();
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Failed to update PIC.");
-    } finally {
-      setSubmittingPic(false);
-    }
-  };
 
   const isManagement = userRole === "MANAGEMENT" || canAssign;
 
@@ -452,167 +392,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
               </div>
             </section>
 
-            {/* Section 1: Ubah PIC Card (for Management) */}
-            <form
-              onSubmit={(e) => void handlePicSubmit(e)}
-              className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden"
-            >
-              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5 bg-slate-50/70">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 font-heading">
-                    Edit Collection PIC
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    Update the CCR staff assigned to collect this invoice
-                  </p>
-                </div>
-              </div>
-
-              {/* Current PIC banner */}
-              <div className="border-b border-slate-100 bg-blue-50/40 px-6 py-3 text-xs text-slate-700 flex items-center justify-between">
-                <span className="text-[11px] text-slate-500 font-medium">Current PIC:</span>
-                <span className="font-bold text-slate-900">
-                  {currentAssignedStaff?.full_name || invoice.pic_assigned || "No PIC assigned"}
-                  {currentAssignedStaff && (
-                    <span className="ml-1 text-[11px] font-normal font-mono text-slate-500">
-                      ({currentAssignedStaff.employee_id})
-                    </span>
-                  )}
-                </span>
-              </div>
-
-              {/* Staff Search Input */}
-              <div className="px-6 pt-4 pb-2">
-                <label className="relative block">
-                  <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchStaff}
-                    onChange={(e) => setSearchStaff(e.target.value)}
-                    placeholder="Search staff name or employee ID..."
-                    disabled={!canAssign}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-9 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
-                  />
-                  {searchStaff && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchStaff("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  )}
-                </label>
-              </div>
-
-              {/* Staff List */}
-              <div className="flex-1 overflow-y-auto px-6 py-2 space-y-2 max-h-[280px]">
-                {!canAssign ? (
-                  <div className="py-6 text-center text-xs text-amber-700">
-                    <p className="font-semibold">Restricted Access</p>
-                    <p className="text-[11px] mt-1 text-slate-500">
-                      Only Management role is authorized to assign or change PIC.
-                    </p>
-                  </div>
-                ) : filteredStaff.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-slate-400">
-                    <UserRound className="size-7 mx-auto mb-2 opacity-40" />
-                    <p className="font-semibold text-slate-600">No matching staff found</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Try a different search keyword.</p>
-                  </div>
-                ) : (
-                  filteredStaff.map((staff) => {
-                    const isSelected = selectedStaffId === staff.employee_id;
-                    const staffInit = staff.full_name
-                      .split(/\s+/)
-                      .filter(Boolean)
-                      .map((part) => part[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase();
-
-                    return (
-                      <div
-                        key={staff.employee_id}
-                        onClick={() => setSelectedStaffId(staff.employee_id)}
-                        className={`flex items-center justify-between rounded-xl border p-3.5 transition cursor-pointer ${
-                          isSelected
-                            ? "border-blue-500 bg-blue-50/80 ring-1 ring-blue-500 shadow-xs"
-                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={`flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                              isSelected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            {staffInit}
-                          </div>
-                          <div className="min-w-0">
-                            <p className={`truncate text-xs font-bold ${isSelected ? "text-blue-950" : "text-slate-900"}`}>
-                              {staff.full_name}
-                            </p>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="font-mono text-[11px] text-slate-500 font-semibold">
-                                {staff.employee_id}
-                              </span>
-                              <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-bold text-slate-600 uppercase">
-                                CCR Staff
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="ml-3 shrink-0">
-                          <span
-                            className={`flex size-5 items-center justify-center rounded-full border transition ${
-                              isSelected ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white"
-                            }`}
-                          >
-                            {isSelected && <Check className="size-3 stroke-[3]" />}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Selected Staff Summary & Save */}
-              {canAssign && (
-                <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-4">
-                  <div className="text-xs">
-                    {selectedStaffObj ? (
-                      <span className="text-slate-600">
-                        Selected: <strong className="text-blue-700 font-bold">{selectedStaffObj.full_name}</strong>
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">No staff selected</span>
-                    )}
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={!selectedStaffId || submittingPic}
-                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition cursor-pointer"
-                  >
-                    {submittingPic ? (
-                      <>
-                        <RefreshCw className="size-4 animate-spin" />
-                        <span>Saving...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="size-4" />
-                        <span>Save PIC Changes</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </form>
-
-            {/* Section 2: Riwayat & Edit Follow-up */}
+            {/* Activity History & Follow-up Log */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
@@ -620,17 +400,10 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                     Activity History &amp; Follow-up Log
                   </h2>
                   <p className="text-[11px] text-slate-500">
-                      {isManagement
-                        ? "Management view-only. PIC assignment is editable above; follow-up progress logs can only be modified by Staff."
-                        : "Click the edit button on any log to correct mistake status or follow-up notes"}
-                    </p>
-                  </div>
+                    Recorded collection progress, customer interactions, and payment logs.
+                  </p>
+                </div>
                 <div className="flex items-center gap-2">
-                  {isManagement && (
-                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                      View-only for Management
-                    </span>
-                  )}
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700">
                     {assignmentHistory.length} Records
                   </span>

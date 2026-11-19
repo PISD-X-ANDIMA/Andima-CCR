@@ -276,6 +276,152 @@ test("finalizing a validation failure creates a Rejected document without storin
   assert.equal(storageUploadCalls, 0);
 });
 
+test("validateRows accepts exact document columns Sub Total, VAT, PPH 23, Others, DIP IATA", () => {
+  const uploadRoute = load("lib/documentUploadValidation.ts");
+  const result = uploadRoute.validateRows([
+    ["Period", "Customer", "Revenue", "Sub Total", "VAT", "PPH 23", "Others", "DIP IATA", "Job Number", "MAWB"],
+    ["2026-07", "PT CEVA AIR OCEAN INDONESIA", "348334", "348334", "0", "0", "1000", "2000", "BLR/2607/01380", "S07193585"],
+  ], "COMPANY_SALES_REPORT", new Map());
+
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].customer_name, "PT CEVA AIR OCEAN INDONESIA");
+  assert.equal(result.rows[0].trucking_cost, 348334);
+  assert.equal(result.rows[0].handling_cost, 0);
+  assert.equal(result.rows[0].storage_cost, 0);
+  assert.equal(result.rows[0].other_operational_cost, 3000);
+});
+
+test("upload parse failure creates a Rejected document in c1_document_uploads with error details", async () => {
+  class MockFile {
+    constructor(name) { this.name = name; this.type = "application/pdf"; this.size = 32; }
+    async arrayBuffer() { return new Uint8Array([1, 2, 3]).buffer; }
+  }
+  let insertedDoc = null;
+  let insertedError = null;
+  const admin = {
+    from(table) {
+      if (table === "c1_document_uploads") return {
+        insert: (data) => {
+          insertedDoc = data;
+          return { select: () => ({ maybeSingle: async () => ({ data: { id: doc1 }, error: null }) }) };
+        },
+      };
+      if (table === "c1_document_validation_errors") return {
+        insert: async (data) => { insertedError = data; return { error: null }; },
+      };
+      return { insert: async () => ({ error: null }) };
+    },
+    storage: { from: () => ({ upload: async () => { throw new Error("must not store bad file"); } }) },
+  };
+  const route = load("app/api/v1/documents/upload/route.ts", {
+    "node:crypto": { createHash: () => ({ update() { return this; }, digest: () => "checksum" }) },
+    "next/server": responseMock,
+    "next/headers": { cookies: async () => ({}) },
+    "@/utils/supabase/server": { createClient: () => ({ auth: { getUser: async () => ({ data: { user: { id: user1 } } }) }, from: () => ({ select: async () => ({ data: [], error: null }) }) }) },
+    "@/lib/server/admin": { createAdminClient: () => admin },
+    "@/lib/server/http": { checkOrigin: () => null },
+    "@/lib/supabaseOverdueApi": { describeSupabaseError: String, evaluateOverdueAlertsInSupabase: async () => ({}) },
+    "@/lib/server/authorization": { getCcrProfile: async () => ({ resolved_role: "STAFF", is_active: true, registration_status: "PROVISIONED" }), canUpload: () => true },
+    "@/lib/server/documentUploadParser": { parseDocumentRows: async () => { throw new Error("PDF_TEXT_NOT_EXTRACTABLE"); }, parseFailureMessage: () => "PDF unreadable." },
+    "@/lib/documentUploadValidation": { normalize: value => String(value).toLowerCase(), validateRows: () => ({ rows: [], errors: [], warnings: [] }) },
+  }, { performance, File: MockFile, Buffer, crypto: { randomUUID: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } });
+
+  const file = new MockFile("corrupt.pdf");
+  const response = await route.POST({ formData: async () => ({ get: key => key === "file" ? file : "COMPANY_SALES_REPORT" }) });
+  const body = await response.json();
+  assert.equal(response.status, 422);
+  assert.equal(body.error.code, "VALIDATION_FAILED");
+  assert.equal(body.error.documentId, doc1);
+  assert.equal(insertedDoc.validation_status, "rejected");
+  assert.equal(insertedDoc.error_summary, "PDF unreadable.");
+  assert.equal(insertedError.length >= 1, true);
+  assert.equal(insertedError[0].error_code, "PDF_TEXT_NOT_EXTRACTABLE");
+});
+
+test("cascade deletion migration removes payment transactions and unreferenced upload customers", async () => {
+  const db = new PGlite();
+  const orphanCustomer = "aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa";
+  const keptCustomer = "bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb";
+  const testDoc = "cccccccc-3333-4ccc-8ccc-cccccccccccc";
+  const otherDoc = "dddddddd-4444-4ddd-8ddd-dddddddddddd";
+  try {
+    await db.exec(`create role anon; create role authenticated; create role service_role;
+      create table c1_document_uploads (
+        id uuid primary key, file_name text not null, document_type text not null,
+        validation_status text not null, uploader_user_id uuid not null,
+        storage_bucket text not null default 'c1-document-uploads', storage_path text not null
+      );
+      create table c1_document_deletion_audit (
+        audit_id uuid primary key default gen_random_uuid(), document_id uuid not null, file_name text not null,
+        document_type text not null, validation_status text not null, uploader_user_id uuid,
+        deleted_by uuid not null, storage_bucket text not null, storage_path text not null
+      );
+      create table c1_customer (
+        customer_id uuid primary key, customer_name text, customer_code text, source_type text not null, source_document_id uuid
+      );
+      create table c1_company_sales_staging_rows (
+        id uuid primary key default gen_random_uuid(), document_id uuid not null references c1_document_uploads(id) on delete cascade,
+        row_number integer not null, period_month date not null, revenue numeric not null, total_cost numeric not null, c1_customer_id uuid,
+        trucking_cost numeric default 0, handling_cost numeric default 0, storage_cost numeric default 0, other_operational_cost numeric default 0,
+        sub_total numeric default 0, vat numeric default 0, pph_23 numeric default 0, others numeric default 0, dip_iata numeric default 0
+      );
+      create table c1_outstanding_staging_rows (
+        id uuid primary key default gen_random_uuid(), document_id uuid not null references c1_document_uploads(id) on delete cascade,
+        invoice_number text not null, due_date date not null, outstanding_amount numeric not null, c1_customer_id uuid
+      );
+      create table c1_payment_transactions (
+        id uuid primary key default gen_random_uuid(), invoice_number text not null, customer_id uuid
+      );
+      create table c1_assignment (
+        id uuid primary key default gen_random_uuid(), invoice_number text not null
+      );
+      create table c1_overdue_alert (c1_customer_id uuid);
+      create table c1_macro_metric (
+        period_month date primary key, revenue numeric not null, cost numeric not null, total_outstanding numeric not null,
+        validation_status text not null, updated_at timestamptz not null default now()
+      );
+      create function c1_refresh_overdue_alerts(date) returns void language plpgsql as $$ begin end; $$;
+
+      insert into c1_document_uploads(id, file_name, document_type, validation_status, uploader_user_id, storage_path) values
+        ('${testDoc}', 'outstanding_to_delete.xlsx', 'OUTSTANDING_REPORT', 'validated', '${user1}', 'path1'),
+        ('${otherDoc}', 'outstanding_keep.xlsx', 'OUTSTANDING_REPORT', 'validated', '${user1}', 'path2');
+      insert into c1_customer(customer_id, customer_name, source_type, source_document_id) values
+        ('${orphanCustomer}', 'Orphan Co', 'UPLOAD', '${testDoc}'),
+        ('${keptCustomer}', 'Kept Co', 'UPLOAD', '${otherDoc}');
+      insert into c1_outstanding_staging_rows(document_id, invoice_number, due_date, outstanding_amount, c1_customer_id) values
+        ('${testDoc}', 'INV-DELETE-001', '2026-11-01', 500000, '${orphanCustomer}'),
+        ('${otherDoc}', 'INV-KEEP-002', '2026-11-15', 700000, '${keptCustomer}');
+      insert into c1_payment_transactions(invoice_number, customer_id) values
+        ('INV-DELETE-001', '${orphanCustomer}'),
+        ('INV-KEEP-002', '${keptCustomer}');
+      insert into c1_assignment(invoice_number) values
+        ('INV-DELETE-001'),
+        ('INV-KEEP-002');
+    `);
+
+    const migration = read("supabase/migrations/20261118223000_cascade_c1_document_deletion.sql");
+    await db.exec(migration);
+
+    // Now delete the test document
+    await db.query("select public.c1_delete_uploaded_document($1::uuid, $2::uuid)", [testDoc, user1]);
+
+    // Verify document deleted
+    assert.equal((await db.query("select count(*)::int as c from c1_document_uploads where id = $1", [testDoc])).rows[0].c, 0);
+    // Verify invoice payment transaction was cascaded and deleted
+    assert.equal((await db.query("select count(*)::int as c from c1_payment_transactions where invoice_number = 'INV-DELETE-001'")).rows[0].c, 0);
+    assert.equal((await db.query("select count(*)::int as c from c1_payment_transactions where invoice_number = 'INV-KEEP-002'")).rows[0].c, 1);
+    // Verify assignment was deleted
+    assert.equal((await db.query("select count(*)::int as c from c1_assignment where invoice_number = 'INV-DELETE-001'")).rows[0].c, 0);
+    assert.equal((await db.query("select count(*)::int as c from c1_assignment where invoice_number = 'INV-KEEP-002'")).rows[0].c, 1);
+    // Verify orphan customer was purged, while keptCustomer remains
+    assert.equal((await db.query("select count(*)::int as c from c1_customer where customer_id = $1", [orphanCustomer])).rows[0].c, 0);
+    assert.equal((await db.query("select count(*)::int as c from c1_customer where customer_id = $1", [keptCustomer])).rows[0].c, 1);
+  } finally {
+    await db.close();
+  }
+});
+
 test("C1 upload exposes only spreadsheet and PDF formats", () => {
   const uploadSource = read("app/api/v1/documents/upload/route.ts");
   const formSource = read("components/UploadForm/uploadform.tsx");
@@ -765,7 +911,7 @@ test("customer invoices resolve legacy CUST ids and tolerate pre-analytics C1 sc
   });
   const api = load("lib/supabaseApi.ts", {
     "@/lib/server/admin": { createAdminClient: makeClient },
-    "./customerData": { INITIAL_KPI_SUMMARY: {}, STATEMENT_AURORA_BLUE: {} },
+    "./customerData": { INITIAL_KPI_SUMMARY: {} },
   });
   const invoices = await api.fetchInvoicesFromSupabase("CUST-0001");
   assert.equal(invoices.length, 1);
@@ -851,7 +997,7 @@ test("customer invoices query chunks large alias sets to prevent HTTP headers/UR
 
   const api = load("lib/supabaseApi.ts", {
     "@/lib/server/admin": { createAdminClient: makeClient },
-    "./customerData": { INITIAL_KPI_SUMMARY: {}, STATEMENT_AURORA_BLUE: {} },
+    "./customerData": { INITIAL_KPI_SUMMARY: {} },
   });
 
   const invoices = await api.fetchInvoicesFromSupabase(primaryId);
