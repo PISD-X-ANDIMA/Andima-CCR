@@ -1,17 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAccount, accountRole } from "@/components/account-provider";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
-import {
-  ChevronDown,
-  Menu,
-  X,
-} from "lucide-react";
+import { useSidebar } from "@/components/sidebar-context";
+import { ChevronDown, X } from "lucide-react";
 
 type SidebarProps = {
   userName?: string;
@@ -21,34 +18,65 @@ type SidebarProps = {
   isSigningOut?: boolean;
 };
 
-function HrmsLink({ label, href }: { label: string; href: string }) {
+function CcrNavLink({
+  label,
+  href,
+  onNavigate,
+}: {
+  label: string;
+  href: string;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
-  const isActive = pathname === href;
+  const isActive = pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <Link
       href={href}
-      className={`flex w-full items-center rounded-md px-3 py-2 text-xs transition-colors ${
-        isActive ? "bg-[#B0C6D4] text-[#0f2324]" : "text-[#d9e2fc]/80 hover:bg-[#1e3765] hover:text-white"
+      onClick={onNavigate}
+      className={`w-full rounded-[8px] px-3.5 py-2 flex items-center gap-2.5 text-left transition-colors cursor-pointer ${
+        isActive
+          ? "bg-[#B0C6D4] hover:bg-[#A3BCCB] text-[#45556C]"
+          : "text-[#d9e2fc]/80 hover:bg-[#1e3765] hover:text-white"
       }`}
     >
-      {label}
+      <span
+        className={`w-[6px] h-[6px] rounded-full shrink-0 ${
+          isActive ? "bg-[#14B8A6]" : "bg-transparent"
+        }`}
+      />
+      <span
+        className={`text-[13px] leading-snug tracking-[-0.01em] ${
+          isActive ? "font-semibold text-[#45556C]" : "font-medium"
+        }`}
+      >
+        {label}
+      </span>
     </Link>
   );
 }
 
-export default function Sidebar({ userName, userRole, userInitials, onSignOut, isSigningOut = false }: SidebarProps) {
+export default function Sidebar({
+  userName,
+  userRole,
+  userInitials,
+  onSignOut,
+  isSigningOut = false,
+}: SidebarProps) {
   const { t } = useLanguage();
   const pathname = usePathname();
   const router = useRouter();
-  const isPublicRoute = pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const isC1Route = ["/sales-overview", "/uploaded-documents", "/customer-analytics", "/overdue-alert"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  const isPublicRoute =
+    pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
+  const { isCollapsed, isMobileOpen, closeMobileSidebar } = useSidebar();
   const [isCcrOpen, setIsCcrOpen] = useState(true);
-  const [isC1Open, setIsC1Open] = useState(true);
   const [isInternalSigningOut, setIsInternalSigningOut] = useState(false);
   const { account: loaded, clearAccount } = useAccount();
-  const account = { name: userName ?? loaded?.full_name ?? "Andima User", role: userRole ?? accountRole(loaded?.app_role, "CCR User"), initials: userInitials ?? loaded?.initials ?? "AU" };
+  const account = {
+    name: userName ?? loaded?.full_name ?? "Andima User",
+    role: userRole ?? accountRole(loaded?.app_role, "CCR User"),
+    initials: userInitials ?? loaded?.initials ?? "AU",
+  };
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
   async function handleSignOut() {
@@ -74,79 +102,153 @@ export default function Sidebar({ userName, userRole, userInitials, onSignOut, i
   if (isPublicRoute) return null;
 
   return (
-    <>
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#203d70] px-4 py-5 text-[#d9e2fc] shadow-lg transition-transform lg:translate-x-0 ${
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex items-center gap-3 px-2">
-          <div className="size-9 shrink-0"><Image src="/images/Logo ANDIMA.png" alt="Logo ANDIMA" width={36} height={36} className="h-9 w-9 object-contain" /></div>
-          <div><p className="text-xl font-bold tracking-[-0.5px] text-white font-heading">ANDIMA</p><p className="text-xs text-[#d9e2fc]/80 font-heading">Logistics Suite</p></div>
-          <button type="button" onClick={() => setIsSidebarOpen(false)} className="ml-auto rounded p-1 text-[#d9e2fc] lg:hidden cursor-pointer" aria-label="Close navigation"><X size={18} /></button>
+    <aside
+      id="sidebar"
+      aria-label="Primary Sidebar Navigation"
+      className={`fixed inset-y-0 left-0 z-40 bg-[#0F2342] flex flex-col justify-between select-none transition-all duration-250 ease-out ${
+        isMobileOpen ? "translate-x-0" : "-translate-x-full"
+      } md:translate-x-0 ${
+        isCollapsed
+          ? "md:w-0 md:p-0 md:overflow-hidden md:opacity-0 pointer-events-none"
+          : "w-[250px] p-4 md:opacity-100"
+      }`}
+    >
+      {/* Top Section: Brand Header & Navigation */}
+      <div className="w-full min-w-[218px]">
+        {/* Brand Header: AST Vector Emblem + Title */}
+        <div className="pt-1.5 pb-6 px-1.5 flex items-center justify-between gap-3">
+          <Link href="/sales-overview" className="flex items-center gap-3 group">
+            {/* Official ANDIMA Logo Image */}
+            <div className="shrink-0 size-9 flex items-center justify-center">
+              <Image
+                src="/images/Logo ANDIMA.png"
+                alt="Logo ANDIMA"
+                width={38}
+                height={38}
+                className="h-9 w-9 object-contain"
+                priority
+              />
+            </div>
+
+            {/* Stacked Brand Title */}
+            <div className="flex flex-col">
+              <span className="text-[#FFFFFF] text-[19px] font-extrabold tracking-tight leading-none">
+                ANDIMA
+              </span>
+              <span className="text-[#8FA3BF] text-[12px] font-normal leading-tight mt-1">
+                Logistics Suite
+              </span>
+            </div>
+          </Link>
+
+          {/* Close button on mobile */}
+          <button
+            type="button"
+            onClick={closeMobileSidebar}
+            className="md:hidden p-1 rounded-md text-[#8FA3BF] hover:text-white hover:bg-white/10"
+            aria-label="Close Sidebar"
+          >
+            <X size={18} />
+          </button>
         </div>
 
-        <nav className="mt-8 space-y-1.5 text-sm font-semibold">
-          <div>
-            <button
-              type="button"
-              onClick={() => setIsCcrOpen((value) => !value)}
-              className="flex w-full items-center justify-between rounded-lg bg-[#155cfd] px-3 py-2.5 text-white shadow-sm font-heading cursor-pointer"
-            >
-              <span className="flex items-center gap-3">CCR</span>
-              <ChevronDown size={16} className={`transition-transform ${isCcrOpen ? "rotate-0" : "-rotate-90"}`} />
-            </button>
-            {isCcrOpen && (
-              <div className="ml-5 mt-2 border-l border-[#d9e2fc]/20 pl-3">
-                <SidebarGroup label="C1" open={isC1Open} active={isC1Route} onToggle={() => setIsC1Open((value) => !value)}>
-                  <HrmsLink label={t("nav.salesOverview", "Sales Overview")} href="/sales-overview" />
-                  <HrmsLink label={t("nav.uploadedDocuments", "Uploaded Documents")} href="/uploaded-documents" />
-                  <HrmsLink label={t("nav.customerAnalytics", "Customer Analytics")} href="/customer-analytics" />
-                  <HrmsLink label={t("nav.overdueAlert", "Overdue Alert")} href="/overdue-alert" />
-                </SidebarGroup>
+        {/* Navigation Section */}
+        <nav className="flex flex-col gap-2.5" aria-label="Module Navigation">
+          {/* Primary Dropdown Button: CCR */}
+          <button
+            id="ccrToggleBtn"
+            type="button"
+            onClick={() => setIsCcrOpen((prev) => !prev)}
+            aria-expanded={isCcrOpen}
+            aria-controls="ccrSubmenu"
+            className="w-full bg-[#0550D7] hover:bg-[#0447C0] active:bg-[#043FA9] text-[#FFFFFF] rounded-[8px] px-3.5 py-2.5 flex items-center justify-between transition-colors cursor-pointer shadow-xs"
+          >
+            <span className="flex items-center gap-2.5">
+              {/* Group / Module Icon */}
+              <svg
+                className="w-[18px] h-[18px] text-[#FFFFFF] shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-[#FFFFFF]">
+                CCR
+              </span>
+            </span>
+
+            {/* Chevron Icon */}
+            <ChevronDown
+              size={15}
+              className={`text-[#FFFFFF] transition-transform duration-200 ${
+                isCcrOpen ? "rotate-0" : "-rotate-90"
+              }`}
+            />
+          </button>
+
+          {/* Collapsible Submenu Container */}
+          {isCcrOpen && (
+            <div id="ccrSubmenu" className="pt-0.5">
+              <div className="flex items-stretch">
+                {/* Vertical Tree Connector Line */}
+                <div className="ml-4 mr-3 w-[1.5px] bg-[#263B5E] rounded-full shrink-0" />
+
+                {/* Submenu Links List */}
+                <div className="flex-1 space-y-1.5">
+                  <CcrNavLink
+                    label={t("nav.salesOverview", "Sales Overview")}
+                    href="/sales-overview"
+                    onNavigate={closeMobileSidebar}
+                  />
+                  <CcrNavLink
+                    label={t("nav.uploadedDocuments", "Uploaded Documents")}
+                    href="/uploaded-documents"
+                    onNavigate={closeMobileSidebar}
+                  />
+                  <CcrNavLink
+                    label={t("nav.customerAnalytics", "Customer Analytics")}
+                    href="/customer-analytics"
+                    onNavigate={closeMobileSidebar}
+                  />
+                  <CcrNavLink
+                    label={t("nav.overdueAlert", "Overdue Alert")}
+                    href="/overdue-alert"
+                    onNavigate={closeMobileSidebar}
+                  />
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </nav>
+      </div>
 
-        <div className="mt-auto space-y-3">
-          {signOutError && <p role="alert" className="text-xs text-red-400">{signOutError}</p>}
-          <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">
-            <button
-              type="button"
-              data-account-role={account.role}
-              onClick={() => void handleSignOut()}
-              disabled={isSigningOut || isInternalSigningOut}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-red-600 px-3 py-1.5 text-red-500 transition hover:bg-red-500/10 disabled:opacity-50 cursor-pointer font-heading font-bold"
-              aria-label={t("nav.logout", "Logout")}
-              title={t("nav.logout", "Logout")}
-            >
-              <span className="text-sm font-bold text-align-center">{t("nav.logout", "Logout")}</span>
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      <button
-        type="button"
-        onClick={() => setIsSidebarOpen(true)}
-        className="fixed left-4 top-4 z-30 rounded-lg bg-[#203d70] p-2 text-white lg:hidden cursor-pointer"
-        aria-label="Open navigation"
-      >
-        <Menu size={20} />
-      </button>
-    </>
-  );
-}
-
-function SidebarGroup({ label, open, active, onToggle, children }: { label: string; open: boolean; active: boolean; onToggle: () => void; children: ReactNode }) {
-  return (
-    <div className="mt-1">
-      <button type="button" onClick={onToggle} className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs transition-colors ${active ? "text-white" : "text-[#d9e2fc]/80 hover:bg-[#1e3765] hover:text-white"}`} aria-expanded={open}>
-        <span>{label}</span>
-        <ChevronDown size={14} className={`transition-transform ${open ? "rotate-0" : "-rotate-90"}`} />
-      </button>
-      {open && <div className="mt-1 space-y-1">{children}</div>}
-    </div>
+      {/* Bottom Section: Outlined Red Pill Logout Button */}
+      <div className="pt-4 w-full min-w-[218px]">
+        {signOutError && (
+          <p role="alert" className="text-xs text-red-400 mb-2 px-1">
+            {signOutError}
+          </p>
+        )}
+        <button
+          id="logoutBtn"
+          type="button"
+          data-account-role={account.role}
+          onClick={() => void handleSignOut()}
+          disabled={isSigningOut || isInternalSigningOut}
+          className="w-full py-2 rounded-full border-[1.5px] border-[#D92D43] bg-transparent hover:bg-[#D92D43]/10 active:bg-[#D92D43]/15 text-[#D92D43] font-bold text-[15px] tracking-wide flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+          aria-label={t("nav.logout", "Logout")}
+          title={t("nav.logout", "Logout")}
+        >
+          {t("nav.logout", "Logout")}
+        </button>
+      </div>
+    </aside>
   );
 }

@@ -597,35 +597,37 @@ function InvoiceTable({
             <span>{t("common.preview", "Preview")}</span>
           </button>
           {!canAssign && (
-            <button
-              type="button"
-              onClick={() => {
-                const target = menuInvoice;
-                setOpenActionMenuId(null);
-                setMenuCoords(null);
-                setMenuInvoice(null);
-                onCreate(target);
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
-            >
-              <Plus className="size-3.5 text-blue-600" />
-              <span>{t("overdue.addProgress", "Add Progress")}</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = menuInvoice;
+                  setOpenActionMenuId(null);
+                  setMenuCoords(null);
+                  setMenuInvoice(null);
+                  onCreate(target);
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
+              >
+                <Plus className="size-3.5 text-blue-600" />
+                <span>{t("overdue.addProgress", "Add Progress")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = menuInvoice;
+                  setOpenActionMenuId(null);
+                  setMenuCoords(null);
+                  setMenuInvoice(null);
+                  onEdit(target);
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
+              >
+                <Pencil className="size-3.5 text-blue-600" />
+                <span>{t("overdue.editLog", "Edit Log")}</span>
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              const target = menuInvoice;
-              setOpenActionMenuId(null);
-              setMenuCoords(null);
-              setMenuInvoice(null);
-              onEdit(target);
-            }}
-            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
-          >
-            <Pencil className="size-3.5 text-blue-600" />
-            <span>{t("overdue.editLog", "Edit Log")}</span>
-          </button>
         </div>
       )}
       <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">

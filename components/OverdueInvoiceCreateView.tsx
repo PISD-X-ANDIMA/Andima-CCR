@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import HeaderAccount from "@/components/headeraccount";
+import FollowUpFormSkeleton from "@/components/FollowUpFormSkeleton";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
@@ -349,11 +350,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
       {/* Main Container stretched wide (mepet sidebar) */}
       <main className="w-full space-y-6 px-4 sm:px-6 lg:px-8 py-6">
         {loading ? (
-          <div className="space-y-4">
-            <div className="h-28 rounded-2xl border border-slate-200 bg-white p-6 animate-pulse" />
-            <div className="h-96 rounded-2xl border border-slate-200 bg-white p-6 animate-pulse" />
-            <div className="h-64 rounded-2xl border border-slate-200 bg-white p-6 animate-pulse" />
-          </div>
+          <FollowUpFormSkeleton isInnerOnly />
         ) : errorMessage || !invoice ? (
           <div className="rounded-2xl border border-red-200 bg-white p-12 text-center shadow-sm">
             <AlertCircle className="mx-auto size-8 text-red-500 mb-3" />
