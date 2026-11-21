@@ -95,3 +95,25 @@ test("FollowUpFormSkeleton is used in create and edit routes and views to elimin
   const editView = fs.readFileSync(path.join(rootDir, "components/OverdueInvoiceEditView.tsx"), "utf8");
   assert.match(editView, /<FollowUpFormSkeleton isInnerOnly \/>/);
 });
+
+test("OverdueInvoicePreviewSkeleton and ActivityHistorySkeleton provide loading skeleton for preview follow up", () => {
+  // 1. Preview skeleton file exists and exports components
+  const previewSkeleton = fs.readFileSync(path.join(rootDir, "components/OverdueInvoicePreviewSkeleton.tsx"), "utf8");
+  assert.match(previewSkeleton, /export function ActivityHistorySkeleton/);
+  assert.match(previewSkeleton, /export function OverdueInvoicePreviewSkeleton/);
+  assert.match(previewSkeleton, /Loading activity history/);
+  assert.match(previewSkeleton, /Loading invoice preview/);
+
+  // 2. OverdueInvoicePreviewModal uses the skeleton
+  const modalContent = fs.readFileSync(path.join(rootDir, "components/OverdueInvoicePreviewModal.tsx"), "utf8");
+  assert.match(modalContent, /OverdueInvoicePreviewSkeleton/);
+  assert.match(modalContent, /ActivityHistorySkeleton/);
+  assert.match(modalContent, /historyLoading/);
+  assert.match(modalContent, /isLoading/);
+
+  // 3. OverdueAlertView manages historyLoading state and passes it to preview modal
+  const overdueView = fs.readFileSync(path.join(rootDir, "components/OverdueAlertView.tsx"), "utf8");
+  assert.match(overdueView, /historyLoading/);
+  assert.match(overdueView, /setHistoryLoading/);
+  assert.match(overdueView, /historyLoading=\{historyLoading\}/);
+});

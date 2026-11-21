@@ -80,6 +80,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<OverdueInvoiceItem | null>(null);
   const [previewModalInvoice, setPreviewModalInvoice] = useState<OverdueInvoiceItem | null>(null);
   const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -150,10 +151,15 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
   }, []);
 
   const refreshAssignmentHistory = useCallback((invoiceId: string) => {
+    setHistoryLoading(true);
     fetch(`/api/v1/overdue/${encodeURIComponent(invoiceId)}/assign?refresh=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
       .then(async (response) => ({ ok: response.ok, body: await readJsonResponse<{ data?: AssignmentRecord[]; error?: { message?: string } }>(response) }))
-      .then((result) => { if (!result.ok) throw new Error(responseMessage(result.body, "Failed to load assignment history.")); setAssignmentHistory(result.body?.data ?? []); })
-      .catch(() => setAssignmentHistory([]));
+      .then((result) => {
+        if (!result.ok) throw new Error(responseMessage(result.body, "Failed to load assignment history."));
+        setAssignmentHistory(result.body?.data ?? []);
+      })
+      .catch(() => setAssignmentHistory([]))
+      .finally(() => setHistoryLoading(false));
   }, []);
 
   const selectedInvoiceId = selectedInvoice?.id;
@@ -165,6 +171,8 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
   const previewInvoiceId = previewModalInvoice?.id;
   useEffect(() => {
     if (previewInvoiceId) {
+      setAssignmentHistory([]);
+      setHistoryLoading(true);
       refreshAssignmentHistory(previewInvoiceId);
     }
   }, [previewInvoiceId, refreshAssignmentHistory]);
@@ -339,6 +347,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
           assignmentHistory={assignmentHistory}
           staffOptions={staffOptions}
           canAssign={canAssign}
+          historyLoading={historyLoading}
           onClose={() => setPreviewModalInvoice(null)}
           onEdit={(invoice) => {
             setPreviewModalInvoice(null);

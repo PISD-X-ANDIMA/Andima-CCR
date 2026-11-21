@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import OverdueInvoicePreviewSkeleton, { ActivityHistorySkeleton } from "./OverdueInvoicePreviewSkeleton";
 
 interface OverdueInvoicePreviewModalProps {
   open: boolean;
@@ -22,9 +23,11 @@ interface OverdueInvoicePreviewModalProps {
   assignmentHistory: AssignmentRecord[];
   staffOptions?: StaffOption[];
   canAssign?: boolean;
-  onEdit: (invoice: OverdueInvoiceItem) => void;
+  onEdit?: (invoice: OverdueInvoiceItem) => void;
   onCreate?: (invoice: OverdueInvoiceItem) => void;
   onAssign?: (invoice: OverdueInvoiceItem) => void;
+  isLoading?: boolean;
+  historyLoading?: boolean;
 }
 
 function formatRupiah(value: number) {
@@ -88,9 +91,14 @@ export default function OverdueInvoicePreviewModal({
   onEdit,
   onCreate,
   onAssign,
+  isLoading = false,
+  historyLoading = false,
 }: OverdueInvoicePreviewModalProps) {
   const { t, language } = useLanguage();
-  if (!open || !invoice) return null;
+  if (!open) return null;
+  if (isLoading || !invoice) {
+    return <OverdueInvoicePreviewSkeleton onClose={onClose} />;
+  }
 
   const assignedStaff = invoice.pic_assigned
     ? staffOptions.find((staff) => staff.employee_id === invoice.pic_assigned)
@@ -285,13 +293,15 @@ export default function OverdueInvoicePreviewModal({
               <div className="flex items-center gap-2">
                 <History className="h-4 w-4 text-blue-600" />
                 <h3 className="text-xs font-bold text-slate-900 font-heading">
-                  {t("overdue.historyTitle", "Activity & Follow-up History")} ({assignmentHistory.length})
+                  {t("overdue.historyTitle", "Activity & Follow-up History")} {historyLoading ? "" : `(${assignmentHistory.length})`}
                 </h3>
               </div>
             </div>
 
             <div className="mt-3">
-              {assignmentHistory.length === 0 ? (
+              {historyLoading ? (
+                <ActivityHistorySkeleton />
+              ) : assignmentHistory.length === 0 ? (
                 <div className="py-6 text-center text-slate-400">
                   <p className="text-xs">{t("overdue.historyEmpty", "No follow-up activity recorded for this invoice yet.")}</p>
                 </div>
