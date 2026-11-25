@@ -54,6 +54,12 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   const [selectedId, setSelectedId] = useState<string | number>(value);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const selectedItem = items.find((it) => String(it.id) === String(selectedId) || it.label === selectedId);
+
+  useEffect(() => {
+    setSelectedId(value);
+  }, [value]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
