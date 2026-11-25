@@ -251,11 +251,9 @@ function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loadin
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const currentPage = pageState.version === alertsVersion ? Math.min(pageState.page, totalPages) : 1;
   const visible = ordered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, totalItems);
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
+    <section className="min-w-0 rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900 font-heading">{t("salesOverview.overdueAlertsList", "Overdue Alerts List")}</h2>
@@ -286,30 +284,19 @@ function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loadin
               );
             })}
           </div>
-          <div className="mt-5 flex flex-col items-center justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row">
-            <p className="text-xs text-slate-500 font-medium">
-              {t("common.showing", "Showing")}{" "}
-              <span className="font-semibold text-slate-700">{startItem}-{endItem}</span>{" "}
-              {t("common.of", "of")}{" "}
-              <span className="font-semibold text-slate-700">{totalItems}</span>{" "}
-              {t("common.overdueInvoices", "overdue invoices")}
-            </p>
-            {totalPages > 1 && (
-              <div className="flex min-w-0 justify-center overflow-hidden">
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })}
-                  pageSize={pageSize}
-                  onPageSizeChange={(newSize) => {
-                    setPageSize(newSize);
-                    setPageState({ version: alertsVersion, page: 1 });
-                  }}
-                  totalItems={totalItems}
-                  itemLabel={t("common.overdueInvoices", "overdue invoices")}
-                />
-              </div>
-            )}
+          <div className="relative z-20 mt-5 border-t border-slate-100 pt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })}
+              pageSize={pageSize}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPageState({ version: alertsVersion, page: 1 });
+              }}
+              totalItems={totalItems}
+              itemLabel={t("common.overdueInvoices", "overdue invoices")}
+            />
           </div>
         </>
       ) : (
