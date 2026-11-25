@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import Pagination from "./Pagination";
-import StatusBadge from "./StatusBadge";
 
 export interface Column<T> {
   key: string;
@@ -31,6 +30,7 @@ export interface CustomTableProps<T> {
   className?: string;
 }
 
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 export function CustomTable<T extends Record<string, any>>({
   columns,
   data,
