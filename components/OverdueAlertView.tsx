@@ -20,6 +20,7 @@ import OverdueInvoicePreviewModal from "./OverdueInvoicePreviewModal";
 import type { AssignmentRecord, OverdueInvoiceItem, OverdueKpiSummary, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { showToast as swalToast } from "@/lib/swal";
 
 type OverdueAlertViewProps = Record<string, never>;
 
@@ -97,6 +98,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
 
   const showToast = useCallback((message: string) => {
     setToastMessage(message);
+    swalToast({ title: message, icon: "success" });
     window.setTimeout(() => setToastMessage(null), 4000);
   }, []);
 
@@ -212,12 +214,6 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      {toastMessage && (
-        <div role="status" className="fixed right-4 top-20 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl">
-          <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
       <Header pageName="Overdue Alert" />
       <main className="mx-auto w-full max-w-[1800px] space-y-5 p-4 sm:p-6 lg:p-7">
         <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
@@ -571,8 +567,8 @@ function InvoiceTable({
                           aria-label={`Action for invoice ${invoice.invoice_number}`}
                           onClick={(event) => toggleActionMenu(event, invoice)}
                           className={`flex size-8 items-center justify-center rounded-full border transition cursor-pointer ${openActionMenuId === invoice.id
-                              ? "border-blue-400 bg-blue-50 text-blue-700 shadow-xs"
-                              : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+                            ? "border-blue-400 bg-blue-50 text-blue-700 shadow-xs"
+                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
                             }`}
                         >
                           <MoreVertical className="size-4" />

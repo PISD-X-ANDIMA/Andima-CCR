@@ -12,6 +12,7 @@ import CustomDropdown from "@/components/CustomDropdown";
 import type { RecentDocument } from "@/lib/salesOverviewDocuments";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { showConfirm, showSuccess, showError, showToast } from "@/lib/swal";
 
 type ManagedResponse = {
   data: RecentDocument[];
@@ -85,16 +86,26 @@ export default function UploadedDocumentsPage() {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache" },
       });
-      const body = await readJsonResponse<ManagedResponse & { error?: { message?: string } }>(response);
+      const body = await readJsonResponse<ManagedResponse & { error?: { message?: string; code?: string } }>(response);
+      if (response.status === 401 || body?.error?.code === "UNAUTHENTICATED") {
+        window.location.href = "/login";
+        return;
+      }
       if (!response.ok || !body) throw new Error(responseMessage(body, t("upload.loadError", "Unable to load documents.")));
       setRows(body.data ?? []); setSummary(body.summary); setPagination(body.pagination); setCanManage(body.permissions?.can_manage_documents ?? false);
-      setError(null);
       if (body.permissions?.can_manage_documents) {
         const cleanupResponse = await fetch("/api/v1/documents/cleanup-pending", { cache: "no-store" });
         const cleanupBody = await readJsonResponse<{ data?: CleanupTask[] }>(cleanupResponse);
         setPending(cleanupResponse.ok ? cleanupBody?.data ?? [] : []);
       } else setPending([]);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : t("upload.loadError", "Unable to load documents.")); }
+    } catch (reason) {
+      const msg = reason instanceof Error ? reason.message : t("upload.loadError", "Unable to load documents.");
+      if (msg.includes("Authentication is required") || msg.includes("UNAUTHENTICATED")) {
+        window.location.href = "/login";
+        return;
+      }
+      showToast({ title: msg, icon: "error" });
+    }
     finally { setLoading(false); }
   }, [documentType, fileType, page, pageSize, search, t]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(timer); }, [load]);
@@ -122,23 +133,42 @@ export default function UploadedDocumentsPage() {
       const body = await readJsonResponse<{ data?: { storageCleanup?: string }; error?: { message?: string } }>(response);
       if (!response.ok) throw new Error(responseMessage(body, t("upload.deleteError", "Unable to delete document.")));
       setDeleteTarget(null);
-      setNotice(body?.data?.storageCleanup === "pending"
+      const deleteMsg = body?.data?.storageCleanup === "pending"
         ? t("upload.documentDeletedPending", "Document data deleted. Storage cleanup is pending and available for retry.")
-        : t("upload.documentDeleted", "Document deleted."));
+        : t("upload.documentDeleted", "Document deleted.");
+      showToast({
+        title: deleteMsg,
+        icon: "success",
+      });
       await load();
     } catch (reason) { setDeleteError(reason instanceof Error ? reason.message : t("upload.deleteError", "Unable to delete document.")); }
     finally { setDeleting(null); }
   }
 
   async function retryCleanup(task: CleanupTask) {
+    const confirmed = await showConfirm({
+      title: t("upload.pendingCleanup", "Pending Storage Cleanup"),
+      text: language === "id"
+        ? `Apakah Anda ingin mencoba ulang pembersihan penyimpanan untuk berkas ${task.file_name}?`
+        : `Do you want to retry storage cleanup for file ${task.file_name}?`,
+      confirmButtonText: language === "id" ? "Coba Bersihkan" : "Retry Cleanup",
+      cancelButtonText: language === "id" ? "Batal" : "Cancel",
+      language,
+    });
+    if (!confirmed) return;
+
     setRetrying(task.audit_id); setNotice(null);
     try {
       const response = await fetch("/api/v1/documents/cleanup-pending", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ auditId: task.audit_id }) });
       const body = await readJsonResponse<{ data?: { status?: string }; error?: { message?: string } }>(response);
       if (!response.ok) throw new Error(responseMessage(body, t("upload.cleanupRetryFailed", "Storage cleanup retry failed.")));
-      setNotice(body?.data?.status === "complete" ? `Storage cleanup complete for ${task.file_name}.` : `Storage cleanup remains pending for ${task.file_name}.`);
+      const msg = body?.data?.status === "complete" ? `Storage cleanup complete for ${task.file_name}.` : `Storage cleanup remains pending for ${task.file_name}.`;
+      void showSuccess({ title: t("upload.pendingCleanup", "Pending Storage Cleanup"), text: msg, language });
       await load();
-    } catch (reason) { setNotice(reason instanceof Error ? reason.message : t("upload.cleanupRetryFailed", "Storage cleanup retry failed.")); }
+    } catch (reason) {
+      const errMsg = reason instanceof Error ? reason.message : t("upload.cleanupRetryFailed", "Storage cleanup retry failed.");
+      void showError({ title: t("upload.cleanupRetryFailed", "Storage cleanup retry failed."), text: errMsg, language });
+    }
     finally { setRetrying(null); }
   }
 
@@ -155,8 +185,6 @@ export default function UploadedDocumentsPage() {
   return <div className="min-h-screen bg-slate-50"><Header pageName="Uploaded Documents" /><main className="space-y-6 p-5 md:p-8">
     <div className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-slate-900 font-heading">{t("upload.title", "Uploaded Documents")}</h1><p className="mt-1 text-sm text-slate-600">{t("upload.subtitle", "Document history and validation results")}</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-60 cursor-pointer"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />{t("common.refresh", "Refresh")}</button>{canManage && <button type="button" onClick={() => setUploadOpen(true)} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 cursor-pointer"><Plus className="size-4" />{t("upload.addDocument", "Add Document")}</button>}</div></div>
     {downloadError && <div role="alert" className="fixed right-4 top-4 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900 shadow-xl"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-rose-600" /><span className="flex-1">{downloadError}</span><button type="button" onClick={() => setDownloadError(null)} aria-label="Dismiss notification" className="rounded p-1 text-rose-700 hover:bg-rose-100"><X className="size-4" /></button></div>}
-    {notice && <StatusBanner message={notice} onDismiss={() => setNotice(null)} />}
-    {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 shadow-sm">{error}</div>}
     {loading ? <DocumentStatsSkeleton /> : <section aria-label="Document statistics" className="grid grid-cols-1 gap-4 sm:grid-cols-3"><Stat label={t("upload.totalDocuments", "Total Documents")} value={summary.total} tone="slate" integer={integer} detail={t("upload.uploadedFiles", "Uploaded files")} /><Stat label={t("upload.successful", "Successful")} value={summary.validated} tone="teal" integer={integer} detail={t("upload.statusValidated", "Validated")} /><Stat label={t("upload.failed", "Failed")} value={summary.rejected} tone="rose" integer={integer} detail={t("upload.statusRejected", "Rejected")} /></section>}
     {canManage && pending.length > 0 && <section className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm"><h2 className="font-semibold text-amber-950">{t("upload.pendingCleanup", "Pending Storage Cleanup")}</h2><ul className="mt-2 divide-y divide-amber-200">{pending.map((task) => <li key={task.audit_id} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm"><span className="min-w-0 truncate text-amber-950">{task.file_name} <span className="text-amber-800">({typeLabel(task.document_type as RecentDocument["document_type"], t)})</span></span><button type="button" disabled={retrying === task.audit_id} onClick={() => void retryCleanup(task)} className="inline-flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-950 shadow-sm hover:bg-amber-100 disabled:opacity-50 cursor-pointer"><RefreshCw className={`size-3.5 ${retrying === task.audit_id ? "animate-spin" : ""}`} />{t("upload.retryCleanup", "Retry cleanup")}</button></li>)}</ul></section>}
     <section className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
@@ -185,7 +213,7 @@ export default function UploadedDocumentsPage() {
       </div>
     </section>
     {!canManage && <p className="text-xs text-slate-500">{t("upload.readOnlyNotice", "You have read-only access to document management.")}</p>}
-  </main><UploadForm open={uploadOpen} onClose={() => setUploadOpen(false)} onCompleted={(result) => { setUploadOpen(false); setNotice(result.validationStatus === "rejected" ? t("upload.savedAsRejected", "Document saved as Rejected. The original file was not stored.") : t("upload.uploadedAndValidated", "Document uploaded and validated.")); if (page === 1) void load(); else setPage(1); }} />{previewId && <DocumentPreviewModal documentId={previewId} onClose={() => setPreviewId(null)} />}
+  </main><UploadForm open={uploadOpen} onClose={() => setUploadOpen(false)} onCompleted={(result) => { setUploadOpen(false); if (result.validationStatus === "rejected") { showToast({ title: t("upload.savedAsRejected", "Document saved as Rejected. The original file was not stored."), icon: "warning" }); } else { showToast({ title: t("upload.uploadedAndValidated", "Document uploaded and validated."), icon: "success" }); } if (page === 1) void load(); else setPage(1); }} />{previewId && <DocumentPreviewModal documentId={previewId} onClose={() => setPreviewId(null)} />}
     {deleteTarget && (
       <div
         className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-xs animate-in fade-in duration-150"

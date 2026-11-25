@@ -60,7 +60,11 @@ export default function CustomerAnalyticsPage() {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache" },
       });
-      const body = (await readJsonResponse<{ data?: CustomerAnalyticsItem[]; kpiSummary?: KpiSummary; pagination?: { totalItems?: number; totalPages?: number }; error?: { message?: string }; message?: string }>(response)) ?? {};
+      const body = (await readJsonResponse<{ data?: CustomerAnalyticsItem[]; kpiSummary?: KpiSummary; pagination?: { totalItems?: number; totalPages?: number }; error?: { message?: string; code?: string }; message?: string }>(response)) ?? {};
+      if (response.status === 401 || body?.error?.code === "UNAUTHENTICATED") {
+        window.location.href = "/login";
+        return;
+      }
       if (!response.ok) throw new Error(responseMessage(body, "Failed to load customer analytics data."));
       setCustomers(body.data ?? []);
       setKpiSummary(body.kpiSummary ?? null);
@@ -68,7 +72,12 @@ export default function CustomerAnalyticsPage() {
       setTotalPages(body.pagination?.totalPages ?? 1);
       setLoadError(null);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Failed to load customer analytics data.");
+      const msg = error instanceof Error ? error.message : "Failed to load customer analytics data.";
+      if (msg.includes("Authentication is required") || msg.includes("UNAUTHENTICATED")) {
+        window.location.href = "/login";
+        return;
+      }
+      setLoadError(msg);
       setCustomers([]);
       setKpiSummary(null);
     } finally {

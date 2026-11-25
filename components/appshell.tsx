@@ -56,7 +56,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
           isOpen={isLogoutConfirmOpen}
           onClose={closeLogoutConfirm}
           onConfirm={() => void handleSignOut()}
-          title={t("auth.confirmLogoutTitle", "Confirm To Sign Out?")}
+          title={t("auth.confirmLogoutTitle", "Confirm Logout?")}
           message={t("auth.confirmLogoutMessage", "Are you sure you want to log out from Andima CCR?")}
           confirmText={t("common.yes", "Yes")}
           cancelText={t("common.no", "No")}

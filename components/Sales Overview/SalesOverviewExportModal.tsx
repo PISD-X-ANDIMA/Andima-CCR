@@ -23,6 +23,7 @@ import { jsPDF } from "jspdf";
 import ExcelJS from "exceljs";
 import type { AlertRow, MacroPoint, MacroSummary, RecentDocument } from "./SalesOverview";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { showError, showToast } from "@/lib/swal";
 
 export type ExportFormat = "PDF" | "XLSX" | "CSV";
 
@@ -524,10 +525,17 @@ export default function SalesOverviewExportModal({
 
       // Save & trigger download
       pdf.save(`sales-overview-report-${startPeriod}-${endPeriod}.pdf`);
+      showToast({
+        title: language === "id" ? "Berkas PDF berhasil diunduh." : "PDF report downloaded successfully.",
+        icon: "success",
+      });
       onClose();
     } catch (err) {
       console.error("PDF export failed:", err);
-      alert(t("salesOverview.exportPdfFailed", "Failed to export PDF. Please try again."));
+      void showError({
+        title: t("salesOverview.exportPdfFailed", "Failed to export PDF. Please try again."),
+        language,
+      });
     } finally {
       setIsExporting(false);
     }
@@ -763,10 +771,17 @@ export default function SalesOverviewExportModal({
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+      showToast({
+        title: language === "id" ? "Berkas Excel berhasil diunduh." : "Excel report downloaded successfully.",
+        icon: "success",
+      });
       onClose();
     } catch (err) {
       console.error("Excel export failed:", err);
-      alert("Failed to export Excel file. Please try again.");
+      void showError({
+        title: language === "id" ? "Gagal mengekspor berkas Excel. Silakan coba lagi." : "Failed to export Excel file. Please try again.",
+        language,
+      });
     } finally {
       setIsExporting(false);
     }
@@ -842,10 +857,17 @@ export default function SalesOverviewExportModal({
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+      showToast({
+        title: language === "id" ? "Berkas CSV berhasil diunduh." : "CSV report downloaded successfully.",
+        icon: "success",
+      });
       onClose();
     } catch (err) {
       console.error("CSV export failed:", err);
-      alert("Failed to export CSV file. Please try again.");
+      void showError({
+        title: language === "id" ? "Gagal mengekspor berkas CSV. Silakan coba lagi." : "Failed to export CSV file. Please try again.",
+        language,
+      });
     } finally {
       setIsExporting(false);
     }
