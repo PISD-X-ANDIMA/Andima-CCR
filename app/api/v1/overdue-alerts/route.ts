@@ -6,7 +6,6 @@ import {
   describeSupabaseError,
   evaluateOverdueAlertsInSupabase,
   fetchOverdueAlertsFromSupabase,
-  triggerBatchMidFeedEscalationInSupabase,
 } from "@/lib/supabaseOverdueApi";
 import { getCcrProfile, canManage, canUseCcr } from "@/lib/server/authorization";
 import { createAdminClient } from "@/lib/server/admin";
@@ -46,9 +45,7 @@ export async function GET(req: NextRequest) {
     const databaseStarted = performance.now();
     const { invoices: allInvoices, fromDb } = await fetchOverdueAlertsFromSupabase({ onlyOverdue30 }, createAdminClient());
     const databaseDuration = performance.now() - databaseStarted;
-    const invoices = profile.resolved_role === "STAFF"
-      ? allInvoices.filter((invoice) => invoice.pic_assigned === profile.employee_id || invoice.pic_assigned === profile.full_name)
-      : allInvoices;
+    const invoices = allInvoices;
 
     const filtered = invoices.filter((invoice) => {
       const branchMatches = !branch || branch === "all" || matches(branch, "Semua Cabang") || matches(branch, "All Branches") || branch?.toLowerCase() === invoice.branch.toLowerCase();
@@ -97,10 +94,6 @@ export async function POST(req: NextRequest) {
     if (body.action === "ASSIGN_PIC" && body.invoiceId && body.assignedTo) {
       if (!canManage(await getCcrProfile(session.client, session.user!.id, { includeOrgDetails: false }))) return timed(apiError("Only management users can assign overdue work.", 403, "FORBIDDEN"), startedAt, { auth: performance.now() - startedAt });
       const result = await assignPicInSupabase(body.invoiceId, body.assignedTo, session.user!.id, body.notes);
-      return timed(NextResponse.json(result, { status: result.success ? 200 : 400 }), startedAt, { db: 0 });
-    }
-    if (body.action === "BATCH_MID_ESCALATION" && Array.isArray(body.invoiceIds)) {
-      const result = await triggerBatchMidFeedEscalationInSupabase(body.invoiceIds, session.user!.id);
       return timed(NextResponse.json(result, { status: result.success ? 200 : 400 }), startedAt, { db: 0 });
     }
     return timed(apiError("Invalid overdue action.", 400, "INVALID_ACTION"), startedAt, { db: 0 });

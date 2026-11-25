@@ -100,6 +100,12 @@ export interface OverdueInvoiceItem {
 }
 
 export interface OverdueKpiSummary {
+  totalOverdueInvoices: number;
+  totalOverdueAmount: number;
+  oldestInvoiceDays: number;
+  oldestInvoiceNumber?: string | null;
+  oldestInvoiceCustomer?: string | null;
+  activeCasesCount: number;
   totalActiveCustomers: number;
   highRiskOutstanding: number;
   topContributingCustomer: {
@@ -123,13 +129,4 @@ export interface OverdueKpiSummary {
 export interface StaffOption {
   employee_id: string;
   full_name: string;
-}
-
-export interface WarningLetterParams {
-  escalationLevel: 'SP-1' | 'SP-2' | 'SP-3';
-  registrationNumber: string;
-  issueDate: string;
-  deadlineDate: string;
-  picName: string;
-  internalNotes: string;
 }

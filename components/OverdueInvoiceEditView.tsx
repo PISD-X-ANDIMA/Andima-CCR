@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   AlertTriangle,
@@ -14,19 +13,20 @@ import {
   MessageSquare,
   Paperclip,
   Pencil,
-  Phone,
   RefreshCw,
-  Search,
   Trash2,
   Upload,
-  UserRound,
   Users,
   Video,
   X,
 } from "lucide-react";
 import HeaderAccount from "@/components/headeraccount";
+import FollowUpFormSkeleton from "@/components/FollowUpFormSkeleton";
+import { DatePicker } from "@/components/CalendarModal";
+import { ConfirmDeleteModal } from "@/components/AlertModal";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface OverdueInvoiceEditViewProps {
   invoiceId: string;
@@ -40,12 +40,12 @@ function formatRupiah(value: number) {
   }).format(value || 0);
 }
 
-function formatDate(value?: string | null) {
+function formatDate(value?: string | null, language: string = "en") {
   if (!value || value === "-") return "-";
   const date = new Date(`${value.slice(0, 10)}T00:00:00`);
   return Number.isNaN(date.getTime())
     ? value
-    : date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+    : date.toLocaleDateString(language === "id" ? "id-ID" : "en-US", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function riskClasses(status: string) {
@@ -72,7 +72,7 @@ function followUpStatusBadge(status: string) {
 }
 
 export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEditViewProps) {
-  const router = useRouter();
+  const { t, language } = useLanguage();
   const cleanInvoiceId = useMemo(() => {
     try {
       return decodeURIComponent(invoiceId || "").trim();
@@ -86,10 +86,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
   const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
   const [canAssign, setCanAssign] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>("");
-  const [searchStaff, setSearchStaff] = useState("");
   const [loading, setLoading] = useState(true);
-  const [submittingPic, setSubmittingPic] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -127,7 +124,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
           setAssignmentHistory(result.body.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [cleanInvoiceId]);
 
   const loadData = useCallback(() => {
@@ -191,10 +188,6 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
         setCanAssign(staffRes.body?.canAssign ?? true);
         setAssignmentHistory(historyRes.body?.data ?? []);
 
-        // Pre-select current assigned staff if available
-        if (found.pic_assigned) {
-          setSelectedStaffId(found.pic_assigned);
-        }
       })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : "Failed to load data.";
@@ -206,54 +199,6 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const filteredStaff = useMemo(() => {
-    const q = searchStaff.trim().toLowerCase();
-    if (!q) return staffOptions;
-    return staffOptions.filter(
-      (s) =>
-        s.full_name.toLowerCase().includes(q) ||
-        s.employee_id.toLowerCase().includes(q)
-    );
-  }, [staffOptions, searchStaff]);
-
-  const selectedStaffObj = useMemo(
-    () => staffOptions.find((s) => s.employee_id === selectedStaffId),
-    [staffOptions, selectedStaffId]
-  );
-
-  const currentAssignedStaff = useMemo(
-    () => (invoice?.pic_assigned ? staffOptions.find((s) => s.employee_id === invoice.pic_assigned) : undefined),
-    [invoice, staffOptions]
-  );
-
-  const handlePicSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!invoice || !selectedStaffId || !canAssign || submittingPic) {
-      if (!selectedStaffId) showToast("Please select a PIC staff member.");
-      return;
-    }
-
-    setSubmittingPic(true);
-    try {
-      const response = await fetch(`/api/v1/overdue/${encodeURIComponent(invoice.id || cleanInvoiceId)}/assign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedTo: selectedStaffId }),
-      });
-
-      const body = await readJsonResponse<{ error?: { message?: string } }>(response);
-      if (!response.ok) throw new Error(responseMessage(body, "Failed to assign PIC."));
-
-      const staff = staffOptions.find((item) => item.employee_id === selectedStaffId);
-      showToast(`PIC ${staff?.full_name ?? selectedStaffId} updated successfully.`);
-      refreshHistory();
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Failed to update PIC.");
-    } finally {
-      setSubmittingPic(false);
-    }
-  };
 
   const isManagement = userRole === "MANAGEMENT" || canAssign;
 
@@ -379,7 +324,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
             className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-700 transition group"
           >
             <ArrowLeft className="size-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Overdue Alerts</span>
+            <span>{t("overdue.backToOverdue", "Back to Overdue Alerts")}</span>
           </Link>
           <HeaderAccount />
         </div>
@@ -388,28 +333,25 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
       {/* Wide Container stretched close to sidebar */}
       <main className="w-full space-y-6 px-4 sm:px-6 lg:px-8 py-6">
         {loading ? (
-          <div className="space-y-4">
-            <div className="h-28 rounded-2xl border border-slate-200 bg-white p-6 animate-pulse" />
-            <div className="h-96 rounded-2xl border border-slate-200 bg-white p-6 animate-pulse" />
-          </div>
+          <FollowUpFormSkeleton isInnerOnly />
         ) : errorMessage || !invoice ? (
           <div className="rounded-2xl border border-red-200 bg-white p-12 text-center shadow-sm">
             <AlertCircle className="mx-auto size-8 text-red-500 mb-3" />
-            <h2 className="text-base font-bold text-slate-900 font-heading">Failed to Load Invoice</h2>
-            <p className="mt-1 text-xs text-red-600">{errorMessage || "Invoice not found."}</p>
+            <h2 className="text-base font-bold text-slate-900 font-heading">{t("overdue.failedToLoadInvoice", "Failed to Load Invoice")}</h2>
+            <p className="mt-1 text-xs text-red-600">{errorMessage || t("overdue.invoiceNotFound", "Invoice not found.")}</p>
             <div className="mt-5 flex justify-center gap-3">
               <Link
                 href="/overdue-alert"
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Back to Overdue List
+                {t("overdue.backToOverdue", "Back to Overdue Alerts")}
               </Link>
               <button
                 type="button"
                 onClick={loadData}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 cursor-pointer"
               >
-                Try Again
+                {t("common.tryAgain", "Try Again")}
               </button>
             </div>
           </div>
@@ -421,13 +363,13 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                 <div>
                   <div className="flex flex-wrap items-center gap-2.5">
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 font-heading">
-                      <AlertTriangle className="size-4" /> Internal Overdue Alert
+                      <AlertTriangle className="size-4" /> {t("overdue.internalAlert", "Internal Overdue Alert")}
                     </span>
                     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${riskClasses(invoice.risk_status)}`}>
                       {invoice.risk_status}
                     </span>
                     <span className={`inline-flex rounded px-2 py-0.5 text-[11px] font-bold ${agingClasses(invoice.days_overdue)}`}>
-                      Aging: {invoice.days_overdue} Days
+                      {t("overdue.colAging", "Aging")}: {invoice.days_overdue} {t("common.days", "Days")}
                     </span>
                   </div>
 
@@ -435,204 +377,37 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                     {invoice.customer_name}
                   </h1>
                   <p className="mt-1 text-xs font-mono text-slate-500">
-                    Invoice No.: <strong className="text-slate-800">{invoice.invoice_number}</strong> · Due Date:{" "}
-                    <strong className="text-slate-800">{formatDate(invoice.due_date)}</strong>
+                    {t("overdue.invoiceNoLabel", "Invoice No.:")} <strong className="text-slate-800">{invoice.invoice_number}</strong> · {t("common.dueDate", "Due Date")}:{" "}
+                    <strong className="text-slate-800">{formatDate(invoice.due_date, language)}</strong>
                   </p>
                 </div>
 
                 <div className="flex flex-col items-start md:items-end gap-1.5 rounded-xl border border-red-100 bg-red-50/60 p-4">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 font-heading">
-                    Total Outstanding
+                    {t("overdue.totalOutstanding", "Total Outstanding")}
                   </span>
                   <span className="text-2xl font-extrabold text-red-600 font-heading">
                     {formatRupiah(invoice.amount_overdue)}
                   </span>
-                  <span className="text-[10px] text-slate-500">{invoice.payment_note || "No payments yet"}</span>
+                  <span className="text-[10px] text-slate-500">{invoice.payment_note || t("overdue.noPaymentsYet", "No payments yet")}</span>
                 </div>
               </div>
             </section>
 
-            {/* Section 1: Ubah PIC Card (for Management) */}
-            <form
-              onSubmit={(e) => void handlePicSubmit(e)}
-              className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden"
-            >
-              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5 bg-slate-50/70">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 font-heading">
-                    Edit Collection PIC
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    Update the CCR staff assigned to collect this invoice
-                  </p>
-                </div>
-              </div>
-
-              {/* Current PIC banner */}
-              <div className="border-b border-slate-100 bg-blue-50/40 px-6 py-3 text-xs text-slate-700 flex items-center justify-between">
-                <span className="text-[11px] text-slate-500 font-medium">Current PIC:</span>
-                <span className="font-bold text-slate-900">
-                  {currentAssignedStaff?.full_name || invoice.pic_assigned || "No PIC assigned"}
-                  {currentAssignedStaff && (
-                    <span className="ml-1 text-[11px] font-normal font-mono text-slate-500">
-                      ({currentAssignedStaff.employee_id})
-                    </span>
-                  )}
-                </span>
-              </div>
-
-              {/* Staff Search Input */}
-              <div className="px-6 pt-4 pb-2">
-                <label className="relative block">
-                  <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchStaff}
-                    onChange={(e) => setSearchStaff(e.target.value)}
-                    placeholder="Search staff name or employee ID..."
-                    disabled={!canAssign}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-9 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
-                  />
-                  {searchStaff && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchStaff("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  )}
-                </label>
-              </div>
-
-              {/* Staff List */}
-              <div className="flex-1 overflow-y-auto px-6 py-2 space-y-2 max-h-[280px]">
-                {!canAssign ? (
-                  <div className="py-6 text-center text-xs text-amber-700">
-                    <p className="font-semibold">Restricted Access</p>
-                    <p className="text-[11px] mt-1 text-slate-500">
-                      Only Management role is authorized to assign or change PIC.
-                    </p>
-                  </div>
-                ) : filteredStaff.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-slate-400">
-                    <UserRound className="size-7 mx-auto mb-2 opacity-40" />
-                    <p className="font-semibold text-slate-600">No matching staff found</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Try a different search keyword.</p>
-                  </div>
-                ) : (
-                  filteredStaff.map((staff) => {
-                    const isSelected = selectedStaffId === staff.employee_id;
-                    const staffInit = staff.full_name
-                      .split(/\s+/)
-                      .filter(Boolean)
-                      .map((part) => part[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase();
-
-                    return (
-                      <div
-                        key={staff.employee_id}
-                        onClick={() => setSelectedStaffId(staff.employee_id)}
-                        className={`flex items-center justify-between rounded-xl border p-3.5 transition cursor-pointer ${
-                          isSelected
-                            ? "border-blue-500 bg-blue-50/80 ring-1 ring-blue-500 shadow-xs"
-                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={`flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                              isSelected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            {staffInit}
-                          </div>
-                          <div className="min-w-0">
-                            <p className={`truncate text-xs font-bold ${isSelected ? "text-blue-950" : "text-slate-900"}`}>
-                              {staff.full_name}
-                            </p>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="font-mono text-[11px] text-slate-500 font-semibold">
-                                {staff.employee_id}
-                              </span>
-                              <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-bold text-slate-600 uppercase">
-                                CCR Staff
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="ml-3 shrink-0">
-                          <span
-                            className={`flex size-5 items-center justify-center rounded-full border transition ${
-                              isSelected ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white"
-                            }`}
-                          >
-                            {isSelected && <Check className="size-3 stroke-[3]" />}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Selected Staff Summary & Save */}
-              {canAssign && (
-                <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-4">
-                  <div className="text-xs">
-                    {selectedStaffObj ? (
-                      <span className="text-slate-600">
-                        Selected: <strong className="text-blue-700 font-bold">{selectedStaffObj.full_name}</strong>
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">No staff selected</span>
-                    )}
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={!selectedStaffId || submittingPic}
-                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition cursor-pointer"
-                  >
-                    {submittingPic ? (
-                      <>
-                        <RefreshCw className="size-4 animate-spin" />
-                        <span>Saving...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="size-4" />
-                        <span>Save PIC Changes</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </form>
-
-            {/* Section 2: Riwayat & Edit Follow-up */}
+            {/* Activity History & Follow-up Log */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 font-heading">
-                    Activity History &amp; Follow-up Log
+                    {t("overdue.historyTitle", "Activity & Follow-up History")}
                   </h2>
                   <p className="text-[11px] text-slate-500">
-                      {isManagement
-                        ? "Management view-only. PIC assignment is editable above; follow-up progress logs can only be modified by Staff."
-                        : "Click the edit button on any log to correct mistake status or follow-up notes"}
-                    </p>
-                  </div>
+                    {t("overdue.historySubtitle", "Recorded collection progress, customer interactions, and payment logs.")}
+                  </p>
+                </div>
                 <div className="flex items-center gap-2">
-                  {isManagement && (
-                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                      View-only for Management
-                    </span>
-                  )}
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700">
-                    {assignmentHistory.length} Records
+                    {assignmentHistory.length} {t("common.records", "Records")}
                   </span>
                 </div>
               </div>
@@ -640,8 +415,8 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
               {assignmentHistory.length === 0 ? (
                 <div className="py-10 text-center text-slate-400">
                   <History className="size-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-xs font-semibold text-slate-600">No follow-up history yet</p>
-                  <p className="text-[11px] mt-0.5">Add progress via the Create action in the Overdue Alert table.</p>
+                  <p className="text-xs font-semibold text-slate-600">{t("overdue.historyEmpty", "No follow-up activity recorded for this invoice yet.")}</p>
+                  <p className="text-[11px] mt-0.5">{t("overdue.historyEmptyEditHint", "Add progress via the Add Progress action in the Overdue Alert table.")}</p>
                 </div>
               ) : (
                 <div className="relative ml-2 space-y-4 border-l-2 border-slate-200 pl-4 py-2">
@@ -704,7 +479,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                             {record.promise_date && (
                               <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
                                 <Calendar className="size-3.5" />
-                                <span>Promise to Pay: {formatDate(record.promise_date)}</span>
+                                <span>Promise to Pay: {formatDate(record.promise_date, language)}</span>
                               </p>
                             )}
 
@@ -730,7 +505,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
                           <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 shrink-0">
                             <span className="text-[11px] text-slate-400">
-                              {new Date(record.assigned_at).toLocaleDateString("id-ID", {
+                              {new Date(record.assigned_at).toLocaleDateString(language === "id" ? "id-ID" : "en-US", {
                                 day: "2-digit",
                                 month: "short",
                                 year: "numeric",
@@ -744,7 +519,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                                   className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition cursor-pointer shadow-xs"
                                 >
                                   <Pencil className="size-3 text-blue-600" />
-                                  <span>Edit Log</span>
+                                  <span>{t("overdue.editLog", "Edit Log")}</span>
                                 </button>
                                 <button
                                   type="button"
@@ -752,7 +527,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                                   className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 transition cursor-pointer shadow-xs"
                                 >
                                   <Trash2 className="size-3 text-red-600" />
-                                  <span>Delete Log</span>
+                                  <span>{t("overdue.deleteLog", "Delete Log")}</span>
                                 </button>
                               </div>
                             )}
@@ -778,13 +553,13 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
           <div className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/80">
               <div>
-                  <h3 className="text-sm font-bold text-slate-900 font-heading">
-                    Edit Follow-up Progress
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Update follow-up history record details
-                  </p>
-                </div>
+                <h3 className="text-sm font-bold text-slate-900 font-heading">
+                  {t("overdue.editProgressTitle", "Edit Follow-up Progress")}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  {t("overdue.editProgressSubtitle", "Update follow-up history record details")}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingRecord(null)}
@@ -797,30 +572,30 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
             <form onSubmit={(e) => void handleEditProgressSubmit(e)} className="flex-1 overflow-y-auto p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  Status Invoice
+                  {t("overdue.invoiceStatusLabel", "Status Invoice")}
                 </label>
                 <select
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="IN_PROGRESS">In Progress</option>
-                  <option value="PROMISE_TO_PAY">Promise to Pay</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="DISPUTE">Dispute</option>
+                  <option value="IN_PROGRESS">{t("overdue.statusInProgress", "In Progress")}</option>
+                  <option value="PROMISE_TO_PAY">{t("overdue.statusPromiseToPay", "Promise to Pay")}</option>
+                  <option value="COMPLETED">{t("overdue.statusCompleted", "Completed")}</option>
+                  <option value="DISPUTE">{t("overdue.statusDispute", "Dispute")}</option>
                 </select>
               </div>
 
               {editStatus !== "COMPLETED" && (
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    Customer Contact Method
+                    {t("overdue.contactMethodLabel", "Customer Contact Method")}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
-                      { id: "Direct Visit", label: "Direct Visit", icon: Users },
-                      { id: "Chat (WhatsApp / Others)", label: "Chat (WhatsApp / Others)", icon: MessageSquare },
-                      { id: "Online Meeting", label: "Online Meeting", icon: Video },
+                      { id: "Direct Visit", label: t("overdue.directVisit", "Direct Visit"), icon: Users },
+                      { id: "Chat (WhatsApp / Others)", label: t("overdue.chatWhatsapp", "Chat (WhatsApp / Others)"), icon: MessageSquare },
+                      { id: "Online Meeting", label: t("overdue.onlineMeeting", "Online Meeting"), icon: Video },
                     ].map((item) => {
                       const IconComponent = item.icon;
                       const isSelected = editAction === item.id;
@@ -829,11 +604,10 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                           type="button"
                           key={item.id}
                           onClick={() => setEditAction(item.id)}
-                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                            isSelected
-                              ? "border-blue-600 bg-blue-50/80 ring-1 ring-blue-600"
-                              : "border-slate-200 bg-white hover:bg-slate-50"
-                          }`}
+                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition cursor-pointer ${isSelected
+                            ? "border-blue-600 bg-blue-50/80 ring-1 ring-blue-600"
+                            : "border-slate-200 bg-white hover:bg-slate-50"
+                            }`}
                         >
                           <IconComponent className="size-3.5 text-blue-600" />
                           <span className="text-xs font-semibold text-slate-800">{item.label}</span>
@@ -846,15 +620,11 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
               {editStatus === "PROMISE_TO_PAY" && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    Promise to Pay Date
-                  </label>
-                  <input
-                    type="date"
-                    required
+                  <DatePicker
+                    label={t("overdue.promiseDateLabel", "Promise to Pay Date")}
                     value={editPromiseDate}
-                    onChange={(e) => setEditPromiseDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                    onChange={(d) => setEditPromiseDate(d)}
+                    placeholder="YYYY-MM-DD"
                   />
                 </div>
               )}
@@ -862,7 +632,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
               {editStatus === "COMPLETED" && (
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    Payment Amount (IDR)
+                    {t("overdue.paymentAmountLabel", "Payment Amount (IDR)")}
                   </label>
                   <div className="relative">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
@@ -873,13 +643,13 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                       step="1"
                       value={editPaymentAmount}
                       onChange={(e) => setEditPaymentAmount(e.target.value)}
-                      placeholder="Enter total payment amount"
+                      placeholder={t("overdue.paymentAmountPlaceholder", "Enter total payment amount")}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-3.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
                   {editPaymentAmount && Number(editPaymentAmount) > 0 && (
                     <p className="mt-1 text-[11px] font-bold text-emerald-700">
-                      Recorded amount: {formatRupiah(Number(editPaymentAmount))}
+                      {t("overdue.recordedAmountLabel", "Recorded amount:")} {formatRupiah(Number(editPaymentAmount))}
                     </p>
                   )}
                 </div>
@@ -887,21 +657,21 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  Follow-up Notes
+                  {t("overdue.notesLabel", "Follow-up Notes")}
                 </label>
                 <textarea
                   rows={3}
                   required
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="Follow-up notes details..."
+                  placeholder={t("overdue.notesPlaceholder", "Follow-up notes details...")}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  Update Evidence File (Optional to replace previous file)
+                  {t("overdue.updateEvidenceLabel", "Update Evidence File (Optional to replace previous file)")}
                 </label>
                 <input
                   type="file"
@@ -917,7 +687,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                     className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
                   >
                     <Upload className="size-3.5 text-slate-500" />
-                    <span>{editFile ? "Replace File" : "Upload New Evidence"}</span>
+                    <span>{editFile ? t("overdue.replaceFile", "Replace File") : t("overdue.uploadNewEvidence", "Upload New Evidence")}</span>
                   </label>
                   {editFile ? (
                     <span className="text-xs text-blue-700 font-medium truncate max-w-[220px]">
@@ -925,7 +695,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                     </span>
                   ) : editingRecord.attachment_url ? (
                     <span className="text-xs text-slate-500 italic">
-                      Previous attachment exists
+                      {t("overdue.previousAttachmentExists", "Previous attachment exists")}
                     </span>
                   ) : null}
                 </div>
@@ -938,7 +708,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                   disabled={savingEdit}
                   className="flex-1 rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
-                  Cancel
+                  {t("common.cancel", "Cancel")}
                 </button>
                 <button
                   type="submit"
@@ -948,12 +718,12 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                   {savingEdit ? (
                     <>
                       <RefreshCw className="size-4 animate-spin" />
-                      <span>Saving Changes...</span>
+                      <span>{t("overdue.savingChanges", "Saving Changes...")}</span>
                     </>
                   ) : (
                     <>
                       <Check className="size-4" />
-                      <span>Save Changes</span>
+                      <span>{t("overdue.saveChanges", "Save Changes")}</span>
                     </>
                   )}
                 </button>
@@ -965,57 +735,28 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
       {/* Delete Follow-up Progress Confirmation Modal */}
       {deletingRecord && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-md animate-in fade-in duration-200"
-        >
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
-                <Trash2 className="size-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 font-heading">Delete Follow-up Log</h3>
-                <p className="text-[11px] text-slate-500">This action cannot be undone.</p>
-              </div>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Are you sure you want to delete this follow-up record
-              {deletingRecord.follow_up_status ? ` with status "${deletingRecord.follow_up_status}"` : ""}?
+        <ConfirmDeleteModal
+          isOpen={Boolean(deletingRecord)}
+          onClose={() => setDeletingRecord(null)}
+          onConfirm={handleDeleteLog}
+          loading={isDeleting}
+          title={t("overdue.deleteLogTitle", "Delete Follow-up Log")}
+          confirmText={t("common.yes", "Yes")}
+          cancelText={t("common.no", "No")}
+          message={
+            <div className="text-left space-y-2 mt-2">
+              <p className="text-xs text-slate-600">
+                {t("overdue.deleteLogConfirm", "Are you sure you want to delete this follow-up log?")}
+                {deletingRecord.follow_up_status ? ` (${deletingRecord.follow_up_status})` : ""}
+              </p>
               {deletingRecord.follow_up_status === "COMPLETED" && (
-                <span className="block mt-2 font-semibold text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                <span className="block font-semibold text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
                   Note: Deleting this Completed record will reverse the recorded settlement payment and return the invoice to overdue status.
                 </span>
               )}
-            </p>
-            <div className="mt-6 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setDeletingRecord(null)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={handleDeleteLog}
-                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-red-700 transition cursor-pointer disabled:opacity-50"
-              >
-                {isDeleting ? (
-                  <>
-                    <RefreshCw className="size-3.5 animate-spin" />
-                    <span>Deleting...</span>
-                  </>
-                ) : (
-                  <span>Delete Record</span>
-                )}
-              </button>
             </div>
-          </div>
-        </div>
+          }
+        />
       )}
     </div>
   );

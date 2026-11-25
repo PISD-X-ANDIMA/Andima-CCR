@@ -22,8 +22,11 @@ import {
   X,
 } from "lucide-react";
 import HeaderAccount from "@/components/headeraccount";
+import FollowUpFormSkeleton from "@/components/FollowUpFormSkeleton";
+import { DatePicker } from "@/components/CalendarModal";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface OverdueInvoiceCreateViewProps {
   invoiceId: string;
@@ -37,12 +40,12 @@ function formatRupiah(value: number) {
   }).format(value || 0);
 }
 
-function formatDate(value?: string | null) {
+function formatDate(value?: string | null, language: string = "en") {
   if (!value || value === "-") return "-";
   const date = new Date(`${value.slice(0, 10)}T00:00:00`);
   return Number.isNaN(date.getTime())
     ? value
-    : date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+    : date.toLocaleDateString(language === "id" ? "id-ID" : "en-US", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function initials(name?: string) {
@@ -81,6 +84,7 @@ function followUpStatusBadge(status: string) {
 }
 
 export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCreateViewProps) {
+  const { t, language } = useLanguage();
   const router = useRouter();
   const cleanInvoiceId = useMemo(() => {
     try {
@@ -142,7 +146,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
           setAssignmentHistory(result.body.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [cleanInvoiceId]);
 
   const loadData = useCallback(() => {
@@ -311,9 +315,9 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
   const waPhone = cleanPhone.startsWith("0") ? `62${cleanPhone.slice(1)}` : cleanPhone;
   const contactName =
     invoice?.contact_person?.name &&
-    invoice.contact_person.name !== "-" &&
-    invoice.contact_person.name !== "Kontak tidak tersedia" &&
-    invoice.contact_person.name !== "Contact not available"
+      invoice.contact_person.name !== "-" &&
+      invoice.contact_person.name !== "Kontak tidak tersedia" &&
+      invoice.contact_person.name !== "Contact not available"
       ? invoice.contact_person.name
       : null;
   const hasContact = Boolean(contactName || rawPhone);
@@ -338,7 +342,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
             className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-700 transition group"
           >
             <ArrowLeft className="size-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Overdue Alerts</span>
+            <span>{t("overdue.backToOverdue", "Back to Overdue Alerts")}</span>
           </Link>
           <HeaderAccount />
         </div>
@@ -347,29 +351,25 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
       {/* Main Container stretched wide (mepet sidebar) */}
       <main className="w-full space-y-6 px-4 sm:px-6 lg:px-8 py-6">
         {loading ? (
-          <div className="space-y-4">
-            <div className="h-28 rounded-2xl border border-slate-200 bg-white p-6 animate-pulse" />
-            <div className="h-96 rounded-2xl border border-slate-200 bg-white p-6 animate-pulse" />
-            <div className="h-64 rounded-2xl border border-slate-200 bg-white p-6 animate-pulse" />
-          </div>
+          <FollowUpFormSkeleton isInnerOnly />
         ) : errorMessage || !invoice ? (
           <div className="rounded-2xl border border-red-200 bg-white p-12 text-center shadow-sm">
             <AlertCircle className="mx-auto size-8 text-red-500 mb-3" />
-            <h2 className="text-base font-bold text-slate-900 font-heading">Failed to Load Invoice</h2>
-            <p className="mt-1 text-xs text-red-600">{errorMessage || "Invoice not found."}</p>
+            <h2 className="text-base font-bold text-slate-900 font-heading">{t("overdue.failedToLoadInvoice", "Failed to Load Invoice")}</h2>
+            <p className="mt-1 text-xs text-red-600">{errorMessage || t("overdue.invoiceNotFound", "Invoice not found.")}</p>
             <div className="mt-5 flex justify-center gap-3">
               <Link
                 href="/overdue-alert"
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Back to Overdue List
+                {t("overdue.backToOverdue", "Back to Overdue Alerts")}
               </Link>
               <button
                 type="button"
                 onClick={loadData}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 cursor-pointer"
               >
-                Try Again
+                {t("common.tryAgain", "Try Again")}
               </button>
             </div>
           </div>
@@ -381,13 +381,13 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                 <div>
                   <div className="flex flex-wrap items-center gap-2.5">
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 font-heading">
-                      <AlertTriangle className="size-4" /> Internal Overdue Alert
+                      <AlertTriangle className="size-4" /> {t("overdue.internalAlert", "Internal Overdue Alert")}
                     </span>
                     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${riskClasses(invoice.risk_status)}`}>
                       {invoice.risk_status}
                     </span>
                     <span className={`inline-flex rounded px-2 py-0.5 text-[11px] font-bold ${agingClasses(invoice.days_overdue)}`}>
-                      Aging: {invoice.days_overdue} Days
+                      {t("overdue.colAging", "Aging")}: {invoice.days_overdue} {t("common.days", "Days")}
                     </span>
                   </div>
 
@@ -395,27 +395,27 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                     {invoice.customer_name}
                   </h1>
                   <p className="mt-1 text-xs font-mono text-slate-500">
-                    Invoice No.: <strong className="text-slate-800">{invoice.invoice_number}</strong> · Due Date:{" "}
-                    <strong className="text-slate-800">{formatDate(invoice.due_date)}</strong>
+                    {t("overdue.invoiceNoLabel", "Invoice No.:")} <strong className="text-slate-800">{invoice.invoice_number}</strong> · {t("common.dueDate", "Due Date")}:{" "}
+                    <strong className="text-slate-800">{formatDate(invoice.due_date, language)}</strong>
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-500">
                     {hasContact
-                      ? `${contactName || "Customer Contact"}${rawPhone ? ` (${rawPhone})` : ""}`
-                      : "Contact not available"}
+                      ? `${contactName || t("overdue.customerContact", "Customer Contact")}${rawPhone ? ` (${rawPhone})` : ""}`
+                      : t("overdue.contactUnavailable", "Contact not available")}
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-400">
-                    Branch: {invoice.branch && invoice.branch !== "Tidak tersedia" ? invoice.branch : "Head Office"} {invoice.branch_code ? `(${invoice.branch_code})` : ""} · NPWP: {invoice.npwp || "-"}
+                    {t("common.branch", "Branch")}: {invoice.branch && invoice.branch !== "Tidak tersedia" ? invoice.branch : t("common.headOffice", "Head Office")} {invoice.branch_code ? `(${invoice.branch_code})` : ""} · NPWP: {invoice.npwp || "-"}
                   </p>
                 </div>
 
                 <div className="flex flex-col items-start md:items-end gap-1.5 rounded-xl border border-red-100 bg-red-50/60 p-4">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 font-heading">
-                    Total Outstanding
+                    {t("overdue.totalOutstanding", "Total Outstanding")}
                   </span>
                   <span className="text-2xl font-extrabold text-red-600 font-heading">
                     {formatRupiah(invoice.amount_overdue)}
                   </span>
-                  <span className="text-[10px] text-slate-500">{invoice.payment_note || "No payments yet"}</span>
+                  <span className="text-[10px] text-slate-500">{invoice.payment_note || t("overdue.noPaymentsYet", "No payments yet")}</span>
                 </div>
               </div>
 
@@ -423,16 +423,15 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-slate-100">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                      picName === "-" ? "bg-slate-100 text-slate-400" : "bg-blue-100 text-blue-700"
-                    }`}
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ${picName === "-" ? "bg-slate-100 text-slate-400" : "bg-blue-100 text-blue-700"
+                      }`}
                   >
                     {picInitials}
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-900">{picName}</p>
                     <p className="text-[11px] text-slate-500">
-                      {picName === "-" ? "No PIC assigned yet" : "Registered Collection Officer"}
+                      {picName === "-" ? t("overdue.noPicAssigned", "No PIC assigned yet") : t("overdue.registeredOfficer", "Registered Collection Officer")}
                       {assignedStaff ? ` · ID: ${assignedStaff.employee_id}` : ""}
                     </p>
                   </div>
@@ -442,16 +441,20 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                   {waPhone && hasContact ? (
                     <a
                       href={`https://wa.me/${waPhone}?text=${encodeURIComponent(
-                        `Halo, konfirmasi tagihan ${invoice.invoice_number} sebesar ${formatRupiah(
-                          invoice.amount_overdue
-                        )} PT Andima Transportindo.`
+                        language === "id"
+                          ? `Halo, konfirmasi tagihan ${invoice.invoice_number} sebesar ${formatRupiah(
+                            invoice.amount_overdue
+                          )} PT Andima Transportindo.`
+                          : `Hello, payment reminder for invoice ${invoice.invoice_number} of ${formatRupiah(
+                            invoice.amount_overdue
+                          )} from PT Andima Transportindo.`
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition cursor-pointer shadow-xs"
                     >
                       <MessageSquare className="size-3.5 text-emerald-600" />
-                      <span>Chat WhatsApp</span>
+                      <span>{t("overdue.chatWhatsappBtn", "Chat WhatsApp")}</span>
                     </a>
                   ) : (
                     <button
@@ -460,7 +463,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed"
                     >
                       <MessageSquare className="size-3.5" />
-                      <span>WhatsApp (Unavailable)</span>
+                      <span>{t("overdue.whatsappUnavailable", "WhatsApp (Unavailable)")}</span>
                     </button>
                   )}
 
@@ -475,7 +478,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 transition cursor-pointer shadow-xs"
                   >
                     <Phone className="size-3.5 text-slate-600" />
-                    <span>Call Contact</span>
+                    <span>{t("common.call", "Call")}</span>
                   </button>
                 </div>
               </div>
@@ -490,11 +493,10 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                   </div>
                   <div className="space-y-1">
                     <h2 className="text-base font-bold text-amber-950 font-heading">
-                      Follow-up Creation Restricted to Staff
+                      {t("overdue.restrictedToStaffTitle", "Follow-up Creation Restricted to Staff")}
                     </h2>
                     <p className="text-xs text-amber-800 leading-relaxed">
-                      Users with the <strong>Management</strong> role cannot create collection follow-up logs. 
-                      Management is authorized to assign and reassign PICs. Progress entries and settlements must be submitted by the assigned collection Staff.
+                      {t("overdue.restrictedToStaffDesc", "Management accounts have read-only access to follow-up logs. Staff members handle daily collection progress.")}
                     </p>
                   </div>
                 </div>
@@ -504,242 +506,247 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                     className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition"
                   >
                     <UserCheck className="size-4" />
-                    <span>Manage PIC Assignment</span>
+                    <span>{t("overdue.managePicAssignment", "Manage PIC Assignment")}</span>
                   </Link>
                   <Link
                     href="/overdue-alert"
                     className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-900 shadow-xs hover:bg-amber-100 transition"
                   >
                     <ArrowLeft className="size-4" />
-                    <span>Back to Overdue Alerts</span>
+                    <span>{t("overdue.backToOverdue", "Back to Overdue Alerts")}</span>
                   </Link>
                 </div>
               </section>
             ) : (
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900 font-heading">
-                    Follow-up Progress Form
-                  </h2>
-                </div>
-                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700">
-                  Record Progress
-                </span>
-              </div>
-
-              <form onSubmit={(e) => void handleSubmitProgress(e)} className="space-y-5">
-                {/* Status Invoice */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    Status Invoice
-                  </label>
-                  <select
-                    value={followUpStatus}
-                    onChange={(e) => setFollowUpStatus(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="IN_PROGRESS">In Progress</option>
-                    <option value="PROMISE_TO_PAY">Promise to Pay</option>
-                    <option value="COMPLETED">Completed</option>
-                    <option value="DISPUTE">Dispute</option>
-                  </select>
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900 font-heading">
+                      {t("overdue.followUpFormTitle", "Follow-up Progress Form")}
+                    </h2>
+                  </div>
+                  <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700">
+                    {t("overdue.recordProgressBadge", "Record Progress")}
+                  </span>
                 </div>
 
-                {/* Conditional Fields: Customer Contact Method (for non-completed) */}
-                {followUpStatus !== "COMPLETED" && (
+                <form onSubmit={(e) => void handleSubmitProgress(e)} className="space-y-5">
+                  {/* Status Invoice */}
                   <div>
                     <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                      Customer Contact Method
+                      {t("overdue.invoiceStatusLabel", "Status Invoice")}
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {[
-                        { id: "Direct Visit", label: "Direct Visit", desc: "Direct in-person visit", icon: Users },
-                        { id: "Chat (WhatsApp / Others)", label: "Chat (WhatsApp / Others)", desc: "WhatsApp or SMS message", icon: MessageSquare },
-                        { id: "Online Meeting", label: "Online Meeting", desc: "Zoom or Google Meet", icon: Video },
-                      ].map((item) => {
-                        const IconComponent = item.icon;
-                        const isSelected = contactMethod === item.id;
-                        return (
-                          <button
-                            type="button"
-                            key={item.id}
-                            onClick={() => setContactMethod(item.id)}
-                            className={`flex flex-col items-start p-3 rounded-xl border text-left transition cursor-pointer ${
-                              isSelected
+                    <select
+                      value={followUpStatus}
+                      onChange={(e) => setFollowUpStatus(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                    >
+                      {language === "id" ? (
+                        <>
+                          <option value="IN_PROGRESS">{t("overdue.statusInProgress", "Dalam Proses")}</option>
+                          <option value="PROMISE_TO_PAY">{t("overdue.statusPromiseToPay", "Janji Bayar")}</option>
+                          <option value="COMPLETED">{t("overdue.statusCompleted", "Selesai / Lunas")}</option>
+                          <option value="DISPUTE">{t("overdue.statusDispute", "Sengketa / Dispute")}</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="IN_PROGRESS">In Progress</option>
+                          <option value="PROMISE_TO_PAY">Promise to Pay</option>
+                          <option value="COMPLETED">Completed</option>
+                          <option value="DISPUTE">Dispute</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Conditional Fields: Customer Contact Method (for non-completed) */}
+                  {followUpStatus !== "COMPLETED" && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                        {t("overdue.contactMethodLabel", "Customer Contact Method")}
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {[
+                          { id: "Direct Visit", label: t("overdue.directVisit", "Direct Visit"), desc: t("overdue.directVisitDesc", "Direct in-person visit"), icon: Users },
+                          { id: "Chat (WhatsApp / Others)", label: t("overdue.chatWhatsapp", "Chat (WhatsApp / Others)"), desc: t("overdue.chatWhatsappDesc", "WhatsApp or SMS message"), icon: MessageSquare },
+                          { id: "Online Meeting", label: t("overdue.onlineMeeting", "Online Meeting"), desc: t("overdue.onlineMeetingDesc", "Zoom or Google Meet"), icon: Video },
+                        ].map((item) => {
+                          const IconComponent = item.icon;
+                          const isSelected = contactMethod === item.id;
+                          return (
+                            <button
+                              type="button"
+                              key={item.id}
+                              onClick={() => setContactMethod(item.id)}
+                              className={`flex flex-col items-start p-3 rounded-xl border text-left transition cursor-pointer ${isSelected
                                 ? "border-blue-600 bg-blue-50/80 ring-1 ring-blue-600 shadow-xs"
                                 : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`flex size-6 items-center justify-center rounded-lg ${
-                                  isSelected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"
                                 }`}
-                              >
-                                <IconComponent className="size-3.5" />
-                              </span>
-                              <span className={`text-xs font-bold ${isSelected ? "text-blue-950" : "text-slate-800"}`}>
-                                {item.label}
-                              </span>
-                            </div>
-                            <span className="mt-1 text-[10px] text-slate-500">{item.desc}</span>
-                          </button>
-                        );
-                      })}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`flex size-6 items-center justify-center rounded-lg ${isSelected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"
+                                    }`}
+                                >
+                                  <IconComponent className="size-3.5" />
+                                </span>
+                                <span className={`text-xs font-bold ${isSelected ? "text-blue-950" : "text-slate-800"}`}>
+                                  {item.label}
+                                </span>
+                              </div>
+                              <span className="mt-1 text-[10px] text-slate-500">{item.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Conditional Field: Promise to Pay Date (for Promise to Pay only) */}
-                {followUpStatus === "PROMISE_TO_PAY" && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                      Promise to Pay Date
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={promiseDate}
-                      onChange={(e) => setPromiseDate(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
-                    />
-                  </div>
-                )}
-
-                {/* Conditional Field: Jumlah Pembayaran (for Completed only) */}
-                {followUpStatus === "COMPLETED" && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                      Payment Amount (IDR)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
-                      <input
-                        type="number"
-                        required
-                        min="1"
-                        step="1"
-                        value={paymentAmount}
-                        onChange={(e) => setPaymentAmount(e.target.value)}
-                        placeholder="Enter total payment amount"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-3.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                  {/* Conditional Field: Promise to Pay Date (for Promise to Pay only) */}
+                  {followUpStatus === "PROMISE_TO_PAY" && (
+                    <div>
+                      <DatePicker
+                        label={t("overdue.promiseDateLabel", "Promise to Pay Date")}
+                        value={promiseDate}
+                        onChange={(d) => setPromiseDate(d)}
+                        placeholder="YYYY-MM-DD"
                       />
                     </div>
-                    {paymentAmount && Number(paymentAmount) > 0 && (
-                      <p className="mt-1 text-[11px] font-bold text-emerald-700">
-                        Recorded amount: {formatRupiah(Number(paymentAmount))}
-                      </p>
-                    )}
-                  </div>
-                )}
+                  )}
 
-                {/* Follow-up Notes (dynamic label per status, mandatory) */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    {followUpStatus === "DISPUTE"
-                      ? "Dispute Issue Details"
-                      : followUpStatus === "COMPLETED"
-                      ? "Settlement Notes / Payment Description"
-                      : "Follow-up Notes"}
-                  </label>
-                  <textarea
-                    rows={4}
-                    required
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder={
-                      followUpStatus === "DISPUTE"
-                        ? "Write dispute details, differences, or disputed documents..."
-                        : followUpStatus === "COMPLETED"
-                        ? "Write settlement notes, payment reference number, etc..."
-                        : "Write summary of communication with customer, commitments, etc..."
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                {/* Evidence Attachment (mandatory for Completed, available for all) */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-slate-800">
-                      {followUpStatus === "COMPLETED"
-                        ? "Proof of Payment / Settlement (Required)"
-                        : followUpStatus === "DISPUTE"
-                        ? "Dispute Document Attachment"
-                        : "Evidence Attachment (Chat Screenshot / Photo / Document)"}
-                    </label>
-                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                      Maximum 5MB
-                    </span>
-                  </div>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="image/*,.pdf,.doc,.docx"
-                    className="hidden"
-                    id="create-page-evidence-file"
-                  />
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label
-                      htmlFor="create-page-evidence-file"
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
-                    >
-                      <Upload className="size-3.5 text-slate-500" />
-                      <span>{evidenceFile ? "Change Evidence File" : "Select Evidence File"}</span>
-                    </label>
-                    {evidenceFile && (
-                      <div className="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs text-blue-700 font-medium">
-                        <Paperclip className="size-3.5 shrink-0" />
-                        <span className="truncate max-w-[280px]">
-                          {evidenceFile.name} ({(evidenceFile.size / (1024 * 1024)).toFixed(2)} MB)
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEvidenceFile(null);
-                            if (fileInputRef.current) fileInputRef.current.value = "";
-                          }}
-                          className="text-slate-400 hover:text-red-600 cursor-pointer ml-1"
-                        >
-                          <X className="size-3.5" />
-                        </button>
+                  {/* Conditional Field: Jumlah Pembayaran (for Completed only) */}
+                  {followUpStatus === "COMPLETED" && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                        {t("overdue.paymentAmountLabel", "Payment Amount (IDR)")}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          step="1"
+                          value={paymentAmount}
+                          onChange={(e) => setPaymentAmount(e.target.value)}
+                          placeholder={t("overdue.paymentAmountPlaceholder", "Enter total payment amount")}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-3.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                        />
                       </div>
-                    )}
-                  </div>
-                </div>
+                      {paymentAmount && Number(paymentAmount) > 0 && (
+                        <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                          {t("overdue.recordedAmountLabel", "Recorded amount:")} {formatRupiah(Number(paymentAmount))}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                {/* Action Buttons: Cancel and Confirm Follow-up */}
-                <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => router.push("/overdue-alert")}
-                    disabled={submitting}
-                    className="flex-1 rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="flex-[2] inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-60 transition cursor-pointer"
-                  >
-                    {submitting ? (
-                      <>
-                        <RefreshCw className="size-4 animate-spin" />
-                        <span>Saving Progress...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="size-4" />
-                        <span>Confirm Follow-up</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </section>
+                  {/* Follow-up Notes (dynamic label per status, mandatory) */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                      {followUpStatus === "DISPUTE"
+                        ? t("overdue.disputeNotesLabel", "Dispute Issue Details")
+                        : followUpStatus === "COMPLETED"
+                          ? t("overdue.settlementNotesLabel", "Settlement Notes / Payment Description")
+                          : t("overdue.notesLabel", "Follow-up Notes")}
+                    </label>
+                    <textarea
+                      rows={4}
+                      required
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder={
+                        followUpStatus === "DISPUTE"
+                          ? t("overdue.disputeNotesPlaceholder", "Write dispute details, differences, or disputed documents...")
+                          : followUpStatus === "COMPLETED"
+                            ? t("overdue.settlementNotesPlaceholder", "Write settlement notes, payment reference number, etc...")
+                            : t("overdue.notesPlaceholder", "Write summary of communication with customer, commitments, etc...")
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  {/* Evidence Attachment (mandatory for Completed, available for all) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-slate-800">
+                        {followUpStatus === "COMPLETED"
+                          ? t("overdue.proofOfPaymentLabel", "Proof of Payment / Settlement (Required)")
+                          : followUpStatus === "DISPUTE"
+                            ? t("overdue.disputeDocLabel", "Dispute Document Attachment")
+                            : t("overdue.evidenceLabel", "Evidence Attachment (Chat Screenshot / Photo / Document)")}
+                      </label>
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                        {t("overdue.maxFileSizeBadge", "Maximum 5MB")}
+                      </span>
+                    </div>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      accept="image/*,.pdf,.doc,.docx"
+                      className="hidden"
+                      id="create-page-evidence-file"
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label
+                        htmlFor="create-page-evidence-file"
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
+                      >
+                        <Upload className="size-3.5 text-slate-500" />
+                        <span>{evidenceFile ? t("overdue.changeEvidenceFile", "Change Evidence File") : t("overdue.selectEvidenceFile", "Select Evidence File")}</span>
+                      </label>
+                      {evidenceFile && (
+                        <div className="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs text-blue-700 font-medium">
+                          <Paperclip className="size-3.5 shrink-0" />
+                          <span className="truncate max-w-[280px]">
+                            {evidenceFile.name} ({(evidenceFile.size / (1024 * 1024)).toFixed(2)} MB)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEvidenceFile(null);
+                              if (fileInputRef.current) fileInputRef.current.value = "";
+                            }}
+                            className="text-slate-400 hover:text-red-600 cursor-pointer ml-1"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons: Cancel and Confirm Follow-up */}
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => router.push("/overdue-alert")}
+                      disabled={submitting}
+                      className="flex-1 rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      {t("common.cancel", "Cancel")}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="flex-[2] inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-60 transition cursor-pointer"
+                    >
+                      {submitting ? (
+                        <>
+                          <RefreshCw className="size-4 animate-spin" />
+                          <span>{t("overdue.savingProgress", "Saving Progress...")}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="size-4" />
+                          <span>{t("overdue.confirmFollowUp", "Confirm Follow-up")}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </section>
             )}
 
             {/* Activity & Follow-up History Section moved below the form */}
@@ -821,7 +828,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                           </div>
 
                           <span className="shrink-0 text-[11px] text-slate-400">
-                            {new Date(record.assigned_at).toLocaleDateString("id-ID", {
+                            {new Date(record.assigned_at).toLocaleDateString(language === "id" ? "id-ID" : "en-US", {
                               day: "2-digit",
                               month: "short",
                               year: "numeric",
@@ -832,7 +839,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                         {record.promise_date && (
                           <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
                             <Calendar className="size-3.5" />
-                            <span>Promise to Pay: {formatDate(record.promise_date)}</span>
+                            <span>Promise to Pay: {formatDate(record.promise_date, language)}</span>
                           </p>
                         )}
 

@@ -87,7 +87,7 @@ async function parsePdf(buffer: Buffer, type: DocumentType) {
           const pph = nearest(items, job.y, 530, 590);
           const others = nearest(items, job.y, 590, 650);
           const dip = nearest(items, job.y, 650, 710);
-          if (revenue) rows.push([reportPeriod, customer, revenue, subTotal, vat, pph, String((numberValue(others) ?? 0) + (numberValue(dip) ?? 0)), job.str, mawb]);
+          if (revenue) rows.push([reportPeriod, customer, revenue, subTotal, vat, pph, others || "0", dip || "0", job.str, mawb]);
         }
       } else {
         for (const rowNumber of items.filter((item) => item.x < 65 && /^\d+$/.test(item.str))) {
@@ -106,7 +106,7 @@ async function parsePdf(buffer: Buffer, type: DocumentType) {
     if (!rows.length) throw new Error("PDF_TABLE_NOT_FOUND");
     if (type === "COMPANY_SALES_REPORT") {
       if (!reportPeriod) throw new Error("MISSING_HEADER");
-      return [["period", "customer", "revenue", "trucking cost", "handling cost", "storage cost", "other operational cost", "job", "mawb"], ...rows];
+      return [["period", "customer", "revenue", "Sub Total", "VAT", "PPH 23", "Others", "DIP IATA", "job", "mawb"], ...rows];
     }
     return [["invoice", "customer", "amount rp", "due date", "created date", "job", "mawb"], ...rows];
   } catch (error) {

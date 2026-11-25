@@ -65,13 +65,20 @@ export default function HeaderAccount() {
   }, [loaded]);
 
   return (
-    <div className="flex items-center gap-2 border-l border-[#BCD4EE] pl-3">
-      <span className="grid size-8 place-items-center rounded-full border border-[#0C68D5]/25 bg-[#E6F1FF] text-xs font-bold text-[#0C68D5] font-heading">
+    <div className="h-full px-2.5 sm:px-4 flex items-center gap-2.5 border-l border-[#E2E8F0]">
+      {/* User Icon Circle with Specified #DBEAFE Background */}
+      <div className="w-[32px] h-[32px] rounded-full bg-[#DBEAFE] border border-[#BFDBFE] flex items-center justify-center text-[#121B2E] font-semibold text-[13px] shrink-0 select-none">
         {account.initials}
-      </span>
-      <div className="min-w-0 text-left">
-        <p className="max-w-40 truncate text-xs font-bold text-[#172033] font-heading">{account.name}</p>
-        <p className="text-[10px] text-[#4d5f81]">{account.role}</p>
+      </div>
+
+      {/* User Name & Role Stack */}
+      <div className="hidden sm:flex flex-col leading-tight min-w-0 text-left">
+        <span className="max-w-36 truncate text-[12px] font-bold text-[#121B2E] tracking-[-0.01em]">
+          {account.name}
+        </span>
+        <span className="max-w-36 truncate text-[10.5px] font-normal text-[#64748B] mt-0.5">
+          {account.role}
+        </span>
       </div>
     </div>
   );

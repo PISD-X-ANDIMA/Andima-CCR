@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { PaymentTrendPoint } from "@/types/customer";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 interface CustomerPaymentTrendChartProps {
   data: PaymentTrendPoint[];
@@ -29,13 +30,15 @@ interface RecentPaymentRecord {
 }
 
 const money = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
-const compactMoney = new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 });
-const monthFormat = new Intl.DateTimeFormat("id-ID", { month: "short", year: "numeric", timeZone: "UTC" });
-
-function monthLabel(period: string) {
+function monthLabel(period: string, language: string = "en") {
   if (!period) return "";
   try {
-    return monthFormat.format(new Date(`${period.slice(0, 7)}-01T00:00:00Z`));
+    const formatter = new Intl.DateTimeFormat(language === "id" ? "id-ID" : "en-US", {
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    return formatter.format(new Date(`${period.slice(0, 7)}-01T00:00:00Z`));
   } catch {
     return period;
   }
@@ -50,13 +53,14 @@ function PaymentTooltip({
   payload?: ReadonlyArray<{ value?: number | string }>;
   label?: string;
 }) {
+  const { t, language } = useLanguage();
   if (!active || !payload?.length) return null;
   const value = Number(payload[0]?.value ?? 0);
   return (
     <div className="min-w-44 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
-      <p className="mb-1 font-semibold text-slate-900">{label ? monthLabel(label) : "Period"}</p>
+      <p className="mb-1 font-semibold text-slate-900">{label ? monthLabel(label, language) : t("common.period", "Period")}</p>
       <div className="flex items-center justify-between gap-3">
-        <span className="text-slate-500">Collected Payment:</span>
+        <span className="text-slate-500">{t("customerAnalytics.collectedPayment", "Collected Payment")}:</span>
         <span className="font-mono font-bold text-blue-700">{money.format(value)}</span>
       </div>
     </div>
@@ -68,6 +72,11 @@ export default function CustomerPaymentTrendChart({
   customerId,
   customerName,
 }: CustomerPaymentTrendChartProps) {
+  const { t, language } = useLanguage();
+  const compactMoney = useMemo(
+    () => new Intl.NumberFormat(language === "id" ? "id-ID" : "en-US", { notation: "compact", maximumFractionDigits: 1 }),
+    [language]
+  );
   const [showRecentModal, setShowRecentModal] = useState(false);
   const [recentPayments, setRecentPayments] = useState<RecentPaymentRecord[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
@@ -113,22 +122,21 @@ export default function CustomerPaymentTrendChart({
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-slate-800 font-heading">Payment Trend</h2>
+            <h2 className="text-sm font-bold text-slate-800 font-heading">{t("customerAnalytics.paymentTrend", "Payment Trend")}</h2>
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            Historical and latest recorded payment collection trajectory.
+            {t("customerAnalytics.paymentTrendSubtitle", "Historical and latest recorded payment collection trajectory.")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {changePercent !== null && (
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${
-                changePercent >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
-              }`}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${changePercent >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                }`}
             >
               <TrendIcon className="h-3.5 w-3.5" />
               {changePercent >= 0 ? "+" : ""}
-              {changePercent.toFixed(1)}% vs prev month
+              {changePercent.toFixed(1)}% {t("customerAnalytics.vsPrevMonth", "vs prev month")}
             </span>
           )}
           {customerId && (
@@ -141,7 +149,7 @@ export default function CustomerPaymentTrendChart({
               className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition cursor-pointer shadow-xs"
             >
               <Receipt className="h-3.5 w-3.5" />
-              <span>Recent Payments</span>
+              <span>{t("customerAnalytics.recentPayments", "Recent Payments")}</span>
             </button>
           )}
           <Wallet className="h-5 w-5 text-slate-400" />
@@ -151,7 +159,7 @@ export default function CustomerPaymentTrendChart({
       <div className="pt-4">
         {!chartData.length ? (
           <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
-            No payment transaction data recorded yet.
+            {t("customerAnalytics.noPaymentData", "No payment transaction data recorded yet.")}
           </div>
         ) : (
           <div className="h-64 w-full min-w-0">
@@ -170,7 +178,7 @@ export default function CustomerPaymentTrendChart({
                   axisLine={false}
                   tickMargin={8}
                   tick={{ fontSize: 11, fill: "#64748b" }}
-                  tickFormatter={monthLabel}
+                  tickFormatter={(period: string) => monthLabel(period, language)}
                 />
                 <YAxis
                   width={68}
@@ -209,10 +217,10 @@ export default function CustomerPaymentTrendChart({
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/80">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 font-heading">
-                  Recent Settled Payments
+                  {t("customerAnalytics.recentPaymentsTitle", "Recent Settled Payments")}
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  {customerName || "Customer"} · Invoices settled through overdue collections &amp; direct payments
+                  {customerName || t("common.customer", "Customer")} · {t("customerAnalytics.recentPaymentsSubtitle", "Invoices settled through overdue collections & direct payments")}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -220,7 +228,7 @@ export default function CustomerPaymentTrendChart({
                   type="button"
                   onClick={() => void loadRecentPayments()}
                   disabled={loadingRecent}
-                  title="Refresh payments"
+                  title={t("common.refresh", "Refresh")}
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition cursor-pointer disabled:opacity-50"
                 >
                   <RefreshCw className={`size-4 ${loadingRecent ? "animate-spin" : ""}`} />
@@ -240,7 +248,7 @@ export default function CustomerPaymentTrendChart({
               {loadingRecent ? (
                 <div className="flex h-48 flex-col items-center justify-center gap-2 text-xs text-slate-400">
                   <Loader2 className="size-6 animate-spin text-blue-600" />
-                  <span>Loading recent payments...</span>
+                  <span>{t("customerAnalytics.loadingRecentPayments", "Loading recent payments...")}</span>
                 </div>
               ) : recentError ? (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs font-semibold text-rose-700">
@@ -249,9 +257,9 @@ export default function CustomerPaymentTrendChart({
               ) : recentPayments.length === 0 ? (
                 <div className="flex h-48 flex-col items-center justify-center text-center text-slate-400">
                   <History className="size-8 mb-2 opacity-40" />
-                  <p className="text-xs font-semibold text-slate-600">No settled payments recorded yet</p>
+                  <p className="text-xs font-semibold text-slate-600">{t("customerAnalytics.noRecentPayments", "No settled payments recorded yet")}</p>
                   <p className="text-[11px] mt-0.5 text-slate-400">
-                    Settlements processed via Overdue Alerts or invoice payments will appear here.
+                    {t("customerAnalytics.noRecentPaymentsDetail", "Settlements processed via Overdue Alerts or invoice payments will appear here.")}
                   </p>
                 </div>
               ) : (
@@ -259,11 +267,11 @@ export default function CustomerPaymentTrendChart({
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-xs font-bold text-slate-800 border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-3">Invoice Number</th>
-                        <th className="px-4 py-3 text-right">Settled Amount</th>
-                        <th className="px-4 py-3">Payment Date</th>
-                        <th className="px-4 py-3">Reference</th>
-                        <th className="px-4 py-3 text-center">Status</th>
+                        <th className="px-4 py-3">{t("customerAnalytics.colInvoiceNumber", "Invoice Number")}</th>
+                        <th className="px-4 py-3 text-right">{t("customerAnalytics.colSettledAmount", "Settled Amount")}</th>
+                        <th className="px-4 py-3">{t("customerAnalytics.colPaymentDate", "Payment Date")}</th>
+                        <th className="px-4 py-3">{t("customerAnalytics.colReference", "Reference")}</th>
+                        <th className="px-4 py-3 text-center">{t("common.status", "Status")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -284,7 +292,7 @@ export default function CustomerPaymentTrendChart({
                           <td className="px-4 py-3 text-center">
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                               <Check className="size-3" />
-                              Lunas
+                              {t("common.paid", "Paid")}
                             </span>
                           </td>
                         </tr>
@@ -298,14 +306,14 @@ export default function CustomerPaymentTrendChart({
             {/* Footer */}
             <div className="flex items-center justify-between border-t border-slate-100 px-6 py-3.5 bg-slate-50/50">
               <span className="text-[11px] font-medium text-slate-500">
-                Total {recentPayments.length} recorded payments
+                {t("customerAnalytics.totalRecordedPayments", "Total {count} recorded payments", { count: recentPayments.length })}
               </span>
               <button
                 type="button"
                 onClick={() => setShowRecentModal(false)}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-xs"
               >
-                Close
+                {t("common.close", "Close")}
               </button>
             </div>
           </div>

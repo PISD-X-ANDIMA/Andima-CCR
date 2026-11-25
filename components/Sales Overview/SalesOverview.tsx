@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
 import Pagination from "@/components/Pagination";
 import { AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Calendar, FileText, RefreshCw, Wallet, Receipt, PieChart, Activity, HelpCircle, X } from "lucide-react";
 import { ChartAreaStacked } from "./chart";
@@ -9,7 +8,7 @@ import { QUICK_PERIODS, matchingQuickPeriod, quickPeriodRange } from "@/lib/sale
 import { DocumentPreviewModal, RecentDocumentsPanel } from "./DocumentsPanel";
 import SalesOverviewExportModal from "./SalesOverviewExportModal";
 import type { RecentDocument } from "@/lib/salesOverviewDocuments";
-import type { StaffOption } from "@/types/overdue";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export type { RecentDocument } from "@/lib/salesOverviewDocuments";
 
@@ -42,9 +41,6 @@ type Props = {
   documents: RecentDocument[];
   documentsLoading: boolean;
   documentsError: string | null;
-  staffOptions?: StaffOption[];
-  staffLoading?: boolean;
-  canAssign?: boolean;
 };
 
 const money = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
@@ -66,6 +62,7 @@ function periodLabel(period: string) {
 }
 
 function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, disabled, buttonLabel }: Pick<Props, "startPeriod" | "endPeriod" | "onStartPeriodChange" | "onEndPeriodChange"> & { disabled: boolean; buttonLabel?: string }) {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [calendarYear, setCalendarYear] = useState(() => periodParts(endPeriod).year);
   const [draftStart, setDraftStart] = useState(startPeriod);
@@ -126,8 +123,8 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
 
   return (
     <div ref={rootRef} className="relative">
-      <button ref={triggerRef} type="button" onClick={openPicker} disabled={disabled} className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60 ${buttonLabel ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50" : "border-slate-200 bg-white text-slate-600"}`} aria-label={buttonLabel ? `${buttonLabel}: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}` : undefined} aria-expanded={isOpen} aria-haspopup="dialog">
-        <Calendar className="size-4 text-indigo-600" />
+      <button ref={triggerRef} type="button" onClick={openPicker} disabled={disabled} className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60 cursor-pointer ${buttonLabel ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50" : "border-slate-200 bg-white text-slate-600"}`} aria-label={buttonLabel ? `${buttonLabel}: ${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}` : undefined} aria-expanded={isOpen} aria-haspopup="dialog">
+        <Calendar className="size-4 text-blue-600" />
         <span>{buttonLabel ?? `${periodLabel(startPeriod)} - ${periodLabel(endPeriod)}`}</span>
       </button>
       {isOpen && (
@@ -137,7 +134,8 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
             <span className="text-sm font-bold text-slate-900 font-heading">{calendarYear}</span>
             <button type="button" onClick={() => setCalendarYear((year) => year + 1)} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 cursor-pointer" aria-label="Next year"><ArrowRight className="size-4" /></button>
           </div>
-          <p className="mb-3 text-xs text-slate-500">{selecting === "start" ? "Select start month" : "Select end month"}</p>
+          <p className="text-xs font-semibold text-slate-700">{selecting === "start" ? t("salesOverview.selectStartMonth", "Select start month") : t("salesOverview.selectEndMonth", "Select end month")}</p>
+          <p className="mb-3 text-[11px] text-slate-500">{t("salesOverview.customInstruction", "Click start month, then click end month to select period range.")}</p>
           <div className="grid grid-cols-3 gap-2">
             {monthNames.map((name, index) => {
               const value = `${calendarYear}-${String(index + 1).padStart(2, "0")}`;
@@ -148,12 +146,12 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
             })}
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-[10px] text-slate-500">
-            <span><i className="mr-1 inline-block size-2 rounded-sm bg-blue-200" />Start</span>
-            <span><i className="mr-1 inline-block size-2 rounded-sm bg-[#3B6FF5]" />End</span>
+            <span><i className="mr-1 inline-block size-2 rounded-sm bg-blue-200" />{t("salesOverview.start", "Start")}</span>
+            <span><i className="mr-1 inline-block size-2 rounded-sm bg-[#3B6FF5]" />{t("salesOverview.end", "End")}</span>
           </div>
           <div className="mt-3 flex justify-end gap-2">
-            {selecting === "end" && <button type="button" onClick={() => { setSelecting("start"); setDraftStart(startPeriod); setDraftEnd(endPeriod); }} className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">Back</button>}
-            <button type="button" onClick={cancelPicker} className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">Cancel</button>
+            {selecting === "end" && <button type="button" onClick={() => { setSelecting("start"); setDraftStart(startPeriod); setDraftEnd(endPeriod); }} className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">{t("common.back", "Back")}</button>}
+            <button type="button" onClick={cancelPicker} className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer">{t("common.cancel", "Cancel")}</button>
           </div>
         </div>
       )}
@@ -162,17 +160,22 @@ function MonthRangePicker({ startPeriod, endPeriod, onStartPeriodChange, onEndPe
 }
 
 function QuickPeriodFilters({ startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, disabled }: Pick<Props, "startPeriod" | "endPeriod" | "onStartPeriodChange" | "onEndPeriodChange"> & { disabled: boolean }) {
+  const { t } = useLanguage();
   const activeMonths = matchingQuickPeriod(startPeriod, endPeriod);
   return <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-1" role="group" aria-label="Quick period filters">
     {QUICK_PERIODS.map((period) => {
       const active = activeMonths === period.months;
-      return <button key={period.months} type="button" onClick={() => { const range = quickPeriodRange(endPeriod, period.months); onStartPeriodChange(range.startPeriod); onEndPeriodChange(range.endPeriod); }} disabled={disabled} aria-pressed={active} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer ${active ? "bg-[#3B6FF5] text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}>{period.label}</button>;
+      const label = period.months === 1
+        ? t("salesOverview.thisMonth", "This Month")
+        : t("salesOverview.previousMonths", "Previous Months");
+      return <button key={period.months} type="button" onClick={() => { const range = quickPeriodRange(endPeriod, period.months); onStartPeriodChange(range.startPeriod); onEndPeriodChange(range.endPeriod); }} disabled={disabled} aria-pressed={active} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer ${active ? "bg-[#3B6FF5] text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}>{label}</button>;
     })}
-    <MonthRangePicker startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={disabled} buttonLabel="Custom" />
+    <MonthRangePicker startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={disabled} buttonLabel={t("salesOverview.custom", "Custom")} />
   </div>;
 }
 
-export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], documents, documentsLoading, documentsError, staffOptions = [], staffLoading = false, canAssign = false }: Props) {
+export default function SalesOverview({ summary, series, startPeriod, endPeriod, onStartPeriodChange, onEndPeriodChange, onRefresh, isLoading, error, alerts = [], documents, documentsLoading, documentsError }: Props) {
+  const { t } = useLanguage();
   const hasMacro = Boolean(summary);
   const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -187,10 +190,10 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
   }
   return (
     <main className="min-h-screen bg-slate-50 p-4 font-sans text-slate-800 md:p-8">
-      {downloadError && <div role="alert" className="fixed right-4 top-4 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900 shadow-xl"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-rose-600" /><span className="flex-1">{downloadError}</span><button type="button" onClick={() => setDownloadError(null)} aria-label="Dismiss notification" className="rounded p-1 text-rose-700 hover:bg-rose-100"><X className="size-4" /></button></div>}
+      {downloadError && <div role="alert" className="fixed right-4 top-4 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900 shadow-xl"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-rose-600" /><span className="flex-1">{downloadError}</span><button type="button" onClick={() => setDownloadError(null)} aria-label="Dismiss notification" className="rounded p-1 text-rose-700 hover:bg-rose-100 cursor-pointer"><X className="size-4" /></button></div>}
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">Sales Overview</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-heading">{t("salesOverview.title", "Sales Overview")}</h1>
           <div className="flex flex-wrap items-center gap-3">
             <QuickPeriodFilters startPeriod={startPeriod} endPeriod={endPeriod} onStartPeriodChange={onStartPeriodChange} onEndPeriodChange={onEndPeriodChange} disabled={isLoading} />
             <button
@@ -198,25 +201,25 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
               onClick={() => setIsExportModalOpen(true)}
               disabled={isLoading}
               className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer shadow-xs"
-              aria-label="Sales Overview Export"
+              aria-label={t("salesOverview.exportButton", "Sales Overview Export")}
             >
               <FileText className="size-4 text-blue-600" />
-              Sales Overview Export
+              {t("salesOverview.exportButton", "Sales Overview Export")}
             </button>
-            <button type="button" onClick={onRefresh} disabled={isLoading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-60 cursor-pointer"><RefreshCw className={isLoading ? "size-4 animate-spin" : "size-4"} />Refresh</button>
+            <button type="button" onClick={onRefresh} disabled={isLoading} className="inline-flex items-center gap-2 rounded-md bg-[#3B6FF5] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-60 cursor-pointer"><RefreshCw className={isLoading ? "size-4 animate-spin" : "size-4"} />{t("common.refresh", "Refresh")}</button>
           </div>
         </header>
         <section>
-          <div className="mb-3 flex items-center justify-between"><h2 className="text-xs font-semibold text-slate-500 font-heading">Monthly Macro Analytics</h2></div>
-          {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label="Sales Profit Period" value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail="Total Revenue - Cost" formula="Sales Profit = Revenue - Cost" icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label="Cost Requirement Period" value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail="Total operational costs" icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label="Outstanding Period" value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail="Total uncollected invoices" icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label="Net Margin Ratio" value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail="Ratio across selected period" formula="Net Margin Ratio = (Sales Profit / Revenue) x 100" icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
+          <div className="mb-3 flex items-center justify-between"><h2 className="text-xs font-semibold text-slate-500 font-heading">{t("salesOverview.macroAnalytics", "Monthly Macro Analytics")}</h2></div>
+          {error ? <PanelError message={error} onRetry={onRefresh} /> : isLoading ? <MetricSkeleton /> : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"><MetricCard label={t("salesOverview.salesProfit", "Sales Profit Period")} value={hasMacro ? money.format(summary?.sales_profit ?? 0) : "-"} detail={t("salesOverview.salesProfitFormula", "Sales Profit = Revenue - Cost")} formula={t("salesOverview.salesProfitFormula", "Sales Profit = Revenue - Cost")} icon={<Wallet className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.costRequirement", "Cost Requirement Period")} value={hasMacro ? money.format(summary?.cost ?? 0) : "-"} detail={t("salesOverview.costDetail", "Total operational costs")} icon={<Receipt className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.outstandingPeriod", "Outstanding Period")} value={hasMacro ? money.format(summary?.total_outstanding ?? 0) : "-"} detail={t("salesOverview.outstandingDetail", "Total uncollected invoices")} icon={<AlertCircle className="size-4" />} empty={!hasMacro} /><MetricCard label={t("salesOverview.netMarginRatio", "Net Margin Ratio")} value={summary && summary.revenue ? `${((summary.sales_profit / summary.revenue) * 100).toFixed(1)}%` : "-"} detail={t("salesOverview.ratioAcrossPeriod", "Ratio across selected period")} formula={t("salesOverview.netMarginFormula", "Net Margin Ratio = (Sales Profit / Revenue) x 100")} icon={<PieChart className="size-4" />} empty={!hasMacro} /></div>}
         </section>
         <section aria-label="Sales Overview Charts" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ChartAreaStacked title="Sales & Cost Performance Trend" series={series} metrics={["revenue", "cost", "total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
-          <ChartAreaStacked title="Revenue" series={series} metrics={["revenue"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
-          <ChartAreaStacked title="Cost" series={series} metrics={["cost"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
-          <ChartAreaStacked title="Outstanding" series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
+          <ChartAreaStacked title={t("salesOverview.chartsTitle", "Sales & Cost Performance Trend")} series={series} metrics={["revenue", "cost", "total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
+          <ChartAreaStacked title={t("salesOverview.revenue", "Revenue")} series={series} metrics={["revenue"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
+          <ChartAreaStacked title={t("salesOverview.cost", "Cost")} series={series} metrics={["cost"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
+          <ChartAreaStacked title={t("salesOverview.outstandingPeriod", "Outstanding")} series={series} metrics={["total_outstanding"]} startPeriod={startPeriod} endPeriod={endPeriod} loading={isLoading} error={error} />
         </section>
-        <AlertPanel alerts={alerts} loading={isLoading} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />
+        <AlertPanel alerts={alerts} loading={isLoading} onRefresh={onRefresh} />
         <RecentDocumentsPanel documents={documents} loading={documentsLoading} error={documentsError} onPreview={setPreviewDocumentId} onOpenOriginal={(id) => void openOriginal(id)} onRejectedDownload={showRejectedDownload} />
       </div>
       {previewDocumentId && <DocumentPreviewModal documentId={previewDocumentId} onClose={() => setPreviewDocumentId(null)} />}
@@ -236,46 +239,151 @@ export default function SalesOverview({ summary, series, startPeriod, endPeriod,
   );
 }
 
-function MetricCard({ label, value, detail, formula, icon, empty }: { label: string; value: string; detail: string; formula?: string; icon: React.ReactNode; empty: boolean }) { return <article className="min-h-32 rounded-xl border border-slate-100 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><div className="flex items-center gap-1.5"><h3 className="text-xs font-semibold text-slate-600 font-heading">{label}</h3>{formula && <span className="group relative inline-flex"><button type="button" className="inline-flex size-4 items-center justify-center rounded-full border border-blue-200 text-blue-600" aria-label={`Formula for ${label}`} title={formula}><HelpCircle className="size-3" /></button><span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-slate-900 px-2.5 py-2 text-left text-[11px] font-medium normal-case tracking-normal text-white shadow-lg group-hover:block group-focus-within:block">{formula}</span></span>}</div><p className="text-[11px] text-slate-400">{detail}</p></div><span className="rounded bg-blue-50 p-1.5 text-blue-600">{icon}</span></div><p className={`mt-4 text-2xl font-bold tracking-tight font-heading ${empty ? "text-slate-400" : "text-slate-900"}`}>{value}</p><div className="mt-3 flex items-center gap-1 text-xs text-slate-500">{empty ? "No data yet" : <><Activity className="size-3.5 text-teal-600" />Validated</>}</div></article>; }
-function AlertPanel({ alerts, loading, staffOptions, staffLoading, canAssign, onRefresh }: { alerts: AlertRow[]; loading: boolean; staffOptions: StaffOption[]; staffLoading: boolean; canAssign: boolean; onRefresh: () => void }) {
-  const pageSize = 5;
+function MetricCard({ label, value, detail, formula, icon, empty }: { label: string; value: string; detail: string; formula?: string; icon: React.ReactNode; empty: boolean }) { const { t } = useLanguage(); return <article className="min-h-32 rounded-xl border border-slate-100 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><div className="flex items-center gap-1.5"><h3 className="text-xs font-semibold text-slate-600 font-heading">{label}</h3>{formula && <span className="group relative inline-flex"><button type="button" className="inline-flex size-4 items-center justify-center rounded-full border border-blue-200 text-blue-600" aria-label={`Formula for ${label}`} title={formula}><HelpCircle className="size-3" /></button><span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-slate-900 px-2.5 py-2 text-left text-[11px] font-medium normal-case tracking-normal text-white shadow-lg group-hover:block group-focus-within:block">{formula}</span></span>}</div><p className="text-[11px] text-slate-400">{detail}</p></div><span className="rounded bg-blue-50 p-1.5 text-blue-600">{icon}</span></div><p className={`mt-4 text-2xl font-bold tracking-tight font-heading ${empty ? "text-slate-400" : "text-slate-900"}`}>{value}</p><div className="mt-3 flex items-center gap-1 text-xs text-slate-500">{empty ? t("salesOverview.noDataYet", "No data yet") : <><Activity className="size-3.5 text-teal-600" />{t("salesOverview.validated", "Validated")}</>}</div></article>; }
+
+function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loading: boolean; onRefresh: () => void }) {
+  const { t } = useLanguage();
+  const [pageSize, setPageSize] = useState(5);
   const alertsVersion = alerts.map((alert) => `${alert.id}:${alert.due}:${alert.amount}`).join("|");
   const [pageState, setPageState] = useState({ version: alertsVersion, page: 1 });
   const ordered = [...alerts].sort((a, b) => a.due.localeCompare(b.due));
-  const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
+  const totalItems = ordered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const currentPage = pageState.version === alertsVersion ? Math.min(pageState.page, totalPages) : 1;
   const visible = ordered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  return <section className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-lg font-bold text-slate-900 font-heading">Overdue Alerts List</h2><p className="mb-4 text-xs text-slate-500">Validated invoices exceeding 30 days, sorted by oldest due date.</p>{loading ? <AlertSkeleton /> : ordered.length ? <><div className="space-y-3">{visible.map((alert, index) => <AlertCard key={`alert-row-${alert.id}-${alert.due}-${(currentPage - 1) * pageSize + index}`} alert={alert} staffOptions={staffOptions} staffLoading={staffLoading} canAssign={canAssign} onRefresh={onRefresh} />)}</div>{totalPages > 1 && <div className="mt-5 flex min-w-0 justify-center overflow-hidden"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })} /></div>}</> : <PanelEmpty text="No overdue alert data found." />}</section>;
+
+  return (
+    <section className="min-w-0 rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 font-heading">{t("salesOverview.overdueAlertsList", "Overdue Alerts List")}</h2>
+          <p className="text-xs text-slate-500">{t("salesOverview.overdueSubtitle", "Validated invoices exceeding 30 days, sorted by oldest due date.")}</p>
+        </div>
+        {loading ? (
+          <div className="h-4 w-28 animate-pulse rounded bg-slate-200" />
+        ) : (
+          <span className="text-xs font-medium text-slate-500">
+            Total: <strong className="text-slate-800 font-semibold">{totalItems}</strong> {t("salesOverview.totalOverdue", "overdue")}
+          </span>
+        )}
+      </div>
+      {loading ? (
+        <AlertSkeleton />
+      ) : ordered.length ? (
+        <>
+          <div className="space-y-3">
+            {visible.map((alert, index) => {
+              const rowNumber = (currentPage - 1) * pageSize + index + 1;
+              return (
+                <AlertCard
+                  key={`alert-row-${alert.id}-${alert.due}-${rowNumber}`}
+                  alert={alert}
+                  rowNumber={rowNumber}
+                  onRefresh={onRefresh}
+                />
+              );
+            })}
+          </div>
+          <div className="relative z-20 mt-5 border-t border-slate-100 pt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })}
+              pageSize={pageSize}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPageState({ version: alertsVersion, page: 1 });
+              }}
+              totalItems={totalItems}
+              itemLabel={t("common.overdueInvoices", "overdue invoices")}
+            />
+          </div>
+        </>
+      ) : (
+        <PanelEmpty text={t("salesOverview.noOverdueData", "No overdue alert data found.")} />
+      )}
+    </section>
+  );
 }
 
-function AlertCard({ alert, canAssign = false }: { alert: AlertRow; staffOptions?: StaffOption[]; staffLoading?: boolean; canAssign?: boolean; onRefresh?: () => void }) {
+function AlertCard({ alert, rowNumber }: { alert: AlertRow; rowNumber: number; onRefresh?: () => void }) {
+  const { t } = useLanguage();
   return (
-    <div className="rounded-lg bg-slate-50 p-3">
-      <div className="flex justify-between text-xs font-bold">
-        <span>{alert.id}</span>
-        <span className="text-red-600">{alert.days} Days</span>
+    <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-200/60 hover:border-slate-300 transition-colors">
+      <div className="flex items-center justify-between text-xs font-bold">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center justify-center rounded-md bg-blue-100 px-1.5 py-0.5 text-[11px] font-semibold text-blue-800 font-mono">
+            #{rowNumber}
+          </span>
+          <span className="text-slate-800">{alert.id}</span>
+        </div>
+        <span className="text-red-600 font-semibold">{alert.days} {t("common.days", "Days")}</span>
       </div>
       <p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p>
-      <p className="text-[10px] text-slate-500">Due: {alert.due} · {money.format(alert.amount)}</p>
+      <p className="text-[11px] text-slate-500">{t("common.due", "Due")}: {alert.due} · {money.format(alert.amount)}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-        <span>{alert.branch || "Branch unavailable"}</span>
-        {alert.picAssigned && <span className="font-semibold text-slate-700">PIC: {alert.picAssigned}</span>}
-        {alert.riskStatus && <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">{alert.riskStatus}</span>}
+        <span>{alert.branch && alert.branch !== "Tidak tersedia" ? alert.branch : t("common.branchUnavailable", "Branch unavailable")}</span>
+        {alert.riskStatus && (
+          <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">
+            {alert.riskStatus === "High Risk"
+              ? t("overdue.riskHigh", "High Risk")
+              : alert.riskStatus === "Medium Risk"
+                ? t("overdue.riskMedium", "Medium Risk")
+                : alert.riskStatus === "Watchlist"
+                  ? t("overdue.riskWatchlist", "Watchlist")
+                  : alert.riskStatus === "Negotiation"
+                    ? t("overdue.riskNegotiation", "Negotiation")
+                    : alert.riskStatus}
+          </span>
+        )}
       </div>
-      {canAssign && (
-        <div className="mt-3 flex justify-end">
-          <Link
-            href="/overdue-alert"
-            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-xs hover:bg-blue-700 transition cursor-pointer"
-          >
-            Assign PIC
-          </Link>
-        </div>
-      )}
     </div>
   );
 }
-function MetricSkeleton() { return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">{[1, 2, 3, 4].map((item) => <div key={item} className="h-32 animate-pulse rounded-xl bg-white p-5"><div className="h-3 w-32 rounded bg-slate-200" /><div className="mt-6 h-7 w-40 rounded bg-slate-200" /><div className="mt-3 h-3 w-24 rounded bg-slate-200" /></div>)}</div>; }
-function AlertSkeleton() { return <div className="space-y-3" aria-label="Loading alerts">{[1, 2, 3, 4, 5].map((item) => <div key={item} className="animate-pulse rounded-lg bg-slate-50 p-3"><div className="flex justify-between"><div className="h-3 w-24 rounded bg-slate-200" /><div className="h-3 w-14 rounded bg-slate-200" /></div><div className="mt-3 h-4 w-36 rounded bg-slate-200" /><div className="mt-2 h-3 w-48 rounded bg-slate-200" /><div className="mt-3 h-5 w-20 rounded bg-slate-200" /></div>)}</div>; }
+function MetricSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4" aria-label="Loading metrics" aria-busy="true">
+      {[1, 2, 3, 4].map((item) => (
+        <article key={item} className="min-h-32 animate-pulse rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1.5">
+              <div className="h-3.5 w-32 rounded bg-slate-200" />
+              <div className="h-2.5 w-24 rounded bg-slate-100" />
+            </div>
+            <div className="size-7 rounded bg-slate-100" />
+          </div>
+          <div className="mt-4 h-7 w-36 rounded bg-slate-200" />
+          <div className="mt-3 flex items-center gap-1">
+            <div className="size-3.5 rounded-full bg-slate-100" />
+            <div className="h-3 w-16 rounded bg-slate-100" />
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+function AlertSkeleton() {
+  return (
+    <div className="space-y-3" aria-label="Loading alerts" aria-busy="true">
+      {[1, 2, 3, 4, 5].map((item) => (
+        <div key={item} className="animate-pulse rounded-lg border border-slate-200/60 bg-slate-50 p-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-7 rounded bg-slate-200" />
+              <div className="h-4 w-28 rounded bg-slate-200" />
+            </div>
+            <div className="h-4 w-16 rounded bg-slate-200" />
+          </div>
+          <div className="mt-2 h-4 w-48 rounded bg-slate-200" />
+          <div className="mt-1.5 h-3 w-40 rounded bg-slate-100" />
+          <div className="mt-2.5 flex items-center gap-2">
+            <div className="h-3 w-20 rounded bg-slate-100" />
+            <div className="h-4 w-16 rounded-full bg-slate-200" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 function PanelEmpty({ text }: { text: string }) { return <div className="my-6 rounded-lg border border-dashed border-slate-300 px-4 py-12 text-center text-sm text-slate-500">{text}</div>; }
-function PanelError({ message, onRetry }: { message: string; onRetry?: () => void }) { return <div className="my-6 rounded-lg border border-red-200 bg-red-50 px-4 py-8 text-center text-sm text-red-700"><AlertCircle className="mx-auto mb-2 size-5" />{message}{onRetry && <button type="button" onClick={onRetry} className="ml-2 inline-flex items-center gap-1 font-bold underline"><RefreshCw className="size-3" />Retry</button>}</div>; }
+function PanelError({ message, onRetry }: { message: string; onRetry?: () => void }) { const { t } = useLanguage(); return <div className="my-6 rounded-lg border border-red-200 bg-red-50 px-4 py-8 text-center text-sm text-red-700"><AlertCircle className="mx-auto mb-2 size-5" />{message}{onRetry && <button type="button" onClick={onRetry} className="ml-2 inline-flex items-center gap-1 font-bold underline"><RefreshCw className="size-3" />{t("common.retry", "Retry")}</button>}</div>; }

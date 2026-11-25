@@ -43,12 +43,12 @@ export default function RegisterPage() {
     fetch('/api/auth/register', { cache: 'no-store' })
       .then(async (response) => {
         const body = await readJsonResponse<{ data?: { positions?: RegistrationPosition[]; departments?: RegistrationDepartment[] }; error?: { message?: string } }>(response);
-        if (!response.ok) throw new Error(responseMessage(body, 'Referensi registrasi tidak tersedia.'));
-        if (!body) throw new Error('Referensi registrasi tidak mengembalikan data.');
+        if (!response.ok) throw new Error(responseMessage(body, 'Registration references are unavailable.'));
+        if (!body) throw new Error('Registration reference returned no data.');
         setPositions(body.data?.positions ?? []);
         setDepartments(body.data?.departments ?? []);
       })
-      .catch((error: unknown) => setGeneralError(error instanceof Error ? error.message : 'Referensi registrasi tidak tersedia.'));
+      .catch((error: unknown) => setGeneralError(error instanceof Error ? error.message : 'Registration references are unavailable.'));
   }, []);
 
   const availablePositions = positions.filter((position) => !departementId || position.department_id === departementId);
@@ -101,11 +101,11 @@ export default function RegisterPage() {
           body: JSON.stringify({ full_name: fullName.trim(), email: emailLower, password, phone: phone.trim(), employment_status: employmentStatus, position_id: positionId, department_id: departementId }),
         });
         const body = await response.json().catch(() => null);
-        if (!response.ok) throw new Error(body?.error?.message || 'Registrasi gagal diproses.');
-        setSuccessMessage(`Registration successful! Your ID is ${body?.data?.employee_id ?? 'tersimpan'}. Redirecting to login page...`);
+        if (!response.ok) throw new Error(body?.error?.message || 'Failed to process registration.');
+        setSuccessMessage(`Registration successful! Your ID is ${body?.data?.employee_id ?? 'saved'}. Redirecting to login page...`);
         window.setTimeout(() => router.replace('/login'), 1500);
       } catch (error: unknown) {
-        setGeneralError(error instanceof Error ? error.message : 'Terjadi kesalahan saat registrasi.');
+        setGeneralError(error instanceof Error ? error.message : 'An error occurred during registration.');
       } finally {
         submitting.current = false;
         setIsLoading(false);
@@ -328,7 +328,7 @@ export default function RegisterPage() {
                   : 'bg-[#3B6FF5] hover:bg-[#2B5CE5] active:scale-[0.99] cursor-pointer'
               }`}
             >
-              {successMessage ? 'Tersimpan' : isLoading ? 'Processing...' : 'Register'}
+              {successMessage ? 'Saved' : isLoading ? 'Processing...' : 'Register'}
             </button>
           </form>
 
