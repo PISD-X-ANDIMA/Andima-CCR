@@ -68,7 +68,7 @@ export default function Sidebar({
   const router = useRouter();
   const isPublicRoute =
     pathname === "/login" || pathname === "/register" || pathname.startsWith("/auth/");
-  const { isCollapsed, isMobileOpen, closeMobileSidebar } = useSidebar();
+  const { isCollapsed, isMobileOpen, closeMobileSidebar, requestLogout } = useSidebar();
   const [isCcrOpen, setIsCcrOpen] = useState(true);
   const [isInternalSigningOut, setIsInternalSigningOut] = useState(false);
   const { account: loaded, clearAccount } = useAccount();
@@ -141,14 +141,18 @@ export default function Sidebar({
             </div>
           </Link>
 
-          {/* Close button on mobile */}
+          {/* Burger collapse button on mobile */}
           <button
+            id="mobileSidebarCollapseBtn"
             type="button"
             onClick={closeMobileSidebar}
-            className="md:hidden p-1 rounded-md text-[#8FA3BF] hover:text-white hover:bg-white/10"
-            aria-label="Close Sidebar"
+            className="md:hidden w-[28px] h-[28px] rounded-[6px] bg-[#3B6FF5] hover:bg-[#2E61E6] active:bg-[#2554D1] flex flex-col items-center justify-center gap-[3.5px] transition-colors cursor-pointer shadow-2xs"
+            aria-label="Collapse Sidebar"
+            title="Collapse Sidebar"
           >
-            <X size={18} />
+            <span className="w-[14px] h-[1.75px] bg-[#FFFFFF] rounded-full block" />
+            <span className="w-[14px] h-[1.75px] bg-[#FFFFFF] rounded-full block" />
+            <span className="w-[14px] h-[1.75px] bg-[#FFFFFF] rounded-full block" />
           </button>
         </div>
 
@@ -240,7 +244,13 @@ export default function Sidebar({
           id="logoutBtn"
           type="button"
           data-account-role={account.role}
-          onClick={() => void handleSignOut()}
+          onClick={() => {
+            if (onSignOut) {
+              onSignOut();
+            } else {
+              requestLogout();
+            }
+          }}
           disabled={isSigningOut || isInternalSigningOut}
           className="w-full py-2 rounded-full border-[1.5px] border-[#D92D43] bg-transparent hover:bg-[#D92D43]/10 active:bg-[#D92D43]/15 text-[#D92D43] font-bold text-[15px] tracking-wide flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
           aria-label={t("nav.logout", "Logout")}

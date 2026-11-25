@@ -88,6 +88,7 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [onlyOverdue30, setOnlyOverdue30] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [staffLoading, setStaffLoading] = useState(true);
@@ -206,8 +207,8 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
   };
 
   const kpi = kpiSummary ?? EMPTY_KPI;
-  const totalPages = Math.max(1, Math.ceil(invoices.length / PAGE_SIZE));
-  const paginatedInvoices = invoices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(invoices.length / pageSize));
+  const paginatedInvoices = invoices.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -329,6 +330,11 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
             currentPage={currentPage}
             totalPages={totalPages}
             totalItems={invoices.length}
+            pageSize={pageSize}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
             onRetry={loadOverdueData}
             onSelect={(invoice) => { setSelectedInvoice(invoice); setCheckedIds((current) => current.includes(invoice.id) ? current.filter((id) => id === invoice.id) : [invoice.id]); }}
             onPageChange={setCurrentPage}
@@ -395,6 +401,8 @@ function InvoiceTable({
   currentPage,
   totalPages,
   totalItems,
+  pageSize = PAGE_SIZE,
+  onPageSizeChange,
   onRetry,
   onSelect,
   onPageChange,
@@ -410,6 +418,8 @@ function InvoiceTable({
   currentPage: number;
   totalPages: number;
   totalItems: number;
+  pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
   onRetry: () => void;
   onSelect: (invoice: OverdueInvoiceItem) => void;
   onPageChange: (page: number) => void;
@@ -533,9 +543,8 @@ function InvoiceTable({
                   <tr
                     key={invoice.id}
                     onClick={() => onSelect(invoice)}
-                    className={`cursor-pointer transition hover:bg-blue-50/40 ${selectedInvoice?.id === invoice.id ? "bg-blue-50/70" : "bg-white"} ${
-                      openActionMenuId === invoice.id ? "relative z-30" : ""
-                    }`}
+                    className={`cursor-pointer transition hover:bg-blue-50/40 ${selectedInvoice?.id === invoice.id ? "bg-blue-50/70" : "bg-white"} ${openActionMenuId === invoice.id ? "relative z-30" : ""
+                      }`}
                   >
                     <td className="px-3 py-3">
                       <p className="font-semibold text-blue-700">{invoice.invoice_number}</p>
@@ -561,11 +570,10 @@ function InvoiceTable({
                           type="button"
                           aria-label={`Action for invoice ${invoice.invoice_number}`}
                           onClick={(event) => toggleActionMenu(event, invoice)}
-                          className={`flex size-8 items-center justify-center rounded-full border transition cursor-pointer ${
-                            openActionMenuId === invoice.id
+                          className={`flex size-8 items-center justify-center rounded-full border transition cursor-pointer ${openActionMenuId === invoice.id
                               ? "border-blue-400 bg-blue-50 text-blue-700 shadow-xs"
                               : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
-                          }`}
+                            }`}
                         >
                           <MoreVertical className="size-4" />
                         </button>
@@ -588,7 +596,7 @@ function InvoiceTable({
             left: `${menuCoords.left}px`,
             zIndex: 9999,
           }}
-          className="w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-left"
+          className="w-40 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-left"
           onClick={(event) => event.stopPropagation()}
         >
           <button
@@ -639,19 +647,22 @@ function InvoiceTable({
           )}
         </div>
       )}
-      <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-t border-slate-200 px-4 py-3 text-[11px] text-slate-500">
         {loading ? (
           <div className="flex w-full items-center justify-between">
             <div className="h-4 w-44 animate-pulse rounded bg-slate-200" />
             <div className="h-8 w-48 animate-pulse rounded bg-slate-200" />
           </div>
         ) : (
-          <>
-            <span>
-              {t("common.showing", "Showing")} {totalItems ? (currentPage - 1) * PAGE_SIZE + 1 : 0}-{Math.min(currentPage * PAGE_SIZE, totalItems)} {t("common.of", "of")} {totalItems} {t("common.invoices", "invoices")}
-            </span>
-            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={onPageChange} />
-          </>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            pageSize={pageSize}
+            onPageSizeChange={onPageSizeChange}
+            totalItems={totalItems}
+            itemLabel={t("common.invoices", "invoices")}
+          />
         )}
       </div>
     </div>

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import HeaderAccount from "@/components/headeraccount";
 import FollowUpFormSkeleton from "@/components/FollowUpFormSkeleton";
+import { DatePicker } from "@/components/CalendarModal";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
@@ -604,15 +605,11 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                   {/* Conditional Field: Promise to Pay Date (for Promise to Pay only) */}
                   {followUpStatus === "PROMISE_TO_PAY" && (
                     <div>
-                      <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                        {t("overdue.promiseDateLabel", "Promise to Pay Date")}
-                      </label>
-                      <input
-                        type="date"
-                        required
+                      <DatePicker
+                        label={t("overdue.promiseDateLabel", "Promise to Pay Date")}
                         value={promiseDate}
-                        onChange={(e) => setPromiseDate(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                        onChange={(d) => setPromiseDate(d)}
+                        placeholder="YYYY-MM-DD"
                       />
                     </div>
                   )}

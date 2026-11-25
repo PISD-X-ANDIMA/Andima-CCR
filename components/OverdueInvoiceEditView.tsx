@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import HeaderAccount from "@/components/headeraccount";
 import FollowUpFormSkeleton from "@/components/FollowUpFormSkeleton";
+import { DatePicker } from "@/components/CalendarModal";
+import { ConfirmDeleteModal } from "@/components/AlertModal";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
@@ -618,15 +620,11 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
               {editStatus === "PROMISE_TO_PAY" && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    {t("overdue.promiseDateLabel", "Promise to Pay Date")}
-                  </label>
-                  <input
-                    type="date"
-                    required
+                  <DatePicker
+                    label={t("overdue.promiseDateLabel", "Promise to Pay Date")}
                     value={editPromiseDate}
-                    onChange={(e) => setEditPromiseDate(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                    onChange={(d) => setEditPromiseDate(d)}
+                    placeholder="YYYY-MM-DD"
                   />
                 </div>
               )}
@@ -737,57 +735,28 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
       {/* Delete Follow-up Progress Confirmation Modal */}
       {deletingRecord && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-md animate-in fade-in duration-200"
-        >
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
-                <Trash2 className="size-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 font-heading">{t("overdue.deleteLogTitle", "Delete Follow-up Log")}</h3>
-                <p className="text-[11px] text-slate-500">{t("overdue.deleteLogConfirm", "Are you sure you want to delete this follow-up log?")}</p>
-              </div>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              {t("overdue.deleteLogConfirm", "Are you sure you want to delete this follow-up log?")}
-              {deletingRecord.follow_up_status ? ` (${deletingRecord.follow_up_status})` : ""}
+        <ConfirmDeleteModal
+          isOpen={Boolean(deletingRecord)}
+          onClose={() => setDeletingRecord(null)}
+          onConfirm={handleDeleteLog}
+          loading={isDeleting}
+          title={t("overdue.deleteLogTitle", "Delete Follow-up Log")}
+          confirmText={t("common.yes", "Yes")}
+          cancelText={t("common.no", "No")}
+          message={
+            <div className="text-left space-y-2 mt-2">
+              <p className="text-xs text-slate-600">
+                {t("overdue.deleteLogConfirm", "Are you sure you want to delete this follow-up log?")}
+                {deletingRecord.follow_up_status ? ` (${deletingRecord.follow_up_status})` : ""}
+              </p>
               {deletingRecord.follow_up_status === "COMPLETED" && (
-                <span className="block mt-2 font-semibold text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                <span className="block font-semibold text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
                   Note: Deleting this Completed record will reverse the recorded settlement payment and return the invoice to overdue status.
                 </span>
               )}
-            </p>
-            <div className="mt-6 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setDeletingRecord(null)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
-              >
-                {t("common.cancel", "Cancel")}
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={handleDeleteLog}
-                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-red-700 transition cursor-pointer disabled:opacity-50"
-              >
-                {isDeleting ? (
-                  <>
-                    <RefreshCw className="size-3.5 animate-spin" />
-                    <span>{t("common.deleting", "Deleting...")}</span>
-                  </>
-                ) : (
-                  <span>{t("overdue.deleteLog", "Delete Log")}</span>
-                )}
-              </button>
             </div>
-          </div>
-        </div>
+          }
+        />
       )}
     </div>
   );

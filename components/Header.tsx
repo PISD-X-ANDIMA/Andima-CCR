@@ -63,13 +63,13 @@ export const Header: React.FC<HeaderProps> = ({ pageName }) => {
         </div>
 
         {/* Navbar Title ("Andima CCR" in #121B2E) & Breadcrumb in #3F4940 */}
-        <div className="pl-4 pr-3 flex items-center gap-3.5 truncate">
-          <span className="text-[#121B2E] font-bold text-[14px] tracking-[-0.01em] whitespace-nowrap">
+        <div className="pl-3 sm:pl-4 pr-2 sm:pr-3 flex items-center gap-2 sm:gap-3.5 truncate">
+          <span className="text-[#121B2E] font-bold text-[13px] sm:text-[14px] tracking-[-0.01em] whitespace-nowrap">
             Andima CCR
           </span>
           <span
             id="breadcrumbLabel"
-            className="text-[#3F4940] font-medium text-[11.5px] tracking-[-0.005em] truncate"
+            className="hidden md:inline text-[#3F4940] font-medium text-[11.5px] tracking-[-0.005em] truncate"
           >
             CCR / <strong className="text-[#1D4ED8] font-bold">{translatedPageName}</strong>
           </span>

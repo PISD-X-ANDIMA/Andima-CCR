@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { ChevronDown, ChevronUp, Check } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 export interface DropdownItem {
@@ -13,6 +14,7 @@ export interface DropdownItem {
 }
 
 export interface CustomDropdownProps {
+  id?: string;
   label?: string;
   placeholder?: string;
   categoryTitle?: string;
@@ -22,9 +24,12 @@ export interface CustomDropdownProps {
   onChange?: (item: DropdownItem) => void;
   className?: string;
   defaultOpen?: boolean;
+  variant?: "default" | "pill";
+  ariaLabel?: string;
 }
 
 export const CustomDropdown: React.FC<CustomDropdownProps> = ({
+  id,
   label,
   placeholder,
   categoryTitle,
@@ -38,16 +43,22 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   onChange,
   className = "",
   defaultOpen = false,
+  variant = "pill",
+  ariaLabel,
 }) => {
   const { t } = useLanguage();
   const resolvedPlaceholder = placeholder ?? t("common.selectOption", "Select Option");
   const resolvedCategoryTitle = categoryTitle ?? t("common.options", "Options");
-  const resolvedCategoryBadge = categoryBadge ?? `${items.length} ${t("common.active", "Active")}`;
+  const resolvedCategoryBadge = categoryBadge;
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [selectedId, setSelectedId] = useState<string | number>(value);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectedItem = items.find((item) => item.id === selectedId);
+  const selectedItem = items.find((it) => String(it.id) === String(selectedId) || it.label === selectedId);
+
+  useEffect(() => {
+    setSelectedId(value);
+  }, [value]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -58,9 +69,19 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
         setIsOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
 
   const handleSelect = (item: DropdownItem) => {
     setSelectedId(item.id);
@@ -68,99 +89,84 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
     setIsOpen(false);
   };
 
+  const isPill = variant === "pill";
+
   return (
     <div
       ref={containerRef}
       className={`relative w-full max-w-[340px] font-sans ${className}`}
     >
       {label && (
-        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+        <label className="block text-xs font-bold text-slate-700 mb-1.5 font-heading">
           {label}
         </label>
       )}
 
-      {/* Trigger Box */}
+      {/* Trigger Button: Pill or Default Box */}
       <button
+        id={id}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-label={ariaLabel}
         className={`w-full bg-white border ${
           isOpen ? "border-slate-800 ring-1 ring-slate-800" : "border-slate-300 hover:border-slate-400"
-        } rounded-lg px-4 py-3 text-left flex items-center justify-between shadow-xs transition-all duration-150`}
+        } ${
+          isPill ? "rounded-full px-4 py-2" : "rounded-xl px-4 py-2.5"
+        } text-left flex items-center justify-between shadow-xs transition-all duration-150 cursor-pointer`}
       >
-        <span className="text-[15px] font-semibold text-slate-900 truncate">
-          {resolvedPlaceholder}
+        <span className={`text-xs font-semibold truncate ${selectedItem ? "text-slate-900" : "text-slate-500"}`}>
+          {selectedItem ? (selectedItem.displayLabel ?? selectedItem.label) : resolvedPlaceholder}
         </span>
         <div className="flex items-center text-slate-500 shrink-0 ml-2">
           {isOpen ? (
-            <svg
-              className="w-4 h-4 text-slate-800 stroke-[2.5]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-            </svg>
+            <ChevronUp className="size-3.5 text-slate-800 stroke-[2.5]" />
           ) : (
-            <svg
-              className="w-4 h-4 text-slate-600 stroke-[2]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-            </svg>
+            <ChevronDown className="size-3.5 text-slate-500 stroke-[2]" />
           )}
         </div>
       </button>
 
-      {/* Dropdown Menu Panel */}
+      {/* Dropdown Menu Panel (Figma Spec: Rounded-2xl with light header and active highlight) */}
       {isOpen && (
-        <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-lg shadow-lg z-50 overflow-hidden animate-in fade-in duration-100">
-          {/* Header Row: Category & Active Count */}
-          {(resolvedCategoryTitle || resolvedCategoryBadge) && (
-            <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 text-xs">
-              <span className="font-semibold text-slate-600 truncate">
-                {resolvedCategoryTitle}
-              </span>
-              <span className="text-slate-600 font-medium whitespace-nowrap shrink-0">{resolvedCategoryBadge}</span>
+        <div className="absolute left-0 right-0 mt-1.5 rounded-2xl border border-slate-100 bg-white shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 py-1">
+          {/* Header Row: Category Title */}
+          {resolvedCategoryTitle && (
+            <div className="flex items-center justify-between gap-2 px-4 pt-2.5 pb-1 text-[11px] font-bold text-slate-400 font-heading">
+              <span className="truncate">{resolvedCategoryTitle}</span>
+              {resolvedCategoryBadge && (
+                <span className="text-slate-400 font-normal whitespace-nowrap shrink-0">{resolvedCategoryBadge}</span>
+              )}
             </div>
           )}
 
           {/* List Items */}
-          <div className="py-1">
+          <div className="py-0.5">
             {items.map((item) => {
-              const isSelected = item.id === selectedId;
+              const isSelected = item.id === selectedId || item.label === value || item.displayLabel === value;
               return (
                 <button
                   key={item.id}
                   type="button"
+                  role="option"
+                  aria-selected={isSelected}
                   onClick={() => handleSelect(item)}
-                  className={`w-full px-4 py-2.5 text-left flex items-center justify-between text-sm transition-colors ${
+                  className={`w-full px-4 py-2 text-left flex items-center justify-between text-xs transition-colors ${
                     isSelected
-                      ? "bg-[#ECEEF2] text-slate-900 font-semibold"
-                      : "text-slate-800 hover:bg-slate-50 font-semibold"
+                      ? "bg-[#E2E8F0] text-slate-900 font-bold"
+                      : "text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
                   }`}
                 >
-                  <div className="flex items-center gap-2.5">
-                    {isSelected ? (
-                      <svg
-                        className="w-4 h-4 text-slate-900 stroke-[2.5]"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <div className="w-4" />
-                    )}
-                    <span className="text-[14px]">{item.displayLabel ?? item.label}</span>
+                  <div className="flex items-center gap-2">
+                    {isSelected && <Check className="size-3.5 text-slate-900 stroke-[2.5] shrink-0" />}
+                    <span className="truncate">{item.displayLabel ?? item.label}</span>
                   </div>
 
                   {item.subLabel && (
                     <span
-                      className={`text-xs font-normal ${
-                        isSelected ? "text-slate-700 font-medium" : "text-slate-600"
+                      className={`text-[11px] font-normal ${
+                        isSelected ? "text-slate-700" : "text-slate-400"
                       }`}
                     >
                       {item.subLabel}

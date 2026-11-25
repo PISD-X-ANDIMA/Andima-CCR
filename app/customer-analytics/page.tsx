@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import KpiSummaryCards from "@/components/KpiSummaryCards";
 import Pagination from "@/components/Pagination";
+import CustomDropdown from "@/components/CustomDropdown";
 import { CustomerAnalyticsItem, KpiSummary } from "@/types/customer";
 import { RefreshCw, Search } from "lucide-react";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
@@ -24,7 +25,22 @@ export default function CustomerAnalyticsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const itemsPerPage = 5;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const branchOptions = useMemo(() => [
+    { id: "All Branches", label: t("common.allBranches", "All Branches") },
+    { id: "Jakarta", label: "Jakarta" },
+    { id: "Semarang", label: "Semarang" },
+    { id: "Surabaya", label: "Surabaya" },
+    { id: "Balikpapan", label: "Balikpapan" },
+    { id: "Medan", label: "Medan" },
+  ], [t]);
+
+  const sortByOptions = useMemo(() => [
+    { id: "sales_profit", label: t("customerAnalytics.profit", "Profit") },
+    { id: "total_outstanding", label: t("common.outstanding", "Outstanding") },
+    { id: "customer_name", label: t("customerAnalytics.name", "Name") },
+  ], [t]);
 
   const loadAnalyticsData = useCallback(async () => {
     if (!hydrated) return;
@@ -58,7 +74,7 @@ export default function CustomerAnalyticsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [branch, currentPage, hydrated, searchQuery, sortBy, sortOrder]);
+  }, [branch, currentPage, hydrated, itemsPerPage, searchQuery, sortBy, sortOrder]);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -112,27 +128,32 @@ export default function CustomerAnalyticsPage() {
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                  {t("common.branch", "Branch")}
-                  <select value={branch} onChange={(event) => { setBranch(event.target.value); setCurrentPage(1); }} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700">
-                    <option value="All Branches">{t("common.allBranches", "All Branches")}</option>
-                    <option value="Jakarta">Jakarta</option>
-                    <option value="Semarang">Semarang</option>
-                    <option value="Surabaya">Surabaya</option>
-                    <option value="Balikpapan">Balikpapan</option>
-                    <option value="Medan">Medan</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                  {t("common.sortBy", "Sort by")}
-                  <select value={sortBy} onChange={(event) => { setSortBy(event.target.value); setCurrentPage(1); }} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700">
-                    <option value="sales_profit">{t("customerAnalytics.profit", "Profit")}</option>
-                    <option value="total_outstanding">{t("common.outstanding", "Outstanding")}</option>
-                    <option value="customer_name">{t("customerAnalytics.name", "Name")}</option>
-                  </select>
-                </label>
-                <button type="button" onClick={() => setSortOrder((current) => current === "asc" ? "desc" : "asc")} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 cursor-pointer" aria-label="Toggle sort order">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="w-[160px]">
+                  <CustomDropdown
+                    id="branch-filter"
+                    ariaLabel={t("common.branch", "Branch")}
+                    categoryTitle={t("common.branch", "Branch")}
+                    placeholder={t("common.allBranches", "All Branches")}
+                    items={branchOptions}
+                    value={branch}
+                    onChange={(item) => { setBranch(String(item.id)); setCurrentPage(1); }}
+                    variant="pill"
+                  />
+                </div>
+                <div className="w-[160px]">
+                  <CustomDropdown
+                    id="sort-filter"
+                    ariaLabel={t("common.sortBy", "Sort by")}
+                    categoryTitle={t("common.sortBy", "Sort by")}
+                    placeholder={t("customerAnalytics.profit", "Profit")}
+                    items={sortByOptions}
+                    value={sortBy}
+                    onChange={(item) => { setSortBy(String(item.id)); setCurrentPage(1); }}
+                    variant="pill"
+                  />
+                </div>
+                <button type="button" onClick={() => setSortOrder((current) => current === "asc" ? "desc" : "asc")} className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-xs cursor-pointer" aria-label="Toggle sort order">
                   {sortOrder === "asc" ? t("common.ascending", "Ascending") : t("common.descending", "Descending")}
                 </button>
               </div>
@@ -188,12 +209,18 @@ export default function CustomerAnalyticsPage() {
                   <div className="h-8 w-48 animate-pulse rounded bg-slate-200" />
                 </>
               ) : (
-                <>
-                  <span>
-                    {t("common.showing", "Showing")} {customers.length ? (currentPage - 1) * itemsPerPage + 1 : 0}-{(currentPage - 1) * itemsPerPage + customers.length} {t("common.of", "of")} {totalItems} {t("common.companies", "companies")}
-                  </span>
-                  <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-                </>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  pageSize={itemsPerPage}
+                  onPageSizeChange={(newSize) => {
+                    setItemsPerPage(newSize);
+                    setCurrentPage(1);
+                  }}
+                  totalItems={totalItems}
+                  itemLabel={t("common.companies", "companies")}
+                />
               )}
             </div>
           </section>

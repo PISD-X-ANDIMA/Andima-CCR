@@ -8,6 +8,9 @@ interface SidebarContextType {
   toggleSidebar: () => void;
   closeMobileSidebar: () => void;
   setIsCollapsed: (collapsed: boolean) => void;
+  isLogoutConfirmOpen: boolean;
+  requestLogout: () => void;
+  closeLogoutConfirm: () => void;
 }
 
 const STORAGE_KEY = "andima_sidebar_collapsed";
@@ -18,11 +21,15 @@ const SidebarContext = createContext<SidebarContextType>({
   toggleSidebar: () => {},
   closeMobileSidebar: () => {},
   setIsCollapsed: () => {},
+  isLogoutConfirmOpen: false,
+  requestLogout: () => {},
+  closeLogoutConfirm: () => {},
 });
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsedState] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -73,6 +80,15 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     setIsMobileOpen(false);
   }, []);
 
+  const requestLogout = useCallback(() => {
+    setIsMobileOpen(false);
+    setIsLogoutConfirmOpen(true);
+  }, []);
+
+  const closeLogoutConfirm = useCallback(() => {
+    setIsLogoutConfirmOpen(false);
+  }, []);
+
   return (
     <SidebarContext.Provider
       value={{
@@ -81,6 +97,9 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
         toggleSidebar,
         closeMobileSidebar,
         setIsCollapsed,
+        isLogoutConfirmOpen,
+        requestLogout,
+        closeLogoutConfirm,
       }}
     >
       {children}

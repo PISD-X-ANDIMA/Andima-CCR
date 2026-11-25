@@ -10,6 +10,7 @@ import InvoiceDetailModal from "@/components/InvoiceDetailModal";
 import CustomerPaymentTrendChart from "@/components/CustomerPaymentTrendChart";
 import Pagination from "@/components/Pagination";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { DatePicker } from "@/components/CalendarModal";
 
 type CustomerInvoice = InvoiceDetail & { job_number?: string | null; mawb?: string | null; payments?: Array<{ payment_id: string; amount: number; payment_date: string; reference_no: string }> };
 type Props = { customerId: string; returnTo: string };
@@ -28,6 +29,7 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
   const [selectedInvoiceDetail, setSelectedInvoiceDetail] = useState<CustomerInvoice | null>(null);
   const [codeSearch, setCodeSearch] = useState("");
   const [codePage, setCodePage] = useState(1);
+  const [codePageSize, setCodePageSize] = useState(5);
   const [openInvoice, setOpenInvoice] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -91,12 +93,12 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
   }, [codeRows, codeSearch]);
 
   const CODE_PAGE_SIZE = 10;
-  const totalCodePages = Math.max(1, Math.ceil(filteredCodeRows.length / CODE_PAGE_SIZE));
+  const totalCodePages = Math.max(1, Math.ceil(filteredCodeRows.length / codePageSize));
   const paginatedCodeRows = useMemo(() => {
-    return filteredCodeRows.slice((codePage - 1) * CODE_PAGE_SIZE, codePage * CODE_PAGE_SIZE);
-  }, [filteredCodeRows, codePage]);
-  const startCodeIndex = filteredCodeRows.length ? (codePage - 1) * CODE_PAGE_SIZE + 1 : 0;
-  const endCodeIndex = Math.min(codePage * CODE_PAGE_SIZE, filteredCodeRows.length);
+    return filteredCodeRows.slice((codePage - 1) * codePageSize, codePage * codePageSize);
+  }, [filteredCodeRows, codePage, codePageSize]);
+  const startCodeIndex = filteredCodeRows.length ? (codePage - 1) * codePageSize + 1 : 0;
+  const endCodeIndex = Math.min(codePage * codePageSize, filteredCodeRows.length);
   const metrics = useMemo(
     () =>
       customer
@@ -236,6 +238,13 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
               currentPage={codePage}
               totalPages={totalCodePages}
               onPageChange={setCodePage}
+              pageSize={codePageSize}
+              onPageSizeChange={(newSize) => {
+                setCodePageSize(newSize);
+                setCodePage(1);
+              }}
+              totalItems={filteredCodeRows.length}
+              itemLabel={t("customerAnalytics.customerCodesUnit", "customer codes")}
             />
           )}
         </div>
@@ -366,7 +375,11 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
                     className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3"
                   >
                     <input aria-label="Payment amount" value={amount} onChange={(event) => setAmount(event.target.value)} type="number" min="1" step="0.01" placeholder={t("customerAnalytics.paymentAmountPlaceholder", "Payment amount")} className="rounded-md border border-slate-200 px-3 py-2 text-xs" required />
-                    <input aria-label="Payment date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} type="date" className="rounded-md border border-slate-200 px-3 py-2 text-xs" required />
+                    <DatePicker
+                      value={paymentDate}
+                      onChange={(d) => setPaymentDate(d)}
+                      placeholder={t("customerAnalytics.paymentDatePlaceholder", "Payment date")}
+                    />
                     <input aria-label="Payment reference" value={referenceNo} onChange={(event) => setReferenceNo(event.target.value)} placeholder={t("customerAnalytics.referencePlaceholder", "Reference number")} className="rounded-md border border-slate-200 px-3 py-2 text-xs" required />
                     <div className="sm:col-span-3">
                       {paymentError && <p role="alert" className="mb-2 text-xs font-semibold text-rose-600">{paymentError}</p>}

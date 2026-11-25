@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { Check, ChevronRight, FileText, Loader2, Receipt, X } from "lucide-react";
 import { CustomerInvoice } from "@/types/customer";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { DatePicker } from "@/components/CalendarModal";
 
 interface InvoiceDetailModalProps {
   invoice: CustomerInvoice;
@@ -182,12 +183,10 @@ export default function InvoiceDetailModal({
                       onChange={(e) => setAmount(e.target.value)}
                       className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs"
                     />
-                    <input
-                      type="date"
-                      required
+                    <DatePicker
                       value={paymentDate}
-                      onChange={(e) => setPaymentDate(e.target.value)}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs"
+                      onChange={(d) => setPaymentDate(d)}
+                      placeholder={t("common.dueDate", "Payment date")}
                     />
                     <input
                       type="text"

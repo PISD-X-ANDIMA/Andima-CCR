@@ -65,14 +65,14 @@ export default function HeaderAccount() {
   }, [loaded]);
 
   return (
-    <div className="h-full px-4 flex items-center gap-2.5 border-l border-[#E2E8F0]">
+    <div className="h-full px-2.5 sm:px-4 flex items-center gap-2.5 border-l border-[#E2E8F0]">
       {/* User Icon Circle with Specified #DBEAFE Background */}
       <div className="w-[32px] h-[32px] rounded-full bg-[#DBEAFE] border border-[#BFDBFE] flex items-center justify-center text-[#121B2E] font-semibold text-[13px] shrink-0 select-none">
         {account.initials}
       </div>
 
       {/* User Name & Role Stack */}
-      <div className="flex flex-col leading-tight min-w-0 text-left">
+      <div className="hidden sm:flex flex-col leading-tight min-w-0 text-left">
         <span className="max-w-36 truncate text-[12px] font-bold text-[#121B2E] tracking-[-0.01em]">
           {account.name}
         </span>

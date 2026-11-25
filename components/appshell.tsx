@@ -1,14 +1,35 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
-import { AccountProvider } from "@/components/account-provider";
-import { LanguageProvider } from "@/lib/i18n/LanguageContext";
+import { useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { AccountProvider, useAccount } from "@/components/account-provider";
+import { LanguageProvider, useLanguage } from "@/lib/i18n/LanguageContext";
 import { SidebarProvider, useSidebar } from "@/components/sidebar-context";
 import Sidebar from "@/components/sidebar";
+import { ConfirmDeleteModal } from "@/components/AlertModal";
 
 function AppShellInner({ children }: { children: ReactNode }) {
-  const { isCollapsed, isMobileOpen, closeMobileSidebar } = useSidebar();
+  const { isCollapsed, isMobileOpen, closeMobileSidebar, isLogoutConfirmOpen, closeLogoutConfirm } = useSidebar();
+  const { clearAccount } = useAccount();
+  const { t } = useLanguage();
+  const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setIsSigningOut(true);
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Logout failed. Please try again.");
+      clearAccount();
+      closeLogoutConfirm();
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      // Fallback
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
 
   return (
     <div className="min-h-screen flex bg-white text-[#121B2E]">
@@ -31,6 +52,16 @@ function AppShellInner({ children }: { children: ReactNode }) {
         }`}
       >
         {children}
+        <ConfirmDeleteModal
+          isOpen={isLogoutConfirmOpen}
+          onClose={closeLogoutConfirm}
+          onConfirm={() => void handleSignOut()}
+          title={t("auth.confirmLogoutTitle", "Confirm To Sign Out?")}
+          message={t("auth.confirmLogoutMessage", "Are you sure you want to log out from Andima CCR?")}
+          confirmText={t("common.yes", "Yes")}
+          cancelText={t("common.no", "No")}
+          loading={isSigningOut}
+        />
       </div>
     </div>
   );

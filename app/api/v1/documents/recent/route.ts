@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   const pageValue = Number.parseInt(params.get("page") ?? "1", 10);
   const pageSizeValue = Number.parseInt(params.get("limit") ?? (params.get("view") === "overview" ? "5" : "10"), 10);
   const page = Number.isFinite(pageValue) ? Math.max(1, pageValue) : 1;
-  const pageSize = Number.isFinite(pageSizeValue) ? Math.min(50, Math.max(1, pageSizeValue)) : 10;
+  const pageSize = Number.isFinite(pageSizeValue) ? Math.min(500, Math.max(1, pageSizeValue)) : 10;
   const rawType = params.get("document_type")?.trim().toLowerCase() ?? "all";
   const documentType = rawType === "sales" ? "COMPANY_SALES_REPORT" : rawType === "outstanding" ? "OUTSTANDING_REPORT" : rawType === "all" ? null : undefined;
   if (documentType === undefined) return timed(NextResponse.json({ error: { code: "INVALID_DOCUMENT_TYPE", message: "Invalid document type filter." } }, { status: 400 }), startedAt, { auth: authDuration });

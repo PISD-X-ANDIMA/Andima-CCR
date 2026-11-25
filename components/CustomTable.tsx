@@ -25,6 +25,9 @@ export interface CustomTableProps<T> {
   onPageChange?: (page: number) => void;
   totalItems?: number;
   itemsPerPage?: number;
+  pageSize?: number;
+  pageSizeOptions?: number[];
+  onPageSizeChange?: (size: number) => void;
   className?: string;
 }
 
@@ -40,6 +43,9 @@ export function CustomTable<T extends Record<string, any>>({
   onPageChange,
   totalItems = 120,
   itemsPerPage = 5,
+  pageSize,
+  pageSizeOptions,
+  onPageSizeChange,
   className = "",
 }: CustomTableProps<T>) {
   const [internalSelected, setInternalSelected] = useState<(string | number)[]>(selectedIds);
@@ -182,6 +188,10 @@ export function CustomTable<T extends Record<string, any>>({
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={onPageChange}
+            pageSize={pageSize ?? itemsPerPage}
+            onPageSizeChange={onPageSizeChange}
+            pageSizeOptions={pageSizeOptions}
+            totalItems={totalItems}
           />
         </div>
       </div>

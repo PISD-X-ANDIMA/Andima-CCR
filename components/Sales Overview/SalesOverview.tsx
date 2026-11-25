@@ -243,7 +243,7 @@ function MetricCard({ label, value, detail, formula, icon, empty }: { label: str
 
 function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loading: boolean; onRefresh: () => void }) {
   const { t } = useLanguage();
-  const pageSize = 5;
+  const [pageSize, setPageSize] = useState(5);
   const alertsVersion = alerts.map((alert) => `${alert.id}:${alert.due}:${alert.amount}`).join("|");
   const [pageState, setPageState] = useState({ version: alertsVersion, page: 1 });
   const ordered = [...alerts].sort((a, b) => a.due.localeCompare(b.due));
@@ -300,6 +300,13 @@ function AlertPanel({ alerts, loading, onRefresh }: { alerts: AlertRow[]; loadin
                   currentPage={currentPage}
                   totalPages={totalPages}
                   onPageChange={(nextPage) => setPageState({ version: alertsVersion, page: nextPage })}
+                  pageSize={pageSize}
+                  onPageSizeChange={(newSize) => {
+                    setPageSize(newSize);
+                    setPageState({ version: alertsVersion, page: 1 });
+                  }}
+                  totalItems={totalItems}
+                  itemLabel={t("common.overdueInvoices", "overdue invoices")}
                 />
               </div>
             )}
