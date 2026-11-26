@@ -239,7 +239,8 @@ export async function fetchCustomerCodeDetailFromSupabase(customerId: string, co
   const normalizedCode = code.trim();
   if (!canonical || !normalizedCode) return null;
 
-  const members = canonical.members.filter((member) => codeMatchesMember(normalizedCode, member));
+  let members = canonical.members.filter((member) => codeMatchesMember(normalizedCode, member));
+  if (!members.length) members = canonical.members;
   if (!members.length) return null;
   const memberIds = members.map((member) => String(member.customer_id));
   const aliases = members.map((member) => ({

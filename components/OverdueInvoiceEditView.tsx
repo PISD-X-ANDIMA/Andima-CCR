@@ -283,7 +283,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
     }
   };
 
-  const executeDeleteLog = async (record: OverdueHistoryRecord) => {
+  const executeDeleteLog = async (record: AssignmentRecord) => {
     if (!invoice || isDeleting) return;
     if (isManagement) {
       showToast("Management role cannot delete follow-up logs.");

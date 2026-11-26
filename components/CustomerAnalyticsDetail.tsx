@@ -102,6 +102,8 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
         amount: 0,
         date: "-",
         status: hasOverdueInvoice ? ("UNPAID" as const) : ("PAID" as const),
+        job_number: null as string | null,
+        mawb: null as string | null,
         is_overdue: hasOverdueInvoice,
         raw: null,
       };
