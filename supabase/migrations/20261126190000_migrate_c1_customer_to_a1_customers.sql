@@ -492,17 +492,20 @@ filtered as (
       or (trim(p_payment_cycle) = 'Overdue (> 30 Hari)' and n.dso_days > 30))
 ),
 page_rows as (
-  select f.* from filtered f
-  order by
-    case when lower(coalesce(p_sort_by, 'sales_profit')) = 'customer_name' and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.customer_name end asc nulls last,
-    case when lower(coalesce(p_sort_by, 'sales_profit')) = 'customer_name' and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.customer_name end desc nulls last,
-    case when lower(coalesce(p_sort_by, 'sales_profit')) = 'cost' and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.cost end asc nulls last,
-    case when lower(coalesce(p_sort_by, 'sales_profit')) = 'cost' and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.cost end desc nulls last,
-    case when lower(coalesce(p_sort_by, 'sales_profit')) = 'total_outstanding' and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.total_outstanding end asc nulls last,
-    case when lower(coalesce(p_sort_by, 'sales_profit')) = 'total_outstanding' and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.total_outstanding end desc nulls last,
-    case when lower(coalesce(p_sort_by, 'sales_profit')) not in ('customer_name', 'cost', 'total_outstanding') and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.sales_profit end asc nulls last,
-    case when lower(coalesce(p_sort_by, 'sales_profit')) not in ('customer_name', 'cost', 'total_outstanding') and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.sales_profit end desc nulls last,
-    f.display_rank
+  select f.*, row_number() over (
+    order by
+      case when lower(coalesce(p_sort_by, 'sales_profit')) = 'customer_name' and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.customer_name end asc nulls last,
+      case when lower(coalesce(p_sort_by, 'sales_profit')) = 'customer_name' and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.customer_name end desc nulls last,
+      case when lower(coalesce(p_sort_by, 'sales_profit')) = 'cost' and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.cost end asc nulls last,
+      case when lower(coalesce(p_sort_by, 'sales_profit')) = 'cost' and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.cost end desc nulls last,
+      case when lower(coalesce(p_sort_by, 'sales_profit')) = 'total_outstanding' and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.total_outstanding end asc nulls last,
+      case when lower(coalesce(p_sort_by, 'sales_profit')) = 'total_outstanding' and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.total_outstanding end desc nulls last,
+      case when lower(coalesce(p_sort_by, 'sales_profit')) not in ('customer_name', 'cost', 'total_outstanding') and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.sales_profit end asc nulls last,
+      case when lower(coalesce(p_sort_by, 'sales_profit')) not in ('customer_name', 'cost', 'total_outstanding') and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.sales_profit end desc nulls last,
+      f.display_rank
+  ) as sort_rank
+  from filtered f
+  order by sort_rank
   offset greatest((coalesce(p_page, 1) - 1) * greatest(coalesce(p_limit, 5), 1), 0)
   limit greatest(coalesce(p_limit, 5), 1)
 ),
@@ -521,7 +524,7 @@ select jsonb_build_object(
     'cost', cost, 'current_month_cost', cost, 'total_outstanding', total_outstanding, 'dso_days', dso_days,
     'credit_limit', 0, 'payment_accuracy', 0, 'active_invoices_count', invoice_count, 'payment_trend', '[]'::jsonb,
     'payment_changes', '[]'::jsonb
-  ) order by display_rank) from page_rows), '[]'::jsonb),
+  ) order by sort_rank) from page_rows), '[]'::jsonb),
   'kpi', (select jsonb_build_object('totalCustomers', total_customers, 'totalActiveCustomers', total_customers,
     'totalRevenue', total_revenue, 'totalCost', total_cost, 'currentMonthCost', total_cost,
     'currentMonthSalesProfit', total_profit, 'totalOutstanding', total_outstanding, 'period', latest_period,

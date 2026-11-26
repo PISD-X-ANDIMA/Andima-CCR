@@ -295,7 +295,19 @@ export const id = {
     "noActivityHistory": "Belum ada riwayat aktivitas tindak lanjut untuk faktur ini.",
     "viewAttachment": "Lihat Lampiran",
     "close": "Tutup",
-    "overdueDays": "Tunggakan {days} Hari"
+    "overdueDays": "Tunggakan {days} Hari",
+    "notesRequired": "Catatan tindak lanjut wajib diisi.",
+    "promiseDateRequired": "Tanggal janji bayar wajib diisi.",
+    "paymentAmountRequired": "Nominal pembayaran wajib diisi.",
+    "proofRequired": "Bukti pembayaran/pelunasan wajib diunggah.",
+    "managementCannotCreate": "Peran Manajemen tidak diizinkan mencatat log penagihan. Hanya Staf yang dapat mencatat progres tindak lanjut.",
+    "managementStaffGuidance": "Akun Anda adalah Manajemen ({role}). Sesuai SOP penagihan, pencatatan log dilakukan oleh akun Staf (contoh: jesichan@andima.co.id).",
+    "staffOnlySubmitBtn": "Hanya Staf yang Dapat Menyimpan Log",
+    "records": "Catatan",
+    "noHistoryYet": "Belum ada riwayat tindak lanjut",
+    "historyEmptyDesc": "Catatan yang dikirim melalui formulir di atas akan tersimpan dan ditampilkan di sini.",
+    "authorOnly": "Hanya Pembuat",
+    "deleteCompletedNotice": "Catatan: Menghapus catatan Selesai ini akan membatalkan pencatatan pelunasan dan mengembalikan status faktur menjadi tertunggak."
   },
   "upload": {
     "title": "Dokumen Terunggah",

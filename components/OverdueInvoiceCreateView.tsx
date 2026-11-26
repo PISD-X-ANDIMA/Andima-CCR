@@ -85,7 +85,7 @@ function followUpStatusBadge(status: string) {
 }
 
 export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCreateViewProps) {
-  const { t, language } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const router = useRouter();
   const cleanInvoiceId = useMemo(() => {
     try {
@@ -110,6 +110,12 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
   const [notes, setNotes] = useState("");
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{
+    notes?: string;
+    promiseDate?: string;
+    paymentAmount?: string;
+    evidenceFile?: string;
+  }>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const showToast = useCallback((message: string) => {
@@ -132,11 +138,15 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      showToast(`File size exceeds the 5MB maximum limit (${(file.size / (1024 * 1024)).toFixed(1)}MB).`);
+      setFieldErrors((prev) => ({
+        ...prev,
+        evidenceFile: `File size exceeds the 5MB maximum limit (${(file.size / (1024 * 1024)).toFixed(1)}MB).`,
+      }));
       if (fileInputRef.current) fileInputRef.current.value = "";
       setEvidenceFile(null);
       return;
     }
+    setFieldErrors((prev) => ({ ...prev, evidenceFile: undefined }));
     setEvidenceFile(file);
   };
 
@@ -238,31 +248,39 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
     if (!invoice) return;
 
     if (userRole === "MANAGEMENT") {
-      showToast("Management role cannot create follow-up logs.");
       return;
     }
 
+    const errors: {
+      notes?: string;
+      promiseDate?: string;
+      paymentAmount?: string;
+      evidenceFile?: string;
+    } = {};
+
     if (followUpStatus === "PROMISE_TO_PAY" && !promiseDate) {
-      showToast("Promise to pay date is required.");
-      return;
+      errors.promiseDate = t("overdue.promiseDateRequired", "Promise to pay date is required.");
     }
 
     if (followUpStatus === "COMPLETED") {
       if (!paymentAmount.trim() || Number(paymentAmount) <= 0) {
-        showToast("Payment amount is required for Completed status.");
-        return;
+        errors.paymentAmount = t("overdue.paymentAmountRequired", "Payment amount is required.");
       }
       if (!evidenceFile) {
-        showToast("Proof of payment/settlement is required for Completed status.");
-        return;
+        errors.evidenceFile = t("overdue.proofRequired", "Proof of payment/settlement is required.");
       }
     }
 
     if (!notes.trim()) {
-      showToast("Follow-up notes are required.");
+      errors.notes = t("overdue.notesRequired", "Follow-up notes are required.");
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
 
+    setFieldErrors({});
     setSubmitting(true);
     try {
       const formData = new FormData();
@@ -306,7 +324,10 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
         refreshHistory();
       }
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Failed to save follow-up progress.");
+      setFieldErrors((prev) => ({
+        ...prev,
+        notes: err instanceof Error ? err.message : "Failed to save follow-up progress.",
+      }));
     } finally {
       setSubmitting(false);
     }
@@ -342,7 +363,42 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
             <ArrowLeft className="size-4 group-hover:-translate-x-0.5 transition-transform" />
             <span>{t("overdue.backToOverdue", "Back to Overdue Alerts")}</span>
           </Link>
-          <HeaderAccount />
+          <div className="flex items-center gap-3">
+            {/* Language Switcher */}
+            <div
+              role="group"
+              aria-label={t("nav.selectLanguage", "Select language")}
+              className="flex items-center rounded-lg border border-slate-200 bg-slate-100/80 p-0.5 text-xs font-semibold"
+            >
+              <button
+                type="button"
+                onClick={() => setLanguage("en")}
+                className={`rounded-md px-2 py-0.5 text-[11px] transition-colors cursor-pointer ${
+                  language === "en"
+                    ? "bg-white text-blue-700 shadow-xs font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+                aria-label={t("nav.switchToEnglish", "Switch language to English")}
+                aria-pressed={language === "en"}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage("id")}
+                className={`rounded-md px-2 py-0.5 text-[11px] transition-colors cursor-pointer ${
+                  language === "id"
+                    ? "bg-white text-blue-700 shadow-xs font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+                aria-label={t("nav.switchToIndonesian", "Switch language to Indonesian")}
+                aria-pressed={language === "id"}
+              >
+                ID
+              </button>
+            </div>
+            <HeaderAccount />
+          </div>
         </div>
       </header>
 
@@ -603,10 +659,18 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                   {/* Conditional Field: Promise to Pay Date (for Promise to Pay only) */}
                   {followUpStatus === "PROMISE_TO_PAY" && (
                     <div>
+                      {fieldErrors.promiseDate && (
+                        <p className="text-xs font-semibold text-red-600 mb-1.5">{fieldErrors.promiseDate}</p>
+                      )}
                       <DatePicker
                         label={t("overdue.promiseDateLabel", "Promise to Pay Date")}
                         value={promiseDate}
-                        onChange={(d) => setPromiseDate(d)}
+                        onChange={(d) => {
+                          setPromiseDate(d);
+                          if (fieldErrors.promiseDate) {
+                            setFieldErrors((prev) => ({ ...prev, promiseDate: undefined }));
+                          }
+                        }}
                         placeholder="YYYY-MM-DD"
                       />
                     </div>
@@ -618,17 +682,28 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                       <label className="block text-xs font-bold text-slate-800 mb-1.5">
                         {t("overdue.paymentAmountLabel", "Payment Amount (IDR)")}
                       </label>
+                      {fieldErrors.paymentAmount && (
+                        <p className="text-xs font-semibold text-red-600 mb-1.5">{fieldErrors.paymentAmount}</p>
+                      )}
                       <div className="relative">
                         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
                         <input
                           type="number"
-                          required
                           min="1"
                           step="1"
                           value={paymentAmount}
-                          onChange={(e) => setPaymentAmount(e.target.value)}
+                          onChange={(e) => {
+                            setPaymentAmount(e.target.value);
+                            if (fieldErrors.paymentAmount) {
+                              setFieldErrors((prev) => ({ ...prev, paymentAmount: undefined }));
+                            }
+                          }}
                           placeholder={t("overdue.paymentAmountPlaceholder", "Enter total payment amount")}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-3.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                          className={`w-full rounded-xl border bg-slate-50/50 py-2.5 pl-10 pr-3.5 text-xs font-semibold text-slate-800 outline-none transition focus:bg-white focus:ring-2 ${
+                            fieldErrors.paymentAmount
+                              ? "border-red-500 focus:border-red-600 focus:ring-red-100"
+                              : "border-slate-200 focus:border-blue-500 focus:ring-blue-100"
+                          }`}
                         />
                       </div>
                       {paymentAmount && Number(paymentAmount) > 0 && (
@@ -648,11 +723,18 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                           ? t("overdue.settlementNotesLabel", "Settlement Notes / Payment Description")
                           : t("overdue.notesLabel", "Follow-up Notes")}
                     </label>
+                    {fieldErrors.notes && (
+                      <p className="text-xs font-semibold text-red-600 mb-1.5">{fieldErrors.notes}</p>
+                    )}
                     <textarea
                       rows={4}
-                      required
                       value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
+                      onChange={(e) => {
+                        setNotes(e.target.value);
+                        if (fieldErrors.notes) {
+                          setFieldErrors((prev) => ({ ...prev, notes: undefined }));
+                        }
+                      }}
                       placeholder={
                         followUpStatus === "DISPUTE"
                           ? t("overdue.disputeNotesPlaceholder", "Write dispute details, differences, or disputed documents...")
@@ -660,7 +742,11 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                             ? t("overdue.settlementNotesPlaceholder", "Write settlement notes, payment reference number, etc...")
                             : t("overdue.notesPlaceholder", "Write summary of communication with customer, commitments, etc...")
                       }
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs font-medium text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                      className={`w-full rounded-xl border bg-slate-50/50 p-3 text-xs font-medium text-slate-800 outline-none transition focus:bg-white focus:ring-2 ${
+                        fieldErrors.notes
+                          ? "border-red-500 focus:border-red-600 focus:ring-red-100"
+                          : "border-slate-200 focus:border-blue-500 focus:ring-blue-100"
+                      }`}
                     />
                   </div>
 
@@ -678,6 +764,9 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                         {t("overdue.maxFileSizeBadge", "Maximum 5MB")}
                       </span>
                     </div>
+                    {fieldErrors.evidenceFile && (
+                      <p className="text-xs font-semibold text-red-600 mb-1.5">{fieldErrors.evidenceFile}</p>
+                    )}
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -727,10 +816,12 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                     </button>
                     <button
                       type="submit"
-                      disabled={submitting}
-                      className="flex-[2] inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-60 transition cursor-pointer"
+                      disabled={submitting || userRole === "MANAGEMENT"}
+                      className="flex-[2] inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition cursor-pointer"
                     >
-                      {submitting ? (
+                      {userRole === "MANAGEMENT" ? (
+                        <span>{t("overdue.staffOnlySubmitBtn", "Staff Only Can Submit Log")}</span>
+                      ) : submitting ? (
                         <>
                           <RefreshCw className="size-4 animate-spin" />
                           <span>{t("overdue.savingProgress", "Saving Progress...")}</span>
@@ -752,19 +843,19 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 font-heading">
-                    Activity &amp; Follow-up History
+                    {t("overdue.historyTitle", "Activity & Follow-up History")}
                   </h2>
                 </div>
                 <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700">
-                  {assignmentHistory.length} Records
+                  {assignmentHistory.length} {t("overdue.records", "Records")}
                 </span>
               </div>
 
               {assignmentHistory.length === 0 ? (
                 <div className="py-10 text-center text-slate-400">
                   <History className="size-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-xs font-semibold text-slate-600">No follow-up history yet</p>
-                  <p className="text-[11px] mt-0.5">Notes submitted via the form above will be saved and displayed here.</p>
+                  <p className="text-xs font-semibold text-slate-600">{t("overdue.noHistoryYet", "No follow-up history yet")}</p>
+                  <p className="text-[11px] mt-0.5">{t("overdue.historyEmptyDesc", "Notes submitted via the form above will be saved and displayed here.")}</p>
                 </div>
               ) : (
                 <div className="relative ml-2 space-y-4 border-l-2 border-slate-200 pl-4 py-2">
@@ -781,13 +872,13 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                           <div className="space-y-1">
                             {isAssignmentEvent ? (
                               <div>
-                                <p className="text-xs font-bold text-slate-900">Collection PIC Assignment</p>
+                                <p className="text-xs font-bold text-slate-900">{t("overdue.collectionPicAssignment", "Collection PIC Assignment")}</p>
                                 <p className="mt-0.5 text-xs text-slate-700">
-                                  Assigned to: <strong className="text-blue-900 font-bold">{staffDisplayName}</strong>{" "}
+                                  {t("overdue.assignedTo", "Assigned to:")} <strong className="text-blue-900 font-bold">{staffDisplayName}</strong>{" "}
                                   <span className="text-[11px] text-slate-500 font-mono">({record.assigned_to})</span>
                                 </p>
                                 <p className="text-[11px] text-slate-500">
-                                  Assigned by: <strong className="text-slate-800 font-semibold">{assignerDisplayName}</strong>
+                                  {t("overdue.assignedBy", "Assigned by:")} <strong className="text-slate-800 font-semibold">{assignerDisplayName}</strong>
                                   {record.assigned_by_role && (
                                     <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-bold text-slate-600 uppercase">
                                       {record.assigned_by_role}
@@ -814,12 +905,12 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                               </span>
                               {record.follow_up_action && (
                                 <span className="inline-flex rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200">
-                                  Via {record.follow_up_action}
+                                  {t("overdue.viaChannel", "Via")} {record.follow_up_action}
                                 </span>
                               )}
                               {hasPayment && (
                                 <span className="inline-flex rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                                  Paid: {formatRupiah(record.payment_amount!)}
+                                  {t("overdue.paidBadge", "Paid:")} {formatRupiah(record.payment_amount!)}
                                 </span>
                               )}
                             </div>
@@ -837,7 +928,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                         {record.promise_date && (
                           <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-amber-700">
                             <Calendar className="size-3.5" />
-                            <span>Promise to Pay: {formatDate(record.promise_date, language)}</span>
+                            <span>{t("overdue.promiseToPayLabel", "Promise to Pay:")} {formatDate(record.promise_date, language)}</span>
                           </p>
                         )}
 
@@ -855,7 +946,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                             className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition"
                           >
                             <Paperclip className="size-3" />
-                            <span>View Attachment</span>
+                            <span>{t("overdue.viewAttachment", "View Attachment")}</span>
                             <ExternalLink className="size-3 opacity-60" />
                           </a>
                         )}

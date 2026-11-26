@@ -295,7 +295,19 @@ export const en = {
     "noActivityHistory": "No follow-up activity recorded for this invoice yet.",
     "viewAttachment": "View Attachment",
     "close": "Close",
-    "overdueDays": "Overdue {days} Days"
+    "overdueDays": "Overdue {days} Days",
+    "notesRequired": "Follow-up notes are required.",
+    "promiseDateRequired": "Promise to pay date is required.",
+    "paymentAmountRequired": "Payment amount is required.",
+    "proofRequired": "Proof of payment/settlement is required.",
+    "managementCannotCreate": "Management role cannot create follow-up logs. Only assigned Staff can submit follow-up progress.",
+    "managementStaffGuidance": "You are logged in as Management ({role}). Per company SOP, follow-up logs can only be submitted by Staff accounts (e.g. jesichan@andima.co.id).",
+    "staffOnlySubmitBtn": "Staff Only Can Submit Log",
+    "records": "Records",
+    "noHistoryYet": "No follow-up history yet",
+    "historyEmptyDesc": "Notes submitted via the form above will be saved and displayed here.",
+    "authorOnly": "Author only",
+    "deleteCompletedNotice": "Note: Deleting this Completed record will reverse the recorded settlement payment and return the invoice to overdue status."
   },
   "upload": {
     "title": "Uploaded Documents",
