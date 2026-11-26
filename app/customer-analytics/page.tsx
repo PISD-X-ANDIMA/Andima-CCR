@@ -28,6 +28,7 @@ export default function CustomerAnalyticsPage() {
 
   const sortByOptions = useMemo(() => [
     { id: "sales_profit", label: t("customerAnalytics.profit", "Profit") },
+    { id: "cost", label: t("customerAnalytics.cost", "Cost") },
     { id: "total_outstanding", label: t("common.outstanding", "Outstanding") },
     { id: "customer_name", label: t("customerAnalytics.name", "Name") },
   ], [t]);
@@ -151,7 +152,10 @@ export default function CustomerAnalyticsPage() {
                   ) : (
                     customers.map((customer) => {
                       const initials = customer.customer_name.split(" ").map((word) => word[0]).join("").slice(0, 2).toUpperCase();
-                      const codes = customer.customer_codes ?? (customer.customer_code ? [customer.customer_code] : []);
+                      // Legacy customer.customer_codes and customer codes / kode customer subtitle replaced by invoice count
+                      const _legacyCodes = customer.customer_codes ?? (customer.customer_code ? [customer.customer_code] : []);
+                      void _legacyCodes;
+                      const invoiceCount = customer.active_invoices_count ?? 0;
                       const companyId = customer.company_group_id ?? customer.customer_id ?? customer.id;
                       const href = `/customer-analytics/${encodeURIComponent(companyId)}?returnTo=${encodeURIComponent(returnTo)}`;
                       return (
@@ -162,9 +166,11 @@ export default function CustomerAnalyticsPage() {
                               <span className="min-w-0">
                                 <span className="block font-bold text-blue-700 font-heading">{customer.customer_name}</span>
                                 <span className="mt-1 block text-[11px] font-medium text-slate-500">
-                                  {codes.length
-                                    ? t("customerAnalytics.customerCodesCount", "{count} customer codes", { count: codes.length })
-                                    : t("customerAnalytics.noCustomerCodes", "No customer codes")}
+                                  {invoiceCount === 1
+                                    ? t("customerAnalytics.customerSingleInvoice", "1 invoice")
+                                    : invoiceCount > 1
+                                    ? t("customerAnalytics.customerInvoicesCount", "{count} invoices", { count: invoiceCount })
+                                    : t("customerAnalytics.noCustomerInvoices", "No invoices")}
                                 </span>
                               </span>
                             </Link>

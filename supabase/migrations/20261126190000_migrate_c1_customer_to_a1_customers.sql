@@ -496,10 +496,12 @@ page_rows as (
   order by
     case when lower(coalesce(p_sort_by, 'sales_profit')) = 'customer_name' and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.customer_name end asc nulls last,
     case when lower(coalesce(p_sort_by, 'sales_profit')) = 'customer_name' and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.customer_name end desc nulls last,
+    case when lower(coalesce(p_sort_by, 'sales_profit')) = 'cost' and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.cost end asc nulls last,
+    case when lower(coalesce(p_sort_by, 'sales_profit')) = 'cost' and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.cost end desc nulls last,
     case when lower(coalesce(p_sort_by, 'sales_profit')) = 'total_outstanding' and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.total_outstanding end asc nulls last,
     case when lower(coalesce(p_sort_by, 'sales_profit')) = 'total_outstanding' and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.total_outstanding end desc nulls last,
-    case when lower(coalesce(p_sort_by, 'sales_profit')) <> 'customer_name' and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.sales_profit end asc nulls last,
-    case when lower(coalesce(p_sort_by, 'sales_profit')) <> 'customer_name' and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.sales_profit end desc nulls last,
+    case when lower(coalesce(p_sort_by, 'sales_profit')) not in ('customer_name', 'cost', 'total_outstanding') and lower(coalesce(p_sort_order, 'desc')) = 'asc' then f.sales_profit end asc nulls last,
+    case when lower(coalesce(p_sort_by, 'sales_profit')) not in ('customer_name', 'cost', 'total_outstanding') and lower(coalesce(p_sort_order, 'desc')) <> 'asc' then f.sales_profit end desc nulls last,
     f.display_rank
   offset greatest((coalesce(p_page, 1) - 1) * greatest(coalesce(p_limit, 5), 1), 0)
   limit greatest(coalesce(p_limit, 5), 1)
