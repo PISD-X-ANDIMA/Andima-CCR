@@ -29,6 +29,7 @@ import { UI_FEEDBACK_CONFIG } from "@/lib/uiFeedbackConfig";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { followUpActionLabel, followUpStatusLabel } from "@/lib/followUpLabels";
 import { showToast as swalToast } from "@/lib/swal";
 
 interface OverdueInvoiceEditViewProps {
@@ -475,6 +476,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                 <div className="relative ml-2 space-y-4 border-l-2 border-slate-200 pl-4 py-2">
                   {assignmentHistory.map((record) => {
                     const isAssignmentEvent = record.follow_up_status === "ASSIGNED";
+                    const statusLabel = followUpStatusLabel(record.follow_up_status, t);
                     const staffDisplayName = record.assigned_to_name || record.assigned_to;
                     const assignerDisplayName = record.assigned_by_name || "Stevanus Imanuel";
                     const hasPayment = Boolean(record.payment_amount && record.payment_amount > 0);
@@ -510,16 +512,18 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                             )}
 
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {!isAssignmentEvent && statusLabel && (
                               <span
                                 className={`inline-flex rounded border px-2 py-0.5 text-[10px] font-bold ${followUpStatusBadge(
                                   record.follow_up_status
                                 )}`}
                               >
-                                {record.follow_up_status}
+                                {statusLabel}
                               </span>
+                              )}
                               {record.follow_up_action && (
                                 <span className="inline-flex rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200">
-                                  {t("overdue.viaChannel", "Via")} {record.follow_up_action}
+                                  {t("overdue.viaChannel", "Via")} {followUpActionLabel(record.follow_up_action, t)}
                                 </span>
                               )}
                               {hasPayment && (
@@ -566,7 +570,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                             </span>
                             {isManagement ? null : (
                               <div className="flex items-center gap-1.5">
-                                {currentUserId && record.assigned_by === currentUserId ? (
+                                {!isAssignmentEvent && currentUserId && record.assigned_by === currentUserId ? (
                                   <>
                                     <button
                                       type="button"
@@ -842,7 +846,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
             <div className="text-left space-y-2 mt-2">
               <p className="text-xs text-slate-600">
                 {t("overdue.deleteLogConfirm", "Are you sure you want to delete this follow-up log?")}
-                {deletingRecord.follow_up_status ? ` (${deletingRecord.follow_up_status})` : ""}
+                {deletingRecord.follow_up_status ? ` (${followUpStatusLabel(deletingRecord.follow_up_status, t) || ""})` : ""}
               </p>
               {deletingRecord.follow_up_status === "COMPLETED" && (
                 <span className="block font-semibold text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">

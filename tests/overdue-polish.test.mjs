@@ -15,6 +15,8 @@ const paymentsRoute = readFileSync(new URL("../app/api/v1/customers/[customerId]
 const paymentPeriodsMigration = readFileSync(new URL("../supabase/migrations/20261109130000_update_customer_analytics_payment_periods.sql", import.meta.url), "utf8");
 const preserveAssignmentMigration = readFileSync(new URL("../supabase/migrations/20261109140000_preserve_assignment_history_on_settlement.sql", import.meta.url), "utf8");
 const followUpSeparationMigration = readFileSync(new URL("../supabase/migrations/20261127100000_separate_c1_follow_up_logs.sql", import.meta.url), "utf8");
+const followUpLabels = readFileSync(new URL("../lib/followUpLabels.ts", import.meta.url), "utf8");
+const indonesianTranslations = readFileSync(new URL("../lib/i18n/id.ts", import.meta.url), "utf8");
 
 test("Overdue risk status maps to Title Case without Legal Escalation", () => {
   assert.match(overdueApi, /normalizeRiskStatus/);
@@ -77,6 +79,22 @@ test("Overdue preview history is isolated from table selection and ignores stale
   assert.match(overdueView, /requestId !== historyRequestRef\.current/);
   assert.doesNotMatch(overdueView, /const selectedInvoiceId = selectedInvoice\?\.id/);
   assert.match(overdueView, /if \(previewModalInvoice\?\.id\)\s*\{\s*refreshAssignmentHistory\(previewModalInvoice\.id\)/);
+});
+
+test("Follow-up timeline labels follow the active language and hide assignment status badges", () => {
+  assert.match(followUpLabels, /IN_PROGRESS/);
+  assert.match(followUpLabels, /PROMISE_TO_PAY/);
+  assert.match(followUpLabels, /COMPLETED/);
+  assert.match(followUpLabels, /DISPUTE/);
+  assert.match(followUpLabels, /normalized === "ASSIGNED"\) return null/);
+  assert.match(followUpLabels, /"chat \(whatsapp \/ others\)"/);
+  assert.match(indonesianTranslations, /"statusInProgress": "Dalam Proses"/);
+  assert.match(indonesianTranslations, /"actionCall": "Telepon"/);
+  for (const source of [createView, editView, previewModal]) {
+    assert.match(source, /followUpStatusLabel\(/);
+    assert.match(source, /followUpActionLabel\(/);
+    assert.match(source, /!isAssignmentEvent && statusLabel/);
+  }
 });
 
 test("OverdueInvoiceCreateView dynamic form, English status, wide layout, and top Back button", () => {

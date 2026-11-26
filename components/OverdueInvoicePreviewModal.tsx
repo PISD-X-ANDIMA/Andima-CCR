@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { AssignmentRecord, OverdueInvoiceItem } from "@/types/overdue";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { followUpActionLabel, followUpStatusLabel } from "@/lib/followUpLabels";
 import OverdueInvoicePreviewSkeleton, { ActivityHistorySkeleton } from "./OverdueInvoicePreviewSkeleton";
 
 interface OverdueInvoicePreviewModalProps {
@@ -272,6 +273,7 @@ export default function OverdueInvoicePreviewModal({
                 <div className="relative ml-2 space-y-4 border-l-2 border-slate-200 pl-4 py-1">
                   {assignmentHistory.map((assignment) => {
                     const isAssignmentEvent = assignment.follow_up_status === "ASSIGNED";
+                    const statusLabel = followUpStatusLabel(assignment.follow_up_status, t);
                     const staffDisplayName = assignment.assigned_to_name || assignment.assigned_to;
                     const assignerDisplayName = assignment.assigned_by_name || "Stevanus Imanuel";
                     const hasPayment = Boolean(assignment.payment_amount && assignment.payment_amount > 0);
@@ -311,16 +313,18 @@ export default function OverdueInvoicePreviewModal({
                             )}
 
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {!isAssignmentEvent && statusLabel && (
                               <span
                                 className={`inline-flex rounded border px-2 py-0.5 text-[10px] font-bold ${followUpStatusBadge(
                                   assignment.follow_up_status
                                 )}`}
                               >
-                                {assignment.follow_up_status}
+                                {statusLabel}
                               </span>
+                              )}
                               {assignment.follow_up_action && (
                                 <span className="inline-flex rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200">
-                                  {t("overdue.viaChannel", "Via")} {assignment.follow_up_action}
+                                  {t("overdue.viaChannel", "Via")} {followUpActionLabel(assignment.follow_up_action, t)}
                                 </span>
                               )}
                               {hasPayment && (
