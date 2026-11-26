@@ -36,13 +36,15 @@ function withTiming(response: NextResponse, startedAt: number, phases: Record<st
 }
 
 async function getCustomerMap(supabase: ReturnType<typeof createClient>) {
-  const { data, error } = await supabase.from("a1_company_list").select("company_list_id, name, company_name, customer_code");
+  const { data, error } = await supabase
+    .from("a1_customers")
+    .select("id, company_name, company_code")
+    .is("deleted_at", null);
   if (error) throw error;
   const map = new Map<string, string>();
   for (const row of data ?? []) {
-    if (row.name) map.set(normalize(row.name), row.company_list_id);
-    if (row.company_name) map.set(normalize(row.company_name), row.company_list_id);
-    if (row.customer_code) map.set(normalize(row.customer_code), row.company_list_id);
+    if (row.company_name) map.set(normalize(row.company_name), row.id);
+    if (row.company_code) map.set(normalize(row.company_code), row.id);
   }
   return map;
 }
@@ -181,24 +183,20 @@ export async function POST(request: NextRequest) {
       if (!resolved?.c1_customer_id && name) {
         const generatedCode = code || `UPLOAD-${document.id.slice(0, 8)}-${normalize(name).slice(0, 20)}`;
         const { data: insertedCust } = await persistenceClient
-          .from("c1_customer")
+          .from("a1_customers")
           .insert({
-            customer_code: generatedCode,
-            customer_name: name,
-            branch: "Tidak tersedia",
-            active_status: true,
-            source_type: "UPLOAD",
-            source_document_id: document.id,
+            company_code: generatedCode,
+            company_name: name,
           })
-          .select("customer_id, customer_name, customer_code")
+          .select("id, company_name, company_code")
           .maybeSingle();
         if (insertedCust) {
           resolved = {
             requested_customer_name: name,
             requested_customer_code: code,
-            customer_name: insertedCust.customer_name,
-            customer_code: insertedCust.customer_code,
-            c1_customer_id: insertedCust.customer_id,
+            customer_name: insertedCust.company_name,
+            customer_code: insertedCust.company_code,
+            c1_customer_id: insertedCust.id,
           };
           customerByName.set(normalize(name), resolved);
           if (code) customerByCode.set(normalize(code), resolved);

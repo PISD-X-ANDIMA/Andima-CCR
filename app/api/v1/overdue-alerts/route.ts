@@ -34,7 +34,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const branch = searchParams.get("branch");
     const search = searchParams.get("search")?.trim().toLowerCase() ?? "";
     const status = searchParams.get("status")?.trim().toLowerCase() ?? "";
     const agingBucket = searchParams.get("agingBucket");
@@ -48,7 +47,6 @@ export async function GET(req: NextRequest) {
     const invoices = allInvoices;
 
     const filtered = invoices.filter((invoice) => {
-      const branchMatches = !branch || branch === "all" || matches(branch, "Semua Cabang") || matches(branch, "All Branches") || branch?.toLowerCase() === invoice.branch.toLowerCase();
       const searchMatches = !search || [invoice.invoice_number, invoice.customer_name, invoice.npwp]
         .some((value) => value.toLowerCase().includes(search));
       const statusMatches = matches(status, "semua status") || status === "all" || invoice.risk_status.toLowerCase() === status;
@@ -56,7 +54,7 @@ export async function GET(req: NextRequest) {
         || ((agingBucket === "1 - 30 Hari" || agingBucket === "1 - 30 Days") && invoice.days_overdue >= 1 && invoice.days_overdue <= 30)
         || ((agingBucket === "31 - 60 Hari" || agingBucket === "31 - 60 Days") && invoice.days_overdue >= 31 && invoice.days_overdue <= 60)
         || ((agingBucket === "> 60 Hari" || agingBucket === "> 60 Days") && invoice.days_overdue > 60);
-      return branchMatches && searchMatches && statusMatches && agingMatches;
+      return searchMatches && statusMatches && agingMatches;
     });
 
     return timed(NextResponse.json({ kpiSummary: calculateOverdueKpi(filtered), totalItems: filtered.length, invoices: filtered, fromDb }), startedAt, { auth: authDuration, db: databaseDuration, mapping: 0 });

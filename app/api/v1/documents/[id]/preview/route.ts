@@ -46,14 +46,20 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     ? await Promise.all(
         customerChunks.map((chunk) =>
           admin
-            .from("c1_customer")
-            .select("customer_id, customer_code, customer_name, branch, source_type, source_document_id")
-            .in("customer_id", chunk)
+            .from("a1_customers")
+            .select("id, company_code, company_name")
+            .in("id", chunk)
         )
       )
     : [];
   const customerError = customerResults.find((r) => r.error)?.error;
-  const customersData = customerResults.flatMap((r) => r.data ?? []);
+  const customersData = customerResults
+    .flatMap((r) => r.data ?? [])
+    .map((row: { id: string; company_code?: string | null; company_name: string }) => ({
+      customer_id: row.id,
+      customer_code: row.company_code ?? "",
+      customer_name: row.company_name,
+    }));
   const signed = document.validation_status === "rejected"
     ? { data: null, error: null }
     : await admin.storage.from(document.storage_bucket).createSignedUrl(document.storage_path, 300);

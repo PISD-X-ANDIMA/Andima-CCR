@@ -11,17 +11,18 @@ const overdueView = readFileSync(new URL("../components/OverdueAlertView.tsx", i
 test("Customer Analytics list contains company identities and links to detail", () => {
   assert.doesNotMatch(customerPage, /InspectionDrawer|Company detail|setSelectedCustomer|setCheckedIds/);
   assert.doesNotMatch(customerPage, /SALES PROFIT|OUTSTANDING|INVOICE/);
-  assert.match(customerPage, /All Branches|Semua Cabang/);
+  assert.doesNotMatch(customerPage, /id="branch-filter"/);
   assert.match(customerPage, /total_outstanding/);
   assert.match(customerPage, /customer-analytics\/\$\{encodeURIComponent/);
   assert.doesNotMatch(customerPage, /KODE CUSTOMER/);
   assert.match(customerPage, /customer\.customer_codes/);
   assert.match(customerPage, /customer codes|kode customer/i);
-  assert.match(customerPage, /Branch|CABANG/i);
+  assert.doesNotMatch(customerPage, /formatBranch/);
   assert.match(readFileSync(new URL("../components/KpiSummaryCards.tsx", import.meta.url), "utf8"), /Total customers?(?: ?\/? ?compan(?:y|ies))?|Total customer\/company/i);
 });
 
 test("Customer detail is a separate full-page route with payment history", () => {
+  assert.doesNotMatch(detail, /formatBranch/);
   assert.match(detailPage, /CustomerAnalyticsDetail/);
   assert.match(detail, /3-Month Payment|Pembayaran tiga bulan/);
   assert.match(detail, /Payment History|Riwayat pembayaran/);

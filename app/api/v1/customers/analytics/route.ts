@@ -30,7 +30,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const branch = searchParams.get('branch');
     const search = searchParams.get('search')?.trim().toLowerCase() || '';
     const paymentCycle = searchParams.get('paymentCycle');
     const sortBy = searchParams.get('sortBy') || 'sales_profit';
@@ -41,7 +40,7 @@ export async function GET(req: NextRequest) {
     const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, requestedLimit)) : 5;
 
     const rpcStarted = performance.now();
-    const { customers, kpi, totalItems } = await fetchCustomerAnalyticsFromSupabase({ branch, search, paymentCycle, sortBy, sortOrder, page, limit });
+    const { customers, kpi, totalItems } = await fetchCustomerAnalyticsFromSupabase({ search, paymentCycle, sortBy, sortOrder, page, limit });
     const rpcDuration = performance.now() - rpcStarted;
     const totalPages = Math.ceil(totalItems / limit) || 1;
 

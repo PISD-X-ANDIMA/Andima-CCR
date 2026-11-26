@@ -402,7 +402,7 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
                       : t("overdue.contactUnavailable", "Contact not available")}
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-400">
-                    {t("common.branch", "Branch")}: {invoice.branch && invoice.branch !== "Tidak tersedia" ? invoice.branch : t("common.headOffice", "Head Office")} {invoice.branch_code ? `(${invoice.branch_code})` : ""} · NPWP: {invoice.npwp || "-"}
+                    NPWP: {invoice.npwp || "-"}
                   </p>
                 </div>
 

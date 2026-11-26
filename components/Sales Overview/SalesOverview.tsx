@@ -322,7 +322,6 @@ function AlertCard({ alert, rowNumber }: { alert: AlertRow; rowNumber: number; o
       <p className="mt-1 text-sm font-semibold text-indigo-700">{alert.client}</p>
       <p className="text-[11px] text-slate-500">{t("common.due", "Due")}: {alert.due} · {money.format(alert.amount)}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-        <span>{alert.branch && alert.branch !== "Tidak tersedia" ? alert.branch : t("common.branchUnavailable", "Branch unavailable")}</span>
         {alert.riskStatus && (
           <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">
             {alert.riskStatus === "High Risk"

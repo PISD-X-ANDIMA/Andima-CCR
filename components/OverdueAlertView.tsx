@@ -106,7 +106,6 @@ export const OverdueAlertView: React.FC<OverdueAlertViewProps> = () => {
     setLoading(true);
     setErrorMessage(null);
     const params = new URLSearchParams({
-      branch: "All Branches",
       search: searchQuery,
       status: selectedStatus === "All" ? "all" : selectedStatus,
       agingBucket: agingBucket === "All Buckets" ? "all" : agingBucket,

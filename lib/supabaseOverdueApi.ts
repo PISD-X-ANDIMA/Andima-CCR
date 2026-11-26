@@ -270,7 +270,7 @@ function toInvoice(
     customer_id: customerId ?? "",
     customer_name: customerName,
     npwp: customer?.npwp || "-",
-    branch: customer?.branch?.trim() || "Tidak tersedia",
+    branch: "",
     branch_code: "",
     due_date: row.due_date,
     amount_overdue: Number(staging?.outstanding_amount ?? 0),
@@ -355,16 +355,21 @@ export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOption
     const results = await Promise.all(
       customerChunks.map((chunk) =>
         supabase
-          .from("c1_customer")
-          .select("customer_id, customer_name, branch, npwp")
-          .in("customer_id", chunk)
+          .from("a1_customers")
+          .select("id, company_name, company_code")
+          .in("id", chunk)
       )
     );
     const customersError = results.find((r) => r.error)?.error;
     if (customersError) throw customersError;
     for (const r of results) {
-      for (const customer of (r.data ?? []) as CustomerIdentity[]) {
-        customers.set(customer.customer_id, customer);
+      for (const customer of (r.data ?? []) as Array<{ id: string; company_name: string | null; company_code: string | null }>) {
+        customers.set(customer.id, {
+          customer_id: customer.id,
+          customer_name: customer.company_name,
+          branch: null,
+          npwp: null,
+        });
       }
     }
   }
@@ -461,27 +466,27 @@ export async function recordSettlementPaymentInSupabase(params: {
   let resolvedCustId: string | null = null;
   if (targetCustomerId && UUID_RE.test(String(targetCustomerId))) {
     const { data: custRow } = await supabase
-      .from("c1_customer")
-      .select("customer_id")
-      .eq("customer_id", targetCustomerId)
+      .from("a1_customers")
+      .select("id")
+      .eq("id", targetCustomerId)
       .maybeSingle();
-    resolvedCustId = custRow?.customer_id ?? null;
+    resolvedCustId = custRow?.id ?? null;
   }
 
-  // If customer ID is not set or not in c1_customer, lookup c1_customer by name
+  // If customer ID is not set or not in a1_customers, lookup a1_customers by name
   if (!resolvedCustId && staging?.customer_name) {
     const { data: custByName } = await supabase
-      .from("c1_customer")
-      .select("customer_id")
-      .ilike("customer_name", staging.customer_name.trim())
+      .from("a1_customers")
+      .select("id")
+      .ilike("company_name", staging.customer_name.trim())
       .limit(1);
-    resolvedCustId = custByName?.[0]?.customer_id ?? null;
+    resolvedCustId = custByName?.[0]?.id ?? null;
   }
 
   // Fallback to any valid customer if still null
   if (!resolvedCustId) {
-    const { data: anyCust } = await supabase.from("c1_customer").select("customer_id").limit(1);
-    resolvedCustId = anyCust?.[0]?.customer_id ?? null;
+    const { data: anyCust } = await supabase.from("a1_customers").select("id").limit(1);
+    resolvedCustId = anyCust?.[0]?.id ?? null;
   }
 
   targetCustomerId = resolvedCustId;

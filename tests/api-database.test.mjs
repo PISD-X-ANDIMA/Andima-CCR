@@ -250,7 +250,7 @@ test("finalizing a validation failure creates a Rejected document without storin
         insert: () => ({ select: () => ({ single: async () => ({ data: { id: doc1 }, error: null }) }) }),
         update: values => ({ eq: async () => { rejectedUpdate ||= values.validation_status === "rejected"; return { error: null }; } }),
       };
-      return { insert: async () => ({ error: null }) };
+      return { insert: async () => ({ error: null }), select: () => ({ is: async () => ({ data: [], error: null }) }) };
     },
     storage: { from: () => ({ upload: async () => { storageUploadCalls += 1; return { error: null }; } }) },
   };
@@ -310,7 +310,7 @@ test("upload parse failure creates a Rejected document in c1_document_uploads wi
       if (table === "c1_document_validation_errors") return {
         insert: async (data) => { insertedError = data; return { error: null }; },
       };
-      return { insert: async () => ({ error: null }) };
+      return { insert: async () => ({ error: null }), select: () => ({ is: async () => ({ data: [], error: null }) }) };
     },
     storage: { from: () => ({ upload: async () => { throw new Error("must not store bad file"); } }) },
   };
@@ -805,7 +805,7 @@ test("analytics routes authorize before one RPC and keep no-store responses", as
   }, { performance, URL });
   const customerResponse = await customerRoute.GET({ url: "https://app.test/api/v1/customers/analytics?branch=Jakarta&search=%20Aurora%20&paymentCycle=Overdue%20(%3E%2030%20Hari)&sortBy=cost&sortOrder=asc&page=0&limit=1000" });
   assert.equal(customerRpcCalls, 1);
-  assert.equal(JSON.stringify(customerOptions), JSON.stringify({ branch: "Jakarta", search: "aurora", paymentCycle: "Overdue (> 30 Hari)", sortBy: "cost", sortOrder: "asc", page: 1, limit: 100 }));
+  assert.equal(JSON.stringify(customerOptions), JSON.stringify({ search: "aurora", paymentCycle: "Overdue (> 30 Hari)", sortBy: "cost", sortOrder: "asc", page: 1, limit: 100 }));
   assert.equal(customerResponse.headers.get("cache-control"), "no-store, max-age=0");
   assert.match(customerResponse.headers.get("server-timing"), /rpc/);
 
@@ -878,6 +878,7 @@ test("customer invoices resolve legacy CUST ids and tolerate pre-analytics C1 sc
     created_at: "2026-10-01T00:00:00Z",
   };
   const tables = {
+    a1_customers: [{ id: canonicalId, company_name: "Legacy Company", company_code: "LEG-001", active_status: true, created_at: "2026-01-01T00:00:00Z", deleted_at: null }],
     c1_customer: [{ customer_id: canonicalId, customer_name: "Legacy Company", customer_code: "LEG-001", active_status: true, created_at: "2026-01-01T00:00:00Z" }],
     c1_document_uploads: [{ id: legacyInvoice.document_id, validation_status: "validated", document_type: "OUTSTANDING_REPORT" }],
     c1_outstanding_staging_rows: [legacyInvoice],
@@ -895,13 +896,14 @@ test("customer invoices resolve legacy CUST ids and tolerate pre-analytics C1 sc
         ilike(column, value) { state.filters.push([column, "ilike", value]); return query; },
         neq(column, value) { state.filters.push([column, "neq", value]); return query; },
         in(column, values) { state.filters.push([column, "in", values]); return query; },
+        is(column, value) { state.filters.push([column, "is", value]); return query; },
         order() { return query; },
         range(from) { state.range = from; return query; },
         limit() { return query; },
         async maybeSingle() { const result = await query; return { data: result.data?.[0] ?? null, error: result.error }; },
         then(resolve, reject) {
           if (state.forcedError) return Promise.resolve(state.forcedError).then(() => resolve({ data: null, error: state.forcedError }), reject);
-          let data = (tables[table] ?? []).filter((row) => state.filters.every(([column, operator, value]) => operator === "eq" ? String(row[column]) === String(value) : operator === "ilike" ? String(row[column] ?? "").toLowerCase() === String(value).toLowerCase() : operator === "neq" ? String(row[column]) !== String(value) : operator === "in" ? value.map(String).includes(String(row[column])) : true));
+          let data = (tables[table] ?? []).filter((row) => state.filters.every(([column, operator, value]) => operator === "eq" ? String(row[column]) === String(value) : operator === "ilike" ? String(row[column] ?? "").toLowerCase() === String(value).toLowerCase() : operator === "neq" ? String(row[column]) !== String(value) : operator === "in" ? value.map(String).includes(String(row[column])) : operator === "is" ? (value === null ? row[column] == null : row[column] === value) : true));
           if (state.range) data = data.slice(state.range, state.range + 1);
           return Promise.resolve({ data, error: null }).then(resolve, reject);
         },
@@ -928,6 +930,10 @@ test("customer invoices query chunks large alias sets to prevent HTTP headers/UR
   for (let i = 0; i < 125; i++) {
     const id = `c-${String(i).padStart(4, "0")}-0000-0000-000000000000`;
     customerList.push({
+      id: i === 0 ? primaryId : id,
+      company_name: `Big Corp Branch ${i}`,
+      company_code: `BC-${i}`,
+      deleted_at: null,
       customer_id: i === 0 ? primaryId : id,
       customer_name: `Big Corp Branch ${i}`,
       customer_code: `BC-${i}`,
@@ -952,6 +958,7 @@ test("customer invoices query chunks large alias sets to prevent HTTP headers/UR
   };
 
   const tables = {
+    a1_customers: customerList,
     c1_customer: customerList,
     c1_document_uploads: [{ id: "doc-chunked-1", validation_status: "validated", document_type: "OUTSTANDING_REPORT" }],
     c1_outstanding_staging_rows: [invoice],
@@ -974,6 +981,7 @@ test("customer invoices query chunks large alias sets to prevent HTTP headers/UR
           state.filters.push([column, "in", values]);
           return query;
         },
+        is(column, value) { state.filters.push([column, "is", value]); return query; },
         order() { return query; },
         range(from) { state.range = from; return query; },
         limit() { return query; },
@@ -984,7 +992,8 @@ test("customer invoices query chunks large alias sets to prevent HTTP headers/UR
               operator === "eq" ? String(row[column]) === String(value) :
               operator === "ilike" ? String(row[column] ?? "").toLowerCase() === String(value).toLowerCase() :
               operator === "neq" ? String(row[column]) !== String(value) :
-              operator === "in" ? value.map(String).includes(String(row[column])) : true
+              operator === "in" ? value.map(String).includes(String(row[column])) :
+              operator === "is" ? (value === null ? row[column] == null : row[column] === value) : true
             )
           );
           if (state.range) data = data.slice(state.range, state.range + 1);
@@ -1048,19 +1057,19 @@ test("overdue invoices resolve C1 customer names and branches in one batch with 
     { invoice_number: "INV-FALLBACK", customer_id: null, c1_customer_id: "customer-missing", customer_name: "Uploaded Fallback Name", outstanding_amount: 200, due_date: "2026-08-02", created_at: "2026-09-01" },
     { invoice_number: "INV-LEGACY", customer_id: "legacy-id", c1_customer_id: null, customer_name: "Legacy Upload Name", outstanding_amount: 300, due_date: "2026-08-03", created_at: "2026-09-01" },
   ];
-  const customerRows = [{ customer_id: "customer-a", customer_name: "Canonical Customer", branch: "Jakarta", npwp: "NPWP-A" }];
+  const customerRows = [{ customer_id: "customer-a", customer_name: "Canonical Customer", branch: "Jakarta", npwp: "NPWP-A", id: "customer-a", company_name: "Canonical Customer" }];
   const customerLookups = [];
-  const tables = { c1_overdue_alert: alerts, c1_outstanding_staging_rows: staging, c1_assignment: [], c1_customer: customerRows };
+  const tables = { c1_overdue_alert: alerts, c1_outstanding_staging_rows: staging, c1_assignment: [], c1_customer: customerRows, a1_customers: customerRows };
   const client = {
     from(table) {
       const queryState = { filters: [] };
       const query = {
-        select(fields) { if (table === "c1_customer") queryState.fields = fields; return query; },
+        select(fields) { if (table === "c1_customer" || table === "a1_customers") queryState.fields = fields; return query; },
         gt(column, value) { queryState.filters.push([column, "gt", value]); return query; },
         gte(column, value) { queryState.filters.push([column, "gte", value]); return query; },
         lt(column, value) { queryState.filters.push([column, "lt", value]); return query; },
         eq(column, value) { if (!column.startsWith("c1_document_uploads.")) queryState.filters.push([column, "eq", value]); return query; },
-        in(column, values) { queryState.filters.push([column, "in", values]); if (table === "c1_customer") customerLookups.push(values); return query; },
+        in(column, values) { queryState.filters.push([column, "in", values]); if (table === "c1_customer" || table === "a1_customers") customerLookups.push(values); return query; },
         order() { return query; },
         then(resolve, reject) {
           const values = (tables[table] ?? []).filter(row => queryState.filters.every(([column, operator, value]) => {
@@ -1082,12 +1091,12 @@ test("overdue invoices resolve C1 customer names and branches in one batch with 
 
   assert.deepEqual(JSON.parse(JSON.stringify(customerLookups)), [["customer-a", "customer-missing"]]);
   assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").customer_name, "Canonical Customer");
-  assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").branch, "Jakarta");
-  assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").npwp, "NPWP-A");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").branch, "");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").npwp, "-");
   assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").customer_id, "customer-a");
   assert.equal(result.invoices.find(row => row.invoice_number === "INV-FALLBACK").customer_name, "Uploaded Fallback Name");
   assert.equal(result.invoices.find(row => row.invoice_number === "INV-LEGACY").customer_name, "Legacy Upload Name");
-  assert.equal(result.invoices.find(row => row.invoice_number === "INV-LEGACY").branch, "Tidak tersedia");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-LEGACY").branch, "");
 });
 
 async function database() {
@@ -1099,6 +1108,7 @@ async function database() {
     create table public.d3_departments(id uuid primary key);
     create table public.d3_positions(id uuid primary key);
     create table public.a1_company_list(company_list_id uuid primary key);
+    create table if not exists public.a1_customers(id uuid primary key, company_name text, company_code text, deleted_at timestamptz);
     insert into public.d3_departments values ('${department}');
     insert into public.d3_positions values ('${position}');
     insert into auth.users values ('${user1}', 'one@andima.co.id'), ('${user2}', 'two@andima.co.id');`);

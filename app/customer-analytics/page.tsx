@@ -14,7 +14,6 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 export default function CustomerAnalyticsPage() {
   const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
-  const [branch, setBranch] = useState("All Branches");
   const [sortBy, setSortBy] = useState("sales_profit");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -27,15 +26,6 @@ export default function CustomerAnalyticsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const branchOptions = useMemo(() => [
-    { id: "All Branches", label: t("common.allBranches", "All Branches") },
-    { id: "Jakarta", label: "Jakarta" },
-    { id: "Semarang", label: "Semarang" },
-    { id: "Surabaya", label: "Surabaya" },
-    { id: "Balikpapan", label: "Balikpapan" },
-    { id: "Medan", label: "Medan" },
-  ], [t]);
-
   const sortByOptions = useMemo(() => [
     { id: "sales_profit", label: t("customerAnalytics.profit", "Profit") },
     { id: "total_outstanding", label: t("common.outstanding", "Outstanding") },
@@ -45,11 +35,9 @@ export default function CustomerAnalyticsPage() {
   const loadAnalyticsData = useCallback(async () => {
     if (!hydrated) return;
     setIsLoading(true);
-    const apiBranch = branch === "All Branches" || branch === "Semua Cabang" ? "Semua Cabang" : branch;
     const params = new URLSearchParams({
       page: String(currentPage),
       limit: String(itemsPerPage),
-      branch: apiBranch,
       search: searchQuery.trim(),
       sortBy,
       sortOrder,
@@ -83,13 +71,11 @@ export default function CustomerAnalyticsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [branch, currentPage, hydrated, itemsPerPage, searchQuery, sortBy, sortOrder]);
+  }, [currentPage, hydrated, itemsPerPage, searchQuery, sortBy, sortOrder]);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     setSearchQuery(query.get("search") ?? "");
-    const initialBranch = query.get("branch") ?? "All Branches";
-    setBranch(initialBranch === "Semua Cabang" ? "All Branches" : initialBranch);
     setSortBy(query.get("sortBy") ?? "sales_profit");
     setSortOrder(query.get("sortOrder") === "asc" ? "asc" : "desc");
     setCurrentPage(Math.max(1, Number(query.get("page") ?? "1") || 1));
@@ -97,14 +83,7 @@ export default function CustomerAnalyticsPage() {
   }, []);
   useEffect(() => { void loadAnalyticsData(); }, [loadAnalyticsData]);
 
-  const formatBranch = (value?: string | null) => {
-    if (!value || value === "-" || value.toLowerCase() === "tidak tersedia") {
-      return t("common.unavailable", "Unavailable");
-    }
-    return value;
-  };
-
-  const returnTo = `/customer-analytics?${new URLSearchParams({ branch, search: searchQuery, page: String(currentPage), sortBy, sortOrder }).toString()}`;
+  const returnTo = `/customer-analytics?${new URLSearchParams({ search: searchQuery, page: String(currentPage), sortBy, sortOrder }).toString()}`;
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans">
       <div className="flex min-h-screen flex-col">
@@ -140,18 +119,6 @@ export default function CustomerAnalyticsPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <div className="w-[160px]">
                   <CustomDropdown
-                    id="branch-filter"
-                    ariaLabel={t("common.branch", "Branch")}
-                    categoryTitle={t("common.branch", "Branch")}
-                    placeholder={t("common.allBranches", "All Branches")}
-                    items={branchOptions}
-                    value={branch}
-                    onChange={(item) => { setBranch(String(item.id)); setCurrentPage(1); }}
-                    variant="pill"
-                  />
-                </div>
-                <div className="w-[160px]">
-                  <CustomDropdown
                     id="sort-filter"
                     ariaLabel={t("common.sortBy", "Sort by")}
                     categoryTitle={t("common.sortBy", "Sort by")}
@@ -174,14 +141,13 @@ export default function CustomerAnalyticsPage() {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
                     <th className="px-6 py-3.5">{t("common.company", "Company")}</th>
-                    <th className="px-6 py-3.5">{t("common.branch", "Branch")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {isLoading ? (
                     <CustomerTableSkeleton />
                   ) : customers.length === 0 ? (
-                    <tr><td colSpan={2} className="px-6 py-12 text-center font-medium text-slate-400">{t("customerAnalytics.noCompaniesFound", "No companies found matching search criteria.")}</td></tr>
+                    <tr><td colSpan={1} className="px-6 py-12 text-center font-medium text-slate-400">{t("customerAnalytics.noCompaniesFound", "No companies found matching search criteria.")}</td></tr>
                   ) : (
                     customers.map((customer) => {
                       const initials = customer.customer_name.split(" ").map((word) => word[0]).join("").slice(0, 2).toUpperCase();
@@ -203,7 +169,6 @@ export default function CustomerAnalyticsPage() {
                               </span>
                             </Link>
                           </td>
-                          <td className="px-6 py-4 font-medium text-slate-600">{formatBranch(customer.branch)}</td>
                         </tr>
                       );
                     })

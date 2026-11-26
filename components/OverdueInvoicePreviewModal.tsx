@@ -180,13 +180,10 @@ export default function OverdueInvoicePreviewModal({
 
             <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-heading">
-                {t("overdue.customerAndBranch", "Customer & Branch")}
+                {t("overdue.colCustomer", "Customer")}
               </span>
               <p className="mt-1 text-xs font-bold text-slate-900 truncate">
                 {invoice.customer_name}
-              </p>
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                {invoice.branch && invoice.branch !== "Tidak tersedia" ? invoice.branch : t("common.headOffice", "Head Office")} {invoice.branch_code ? `(${invoice.branch_code})` : ""}
               </p>
               <p className="text-[10px] text-slate-400 font-mono mt-0.5">NPWP: {invoice.npwp || "-"}</p>
             </div>

@@ -111,12 +111,6 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
         : [],
     [customer, t]
   );
-  const formatBranch = (value?: string | null) => {
-    if (!value || value === "-" || value.toLowerCase() === "tidak tersedia") {
-      return t("common.unavailable", "Unavailable");
-    }
-    return value;
-  };
   const overdueSummary = useMemo(() => {
     const today = Date.parse(new Date().toISOString().slice(0, 10));
     const value = invoices.reduce((sum, invoice) => sum + (invoice.remaining_amount ?? 0), 0);
@@ -161,7 +155,6 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
       <div>
         <p className="text-xs font-semibold text-slate-400 font-heading">{t("customerAnalytics.title", "Customer Analytics")}</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 font-heading">{customer.customer_name}</h1>
-        <p className="mt-1 text-xs font-semibold text-slate-500">{formatBranch(customer.branch)}</p>
       </div>
       <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex items-center gap-2 self-start rounded-xl bg-[#3B6FF5] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-600 disabled:opacity-60 cursor-pointer">
         <RefreshCw className="h-4 w-4" />{t("common.refresh", "Refresh")}

@@ -162,17 +162,23 @@ async function resolveCanonicalCustomer(supabase: ReturnType<typeof getSupabaseC
   const normalized = requestedId.trim();
   if (!normalized) return null;
 
-  const selectCustomers = async (fields: string): Promise<CustomerMasterRow[]> => {
-    const result = await supabase.from('c1_customer').select(fields).order('created_at', { ascending: true, nullsFirst: false }).order('customer_id', { ascending: true });
-    if (!result.error) return ((result.data ?? []) as unknown as CustomerMasterRow[]).filter((row) => row.active_status !== false);
-    if (fields.includes('company_name_key') && /column .*|schema cache|does not exist/i.test(String(result.error.message ?? result.error))) {
-      const fallback = await supabase.from('c1_customer').select('customer_id, customer_name, customer_code, active_status').order('customer_id', { ascending: true });
-      if (fallback.error) throw fallback.error;
-      return ((fallback.data ?? []) as CustomerMasterRow[]).filter((row) => row.active_status !== false);
-    }
-    throw result.error;
+  const selectCustomers = async (): Promise<CustomerMasterRow[]> => {
+    const result = await supabase
+      .from('a1_customers')
+      .select('id, company_name, company_code')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true });
+    if (result.error) throw result.error;
+    return ((result.data ?? []) as Array<{ id: string; company_name: string | null; company_code: string | null }>).map((row) => ({
+      customer_id: String(row.id),
+      customer_name: row.company_name ?? null,
+      customer_code: row.company_code ?? null,
+      company_name_key: companyNameKey(row.company_name),
+      active_status: true,
+    }));
   };
-  const rows = await selectCustomers('customer_id, customer_name, customer_code, company_name_key, active_status');
+  const rows = await selectCustomers();
   let selected = rows.find((row: any) => UUID_PATTERN.test(normalized) && String(row.customer_id) === normalized)
     ?? rows.find((row: any) => String(row.customer_code ?? '').toLowerCase() === normalized.toLowerCase());
   if (!selected) {
