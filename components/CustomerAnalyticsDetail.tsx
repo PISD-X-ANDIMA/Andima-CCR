@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Loader2, Receipt, RefreshCw, Search, X } from "lucide-react";
-import { CustomerAnalyticsItem, InvoiceDetail } from "@/types/customer";
+import { CustomerAnalyticsItem, CustomerTransactionItem, InvoiceDetail } from "@/types/customer";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import CustomerCodeDetailModal from "@/components/CustomerCodeDetailModal";
 import InvoiceDetailModal from "@/components/InvoiceDetailModal";
@@ -23,6 +23,7 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
   const { t, language } = useLanguage();
   const [customer, setCustomer] = useState<CustomerAnalyticsItem | null>(null);
   const [invoices, setInvoices] = useState<CustomerInvoice[]>([]);
+  const [allTransactions, setAllTransactions] = useState<CustomerTransactionItem[]>([]);
   const [canRecordPayment, setCanRecordPayment] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,24 +43,44 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
     setLoading(true); setError(null);
     try {
       const cacheBuster = Date.now();
-      const [analyticsResponse, invoicesResponse, accountResponse] = await Promise.all([
+      const [analyticsResponse, invoicesResponse, allInvoicesResponse, accountResponse] = await Promise.all([
         fetch(`/api/v1/customers/${encodeURIComponent(customerId)}/analytics?refresh=${cacheBuster}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
         fetch(`/api/v1/customers/${encodeURIComponent(customerId)}/invoices?mode=overdue&refresh=${cacheBuster}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
+        fetch(`/api/v1/customers/${encodeURIComponent(customerId)}/invoices?mode=all&refresh=${cacheBuster}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
         fetch(`/api/v1/account/me?refresh=${cacheBuster}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
       ]);
       const analyticsBody = (await readJsonResponse<{ data?: CustomerAnalyticsItem; error?: { message?: string }; message?: string }>(analyticsResponse)) ?? {};
       const invoicesBody = (await readJsonResponse<InvoiceResponse>(invoicesResponse)) ?? {};
+      const allInvoicesBody = (await readJsonResponse<{ invoices?: CustomerTransactionItem[] }>(allInvoicesResponse)) ?? {};
       const accountBody = (await readJsonResponse<{ data?: { app_role?: string | null } }>(accountResponse)) ?? {};
       if (!analyticsResponse.ok) throw new Error(responseMessage(analyticsBody, "Failed to load company details."));
       if (!invoicesResponse.ok) throw new Error(responseMessage(invoicesBody, "Failed to load overdue invoices."));
-      setCustomer(analyticsBody.data ?? null); setInvoices(invoicesBody.invoices ?? []); setCanRecordPayment(accountBody.data?.app_role === "STAFF");
-    } catch (loadError) { setCustomer(null); setInvoices([]); setError(loadError instanceof Error ? loadError.message : "Failed to load company details."); }
+      setCustomer(analyticsBody.data ?? null);
+      setInvoices(invoicesBody.invoices ?? []);
+      setAllTransactions(allInvoicesBody.invoices ?? []);
+      setCanRecordPayment(accountBody.data?.app_role === "STAFF");
+    } catch (loadError) { setCustomer(null); setInvoices([]); setAllTransactions([]); setError(loadError instanceof Error ? loadError.message : "Failed to load company details."); }
     finally { setLoading(false); }
   }, [customerId]);
   useEffect(() => { void loadData(); }, [loadData]);
 
   const codeRows = useMemo(() => {
     if (!customer) return [];
+    if (allTransactions.length > 0) {
+      return allTransactions.map((tx) => ({
+        code: tx.invoice_number || tx.code,
+        customer_name: tx.customer_name || customer.customer_name,
+        customer_id: tx.customer_id || customer.customer_id || customer.id,
+        source: tx.source,
+        amount: tx.amount,
+        date: tx.date,
+        status: tx.status,
+        job_number: tx.job_number,
+        mawb: tx.mawb,
+        is_overdue: tx.status === "UNPAID" || tx.status === "PARTIAL",
+        raw: tx,
+      }));
+    }
     const aliases = customer.customer_aliases ?? [];
     const codes = customer.customer_codes ?? (customer.customer_code ? [customer.customer_code] : []);
     return codes.map((code) => {
@@ -77,10 +98,15 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
         code,
         customer_name: alias?.customer_name ?? customer.customer_name,
         customer_id: alias?.customer_id ?? customer.customer_id ?? customer.id,
+        source: "OUTSTANDING_REPORT" as const,
+        amount: 0,
+        date: "-",
+        status: hasOverdueInvoice ? ("UNPAID" as const) : ("PAID" as const),
         is_overdue: hasOverdueInvoice,
+        raw: null,
       };
     });
-  }, [customer, invoices]);
+  }, [customer, allTransactions, invoices]);
 
   const filteredCodeRows = useMemo(() => {
     const q = codeSearch.trim().toLowerCase();
@@ -89,6 +115,8 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
       (r) =>
         r.code.toLowerCase().includes(q) ||
         r.customer_name.toLowerCase().includes(q) ||
+        (r.job_number && r.job_number.toLowerCase().includes(q)) ||
+        (r.mawb && r.mawb.toLowerCase().includes(q)) ||
         (r.customer_id && String(r.customer_id).toLowerCase().includes(q))
     );
   }, [codeRows, codeSearch]);
@@ -214,20 +242,77 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
               <tr>
                 <th className="px-4 py-3">{t("customerAnalytics.colCustomerCode", "Customer Code")}</th>
                 <th className="px-4 py-3">{t("customerAnalytics.colSourceName", "Source Name")}</th>
+                <th className="px-4 py-3">{t("common.amount", "Amount")}</th>
+                <th className="px-4 py-3">{t("common.period", "Date / Period")}</th>
+                <th className="px-4 py-3">{t("common.status", "Status")}</th>
                 <th className="px-4 py-3">{t("customerAnalytics.colCustomerId", "Customer ID")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {paginatedCodeRows.map((row) => (
                 <tr
-                  key={row.code}
-                  onClick={() => setSelectedCode(row.code)}
+                  key={`${row.code}-${row.date}-${row.amount}`}
+                  onClick={() => {
+                    setSelectedCode(row.code);
+                    if (row.raw && row.source === "OUTSTANDING_REPORT") {
+                      setSelectedInvoiceDetail({
+                        invoice_id: row.raw.id,
+                        customer_id: row.raw.customer_id,
+                        invoice_number: row.raw.invoice_number,
+                        bl_number: row.raw.mawb ?? undefined,
+                        description: row.raw.job_number ?? undefined,
+                        due_date: row.raw.date,
+                        amount: row.raw.amount,
+                        paid_amount: row.raw.paid_amount ?? 0,
+                        remaining_amount: row.raw.remaining_amount ?? row.raw.amount,
+                        payment_status: row.raw.status as any,
+                        bulk_close_status: (row.raw.status === "CLOSED" ? "CLOSED" : "PENDING") as any,
+                        job_number: row.raw.job_number,
+                        mawb: row.raw.mawb,
+                      });
+                    }
+                  }}
                   className="hover:bg-blue-50/60 cursor-pointer transition"
                 >
                   <td className="px-4 py-3 font-bold text-blue-700 underline-offset-2 hover:underline">
-                    {row.code}
+                    <div className="flex items-center gap-1.5">
+                      <span>{row.code}</span>
+                      {row.source === "COMPANY_SALES_REPORT" ? (
+                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                          Sales
+                        </span>
+                      ) : row.source === "OUTSTANDING_REPORT" ? (
+                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200">
+                          Outstanding
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
-                  <td className="max-w-[420px] px-4 py-3 text-slate-800 font-medium">{row.customer_name}</td>
+                  <td className="max-w-[320px] px-4 py-3 text-slate-800 font-medium">
+                    <div>{row.customer_name}</div>
+                    {(row.job_number || row.mawb) && (
+                      <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                        {row.job_number ? `Job: ${row.job_number}` : ""} {row.mawb ? `· MAWB: ${row.mawb}` : ""}
+                      </div>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-900 font-heading">
+                    {row.amount > 0 ? formatRupiah(row.amount) : "-"}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-600 font-medium">
+                    {row.date}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                      row.status === "PAID" ? "border-emerald-200 bg-emerald-50 text-emerald-700" :
+                      row.status === "PARTIAL" ? "border-amber-200 bg-amber-50 text-amber-700" :
+                      row.status === "CLOSED" ? "border-slate-300 bg-slate-100 text-slate-700" :
+                      row.status === "SALES" ? "border-teal-200 bg-teal-50 text-teal-700" :
+                      "border-rose-200 bg-rose-50 text-rose-700"
+                    }`}>
+                      {row.status}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-500">{row.customer_id ?? "-"}</td>
                 </tr>
               ))}
