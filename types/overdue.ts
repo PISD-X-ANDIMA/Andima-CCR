@@ -50,6 +50,28 @@ export interface MidFeedRecord {
   exported_at?: string;
 }
 
+export interface MidEscalationRecord {
+  id: string;
+  invoice_id: string;
+  pic: string;
+  judul_issue: string;
+  deskripsi_issue: string | null;
+  date: string;
+  priority: 'High' | 'Medium' | 'Low' | string;
+  status: 'pending' | 'in_progress' | 'in_review' | 'done' | string;
+  due_date: string | null;
+  customer_name?: string | null;
+  c1_customer_id?: string | null;
+  outstanding_amount?: number;
+  days_overdue?: number;
+  follow_up_action?: string | null;
+  promise_date?: string | null;
+  last_notes?: string | null;
+  assignment_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface ExportRequestRecord {
   request_id: string;
   requested_by: string;
