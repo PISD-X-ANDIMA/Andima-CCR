@@ -27,6 +27,7 @@ import { DatePicker } from "@/components/CalendarModal";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import { showToast as swalToast } from "@/lib/swal";
 
 interface OverdueInvoiceCreateViewProps {
   invoiceId: string;
@@ -100,7 +101,6 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Form states
   const [followUpStatus, setFollowUpStatus] = useState("IN_PROGRESS");
@@ -113,8 +113,16 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const showToast = useCallback((message: string) => {
-    setToastMessage(message);
-    window.setTimeout(() => setToastMessage(null), 4000);
+    const isError =
+      message.toLowerCase().includes("fail") ||
+      message.toLowerCase().includes("gagal") ||
+      message.toLowerCase().includes("required") ||
+      message.toLowerCase().includes("cannot") ||
+      message.toLowerCase().includes("exceeds");
+    swalToast({
+      title: message,
+      icon: isError ? "error" : "success",
+    });
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -324,16 +332,6 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      {toastMessage && (
-        <div
-          role="status"
-          className="fixed right-4 top-20 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl animate-in slide-in-from-top-2"
-        >
-          <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       {/* Header bar matching Customer Analytics Detail style */}
       <header className="border-b border-slate-200 bg-white">
         <div className="flex w-full items-center justify-between px-6 py-4 md:px-8">
