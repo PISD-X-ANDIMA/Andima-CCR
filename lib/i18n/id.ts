@@ -8,7 +8,7 @@ export const id = {
     "notifications": "Notifikasi",
     "filters": "Filter",
     "profile": "Profil Akun",
-    "logout": "Logout",
+    "logout": "Keluar",
     "switchToEnglish": "Ganti bahasa ke Bahasa Inggris",
     "switchToIndonesian": "Ganti bahasa ke Bahasa Indonesia",
     "selectLanguage": "Pilih bahasa"

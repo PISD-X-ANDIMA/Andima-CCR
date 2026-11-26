@@ -4,6 +4,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 const rootDir = process.cwd();
+const indonesianTranslations = fs.readFileSync(path.join(rootDir, "lib/i18n/id.ts"), "utf8");
+
+test("Indonesian logout label is Keluar", () => {
+  assert.match(indonesianTranslations, /"logout": "Keluar"/);
+});
 
 test("Header component implements unified tribe navbar layout and burger button", () => {
   const headerContent = fs.readFileSync(path.join(rootDir, "components/Header.tsx"), "utf8");
