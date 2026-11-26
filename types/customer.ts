@@ -111,6 +111,31 @@ export interface CustomerCodeOutstandingRow {
   bulk_close_status: string;
 }
 
+export interface CustomerTransactionItem {
+  id: string;
+  invoice_id?: string;
+  source: "OUTSTANDING_REPORT" | "COMPANY_SALES_REPORT";
+  invoice_number: string;
+  customer_name: string;
+  customer_id: string;
+  code: string;
+  amount: number;
+  paid_amount?: number;
+  remaining_amount?: number;
+  date: string;
+  due_date?: string;
+  job_number?: string | null;
+  mawb?: string | null;
+  status: "PAID" | "PARTIAL" | "UNPAID" | "CLOSED" | "SALES";
+  payment_status?: string;
+  sub_total?: number;
+  vat?: number;
+  pph_23?: number;
+  others_dip?: number;
+  total_cost?: number;
+  sales_profit?: number;
+}
+
 export interface CustomerCodeDetail {
   company_group_id: string;
   customer_id: string;

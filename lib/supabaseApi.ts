@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/server/admin";
-import { CustomerAnalyticsItem, CustomerCodeDetail, CustomerCodeOutstandingRow, CustomerCodeSalesRow, InvoiceDetail, KpiSummary } from '@/types/customer';
+import { CustomerAnalyticsItem, CustomerCodeDetail, CustomerCodeOutstandingRow, CustomerCodeSalesRow, CustomerTransactionItem, InvoiceDetail, KpiSummary } from '@/types/customer';
 import { INITIAL_KPI_SUMMARY } from './customerData';
 
 export const getSupabaseClient = createAdminClient;
@@ -509,6 +509,150 @@ export async function fetchInvoicesFromSupabase(customerId: string, options: { i
   } catch (error) {
     console.error(`Error querying Supabase invoices for ${customerId}:`, error);
     throw error;
+  }
+}
+
+export async function fetchCustomerTransactionsFromSupabase(customerId: string): Promise<CustomerTransactionItem[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const canonical = await resolveCanonicalCustomer(supabase, customerId);
+    if (!canonical || !canonical.memberIds.length) return [];
+
+    const [salesDocIds, outstandingDocIds] = await Promise.all([
+      validatedDocumentIds(supabase, 'COMPANY_SALES_REPORT'),
+      validatedDocumentIds(supabase, 'OUTSTANDING_REPORT'),
+    ]);
+
+    const memberChunks = chunkArray(canonical.memberIds, 50);
+    const transactions: CustomerTransactionItem[] = [];
+
+    // 1. Fetch Outstanding Invoices
+    if (outstandingDocIds.length) {
+      const outstandingResults = await Promise.all(
+        memberChunks.map((chunk) =>
+          supabase
+            .from('c1_outstanding_staging_rows')
+            .select('id, document_id, row_number, invoice_number, customer_name, customer_id, c1_customer_id, outstanding_amount, due_date, create_date, job_number, mawb, bulk_close_status, created_at')
+            .in('document_id', outstandingDocIds)
+            .in('c1_customer_id', chunk)
+            .order('created_at', { ascending: false, nullsFirst: false })
+            .order('due_date', { ascending: true })
+            .order('row_number', { ascending: true })
+        )
+      );
+      const outError = outstandingResults.find((r) => r.error)?.error;
+      if (outError) throw outError;
+      const rawOutstanding = outstandingResults.flatMap((r) => r.data ?? []);
+
+      // Fetch payment transactions
+      const paymentResults = await Promise.all(
+        memberChunks.map((chunk) =>
+          supabase
+            .from('c1_payment_transactions')
+            .select('payment_id, invoice_number, amount, payment_date, reference_no')
+            .in('customer_id', chunk)
+            .order('payment_date', { ascending: false })
+        )
+      );
+      const paymentRows = paymentResults.flatMap((r) => r.data ?? []);
+      const paymentsByInvoice = new Map<string, Array<{ payment_id: string; amount: number; payment_date: string; reference_no: string }>>();
+      for (const payment of paymentRows) {
+        const key = String(payment.invoice_number).trim().toLowerCase();
+        const list = paymentsByInvoice.get(key) ?? [];
+        list.push({ payment_id: payment.payment_id, amount: Number(payment.amount) || 0, payment_date: payment.payment_date, reference_no: payment.reference_no });
+        paymentsByInvoice.set(key, list);
+      }
+
+      const seenInvoices = new Set<string>();
+      for (const row of rawOutstanding) {
+        const invKey = String(row.invoice_number ?? '').trim().toLowerCase();
+        if (invKey && seenInvoices.has(invKey)) continue;
+        if (invKey) seenInvoices.add(invKey);
+
+        const payments = paymentsByInvoice.get(invKey) ?? [];
+        const paidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+        const outstanding = numeric(row.outstanding_amount);
+        const remaining = Math.max(outstanding - paidAmount, 0);
+        const isClosed = (row.bulk_close_status ?? 'PENDING') === 'CLOSED';
+        const status: CustomerTransactionItem['status'] = isClosed
+          ? 'CLOSED'
+          : remaining <= 0
+            ? 'PAID'
+            : paidAmount > 0
+              ? 'PARTIAL'
+              : 'UNPAID';
+
+        transactions.push({
+          id: String(row.id),
+          invoice_id: String(row.id),
+          source: 'OUTSTANDING_REPORT',
+          invoice_number: String(row.invoice_number ?? ''),
+          customer_name: String(row.customer_name ?? canonical.customerName ?? ''),
+          customer_id: canonical.customerId,
+          code: String(row.invoice_number ?? ''),
+          amount: outstanding + paidAmount,
+          paid_amount: paidAmount,
+          remaining_amount: remaining,
+          date: String(row.due_date),
+          due_date: String(row.due_date),
+          job_number: row.job_number ? String(row.job_number) : null,
+          mawb: row.mawb ? String(row.mawb) : null,
+          status,
+          payment_status: status,
+        });
+      }
+    }
+
+    // 2. Fetch Sales Report Transactions
+    if (salesDocIds.length) {
+      const salesResults = await Promise.all(
+        memberChunks.map((chunk) =>
+          supabase
+            .from('c1_company_sales_staging_rows')
+            .select('id, document_id, row_number, period_month, customer_name, customer_id, c1_customer_id, revenue, trucking_cost, handling_cost, storage_cost, other_operational_cost, total_cost')
+            .in('document_id', salesDocIds)
+            .in('c1_customer_id', chunk)
+            .order('period_month', { ascending: false })
+            .order('row_number', { ascending: true })
+        )
+      );
+      const salesError = salesResults.find((r) => r.error)?.error;
+      if (salesError) throw salesError;
+      const rawSales = salesResults.flatMap((r) => r.data ?? []);
+
+      for (const row of rawSales) {
+        const totalCost = numeric(row.total_cost);
+        const revenue = numeric(row.revenue);
+        const period = String(row.period_month);
+        transactions.push({
+          id: String(row.id),
+          invoice_id: String(row.id),
+          source: 'COMPANY_SALES_REPORT',
+          invoice_number: `SALES-${period.slice(0, 7)}-${row.row_number}`,
+          customer_name: String(row.customer_name ?? canonical.customerName ?? ''),
+          customer_id: canonical.customerId,
+          code: period.slice(0, 7),
+          amount: revenue,
+          date: period,
+          due_date: period,
+          status: 'SALES',
+          payment_status: 'SALES',
+          sub_total: numeric(row.trucking_cost),
+          vat: numeric(row.handling_cost),
+          pph_23: numeric(row.storage_cost),
+          others_dip: numeric(row.other_operational_cost),
+          total_cost: totalCost,
+          sales_profit: revenue - totalCost,
+        });
+      }
+    }
+
+    // Sort by date descending
+    transactions.sort((a, b) => b.date.localeCompare(a.date));
+    return transactions;
+  } catch (error) {
+    console.error(`Error querying customer transactions for ${customerId}:`, error);
+    return [];
   }
 }
 

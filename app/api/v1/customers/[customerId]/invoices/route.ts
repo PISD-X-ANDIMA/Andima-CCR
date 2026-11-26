@@ -1,7 +1,7 @@
 import { checkOrigin, requireSession } from "@/lib/server/http";
 import { NextRequest, NextResponse } from "next/server";
 import { canUpload, canUseCcr, getCcrProfile } from "@/lib/server/authorization";
-import { fetchInvoicesFromSupabase, recordPaymentInSupabase } from "@/lib/supabaseApi";
+import { fetchCustomerTransactionsFromSupabase, fetchInvoicesFromSupabase, recordPaymentInSupabase } from "@/lib/supabaseApi";
 
 function timed(response: NextResponse, startedAt: number, phases: Record<string, number>) {
   const total = Math.round(performance.now() - startedAt);
@@ -39,7 +39,11 @@ export async function GET(
   try {
     const { customerId } = await params;
     const mode = new URL(req.url).searchParams.get("mode");
-    const invoices = await fetchInvoicesFromSupabase(customerId, { includeClosed: mode === "all", overdueOnly: mode === "overdue" });
+    if (mode === "all" || mode === "transactions") {
+      const transactions = await fetchCustomerTransactionsFromSupabase(customerId);
+      return timed(NextResponse.json({ customerId, totalInvoices: transactions.length, invoices: transactions }), startedAt, { auth: authDuration, db: performance.now() - databaseStarted });
+    }
+    const invoices = await fetchInvoicesFromSupabase(customerId, { includeClosed: false, overdueOnly: mode === "overdue" });
     return timed(NextResponse.json({ customerId, totalInvoices: invoices.length, invoices }), startedAt, { auth: authDuration, db: performance.now() - databaseStarted });
   } catch (error) {
     console.error("Customer invoice query failed:", error);
