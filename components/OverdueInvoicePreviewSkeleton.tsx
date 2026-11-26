@@ -83,25 +83,8 @@ export function OverdueInvoicePreviewSkeleton({ onClose }: { onClose?: () => voi
             </div>
           </div>
 
-          {/* Middle 2 Cards: PIC & Contact Person */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* PIC Information Skeleton */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
-              <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
-                <div className="size-4 rounded bg-blue-200" />
-                <div className="h-3.5 w-16 rounded bg-slate-200" />
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="size-10 rounded-full bg-slate-200 shrink-0" />
-                <div className="space-y-1.5 flex-1">
-                  <div className="h-3.5 w-28 rounded bg-slate-300" />
-                  <div className="h-2.5 w-40 rounded bg-slate-100" />
-                </div>
-              </div>
-            </div>
-
-            {/* Contact Person Skeleton */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+          {/* Contact Person Skeleton */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
               <div className="pb-2.5 border-b border-slate-100">
                 <div className="h-3.5 w-36 rounded bg-slate-200" />
               </div>
@@ -113,7 +96,6 @@ export function OverdueInvoicePreviewSkeleton({ onClose }: { onClose?: () => voi
                 <div className="h-8 rounded-lg bg-emerald-100/70" />
                 <div className="h-8 rounded-lg bg-slate-100" />
               </div>
-            </div>
           </div>
 
           {/* Activity & Follow-up History Skeleton */}

@@ -1051,13 +1051,20 @@ test("overdue invoices resolve C1 customer names and branches in one batch with 
     { invoice_id: "INV-MASTER", customer_id: null, c1_customer_id: "customer-a", due_date: "2026-08-01", evaluation_date: "2026-10-01", days_overdue: 61, overdue_alert: true, alert_status: "LEGAL ESCALATION" },
     { invoice_id: "INV-FALLBACK", customer_id: null, c1_customer_id: "customer-missing", due_date: "2026-08-02", evaluation_date: "2026-10-01", days_overdue: 60, overdue_alert: true, alert_status: "HIGH RISK" },
     { invoice_id: "INV-LEGACY", customer_id: "legacy-id", c1_customer_id: null, due_date: "2026-08-03", evaluation_date: "2026-10-01", days_overdue: 59, overdue_alert: true, alert_status: "HIGH RISK" },
+    { invoice_id: "INV-DUPLICATE", customer_id: null, c1_customer_id: null, due_date: "2026-08-04", evaluation_date: "2026-10-01", days_overdue: 58, overdue_alert: true, alert_status: "HIGH RISK" },
   ];
   const staging = [
     { invoice_number: "INV-MASTER", customer_id: null, c1_customer_id: "customer-a", customer_name: "Old Upload Name", outstanding_amount: 100, due_date: "2026-08-01", created_at: "2026-09-01" },
     { invoice_number: "INV-FALLBACK", customer_id: null, c1_customer_id: "customer-missing", customer_name: "Uploaded Fallback Name", outstanding_amount: 200, due_date: "2026-08-02", created_at: "2026-09-01" },
     { invoice_number: "INV-LEGACY", customer_id: "legacy-id", c1_customer_id: null, customer_name: "Legacy Upload Name", outstanding_amount: 300, due_date: "2026-08-03", created_at: "2026-09-01" },
+    { invoice_number: "INV-DUPLICATE", customer_id: null, c1_customer_id: null, customer_name: "Duplicate Co", outstanding_amount: 400, due_date: "2026-08-04", created_at: "2026-09-01" },
   ];
-  const customerRows = [{ customer_id: "customer-a", customer_name: "Canonical Customer", branch: "Jakarta", npwp: "NPWP-A", id: "customer-a", company_name: "Canonical Customer" }];
+  const customerRows = [
+    { customer_id: "customer-a", customer_name: "Canonical Customer", branch: "Jakarta", npwp: "NPWP-A", id: "customer-a", company_name: "Canonical Customer", pic_name: "A Contact", pic_phone: "+62 811 1111" },
+    { id: "customer-b", company_name: "Uploaded Fallback Name", pic_name: "Fallback Contact", pic_phone: "+62 822 2222" },
+    { id: "customer-c", company_name: "Duplicate Co", pic_name: "Contact One", pic_phone: "0811" },
+    { id: "customer-d", company_name: "Duplicate-Co", pic_name: "Contact Two", pic_phone: "0822" },
+  ];
   const customerLookups = [];
   const tables = { c1_overdue_alert: alerts, c1_outstanding_staging_rows: staging, c1_assignment: [], c1_customer: customerRows, a1_customers: customerRows };
   const client = {
@@ -1070,6 +1077,8 @@ test("overdue invoices resolve C1 customer names and branches in one batch with 
         lt(column, value) { queryState.filters.push([column, "lt", value]); return query; },
         eq(column, value) { if (!column.startsWith("c1_document_uploads.")) queryState.filters.push([column, "eq", value]); return query; },
         in(column, values) { queryState.filters.push([column, "in", values]); if (table === "c1_customer" || table === "a1_customers") customerLookups.push(values); return query; },
+        is() { return query; },
+        range(from, to) { queryState.range = [from, to]; return query; },
         order() { return query; },
         then(resolve, reject) {
           const values = (tables[table] ?? []).filter(row => queryState.filters.every(([column, operator, value]) => {
@@ -1080,7 +1089,8 @@ test("overdue invoices resolve C1 customer names and branches in one batch with 
             if (operator === "in") return value.includes(row[column]);
             return true;
           }));
-          return Promise.resolve({ data: values, error: null }).then(resolve, reject);
+          const rangedValues = queryState.range ? values.slice(queryState.range[0], queryState.range[1] + 1) : values;
+          return Promise.resolve({ data: rangedValues, error: null }).then(resolve, reject);
         },
       };
       return query;
@@ -1094,9 +1104,14 @@ test("overdue invoices resolve C1 customer names and branches in one batch with 
   assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").branch, "");
   assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").npwp, "-");
   assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").customer_id, "customer-a");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").contact_person.name, "A Contact");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-MASTER").contact_person.phone, "+62 811 1111");
   assert.equal(result.invoices.find(row => row.invoice_number === "INV-FALLBACK").customer_name, "Uploaded Fallback Name");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-FALLBACK").contact_person.name, "Fallback Contact");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-FALLBACK").contact_person.phone, "+62 822 2222");
   assert.equal(result.invoices.find(row => row.invoice_number === "INV-LEGACY").customer_name, "Legacy Upload Name");
   assert.equal(result.invoices.find(row => row.invoice_number === "INV-LEGACY").branch, "");
+  assert.equal(result.invoices.find(row => row.invoice_number === "INV-DUPLICATE").contact_person.name, "Contact not available");
 });
 
 async function database() {

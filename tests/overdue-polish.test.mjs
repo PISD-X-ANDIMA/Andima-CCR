@@ -8,11 +8,13 @@ const previewModal = readFileSync(new URL("../components/OverdueInvoicePreviewMo
 const createView = readFileSync(new URL("../components/OverdueInvoiceCreateView.tsx", import.meta.url), "utf8");
 const editView = readFileSync(new URL("../components/OverdueInvoiceEditView.tsx", import.meta.url), "utf8");
 const progressRoute = readFileSync(new URL("../app/api/v1/overdue/[invoiceId]/progress/route.ts", import.meta.url), "utf8");
+const assignmentRoute = readFileSync(new URL("../app/api/v1/overdue/[invoiceId]/assign/route.ts", import.meta.url), "utf8");
 const customerDetail = readFileSync(new URL("../components/CustomerAnalyticsDetail.tsx", import.meta.url), "utf8");
 const trendChart = readFileSync(new URL("../components/CustomerPaymentTrendChart.tsx", import.meta.url), "utf8");
 const paymentsRoute = readFileSync(new URL("../app/api/v1/customers/[customerId]/payments/route.ts", import.meta.url), "utf8");
 const paymentPeriodsMigration = readFileSync(new URL("../supabase/migrations/20261109130000_update_customer_analytics_payment_periods.sql", import.meta.url), "utf8");
 const preserveAssignmentMigration = readFileSync(new URL("../supabase/migrations/20261109140000_preserve_assignment_history_on_settlement.sql", import.meta.url), "utf8");
+const followUpSeparationMigration = readFileSync(new URL("../supabase/migrations/20261127100000_separate_c1_follow_up_logs.sql", import.meta.url), "utf8");
 
 test("Overdue risk status maps to Title Case without Legal Escalation", () => {
   assert.match(overdueApi, /normalizeRiskStatus/);
@@ -52,9 +54,9 @@ test("OverdueAlertView table UI meets polish requirements", () => {
 });
 
 test("OverdueInvoicePreviewModal adjusts labels, role visibility, and removes callout", () => {
-  // 1. Label is "PIC" instead of "PIC Penagihan"
-  assert.match(previewModal, /<UserCheck className="size-4 text-blue-600" \/> PIC/);
-  assert.doesNotMatch(previewModal, /<UserCheck className="size-4 text-blue-600" \/> PIC Penagihan/);
+  // 1. PIC panel removed and contact content fills its former row
+  assert.doesNotMatch(previewModal, /<UserCheck/);
+  assert.match(previewModal, /Contact Person & Quick Links[\s\S]*?rounded-xl border border-slate-200 bg-white p-4/);
 
   // 2. PIC assignment actions removed
   assert.doesNotMatch(previewModal, /Change PIC/);
@@ -65,6 +67,16 @@ test("OverdueInvoicePreviewModal adjusts labels, role visibility, and removes ca
 
   // 4. Contact placeholder fallback to "Contact not available"
   assert.match(previewModal, /Contact not available/);
+  assert.match(previewModal, /onClick=\{onRefreshHistory\}/);
+  assert.match(previewModal, /RefreshCw className=\{`size-4 \$\{historyLoading/);
+});
+
+test("Overdue preview history is isolated from table selection and ignores stale requests", () => {
+  assert.match(overdueView, /previewAssignmentHistory/);
+  assert.match(overdueView, /\+\+historyRequestRef\.current/);
+  assert.match(overdueView, /requestId !== historyRequestRef\.current/);
+  assert.doesNotMatch(overdueView, /const selectedInvoiceId = selectedInvoice\?\.id/);
+  assert.match(overdueView, /if \(previewModalInvoice\?\.id\)\s*\{\s*refreshAssignmentHistory\(previewModalInvoice\.id\)/);
 });
 
 test("OverdueInvoiceCreateView dynamic form, English status, wide layout, and top Back button", () => {
@@ -77,6 +89,7 @@ test("OverdueInvoiceCreateView dynamic form, English status, wide layout, and to
   assert.match(createView, /<option value="PROMISE_TO_PAY">Promise to Pay<\/option>/);
   assert.match(createView, /<option value="COMPLETED">Completed<\/option>/);
   assert.match(createView, /<option value="DISPUTE">Dispute<\/option>/);
+  assert.match(createView, /router\.push\("\/overdue-alert"\)/);
 
   // 3. No "(Opsional)" labels
   assert.doesNotMatch(createView, /\(Opsional/i);
@@ -117,7 +130,7 @@ test("Overdue settlement payment flow and exclusions", () => {
   assert.match(overdueApi, /recordSettlementPaymentInSupabase/);
   assert.match(overdueApi, /reverseSettlementPaymentInSupabase/);
   assert.match(overdueApi, /deleteFollowUpProgressInSupabase/);
-  assert.match(overdueApi, /assignment\?\.follow_up_status === "COMPLETED"/);
+  assert.match(overdueApi, /completedInvoiceIds\.has\(alert\.invoice_id\.trim\(\)\.toLowerCase\(\)\)/);
   assert.match(createView, /router\.push\("\/overdue-alert"\)/);
 
   // Verify payment periods expansion includes payment transactions
@@ -128,6 +141,26 @@ test("Overdue settlement payment flow and exclusions", () => {
 
   // Verify assignment history preservation
   assert.match(preserveAssignmentMigration, /drop constraint if exists c1_assignment_invoice_id_fkey/);
+});
+
+test("Follow-up logs are stored separately from PIC assignments", () => {
+  assert.match(followUpSeparationMigration, /create table if not exists public\.c1_follow_up_logs/);
+  assert.match(followUpSeparationMigration, /insert into public\.c1_follow_up_logs[\s\S]*?from public\.c1_assignment[\s\S]*?where follow_up_status <> 'ASSIGNED'/);
+  assert.match(followUpSeparationMigration, /delete from public\.c1_assignment where follow_up_status <> 'ASSIGNED'/);
+  assert.match(followUpSeparationMigration, /select 1 from public\.c1_follow_up_logs log[\s\S]*?follow_up_status = 'COMPLETED'/);
+  assert.match(overdueApi, /\.from\("c1_follow_up_logs"\)[\s\S]*?\.insert\(insertData\)/);
+  assert.match(overdueApi, /\.from\("c1_follow_up_logs"\)\.update\(updateData\)/);
+  assert.match(overdueApi, /\.from\("c1_follow_up_logs"\)[\s\S]*?\.delete\(\)/);
+  assert.match(overdueApi, /event_type: "ASSIGNMENT"/);
+  assert.match(overdueApi, /event_type: "FOLLOW_UP"/);
+  assert.match(progressRoute, /\.from\("c1_follow_up_logs"\)[\s\S]*?\.eq\("log_id", assignmentId\)/);
+});
+
+test("CCR users can read shared follow-up history while only authors may mutate their logs", () => {
+  assert.match(assignmentRoute, /const history = await fetchAssignmentHistoryInSupabase\(invoiceId\)/);
+  assert.doesNotMatch(assignmentRoute, /Assignment not found in your scope/);
+  assert.match(progressRoute, /existingAsg\.assigned_by !== session\.user!\.id/);
+  assert.match(editView, /currentUserId && record\.assigned_by === currentUserId/);
 });
 
 test("Customer Analytics and Overdue workflow enhancements meet user requirements", () => {

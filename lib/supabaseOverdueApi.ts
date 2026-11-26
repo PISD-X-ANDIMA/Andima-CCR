@@ -67,9 +67,20 @@ type AssignmentRow = {
 type CustomerIdentity = {
   customer_id: string;
   customer_name: string | null;
+  pic_name: string | null;
+  pic_phone: string | null;
   branch: string | null;
   npwp: string | null;
 };
+
+function normalizeCompanyName(value?: string | null) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
 
 const MS_PER_DAY = 86_400_000;
 
@@ -238,31 +249,21 @@ function toInvoice(
   staging: StagingOutstanding | undefined,
   assignment: AssignmentRow | undefined,
   customers: Map<string, CustomerIdentity>,
-  companyContacts?: {
-    byJob: Map<string, any>;
-    byName: Map<string, any>;
-    byCode: Map<string, any>;
-  },
+  customersByName: Map<string, CustomerIdentity[]>,
 ): OverdueInvoiceItem {
   const days = row.days_overdue;
   const assignedTo = assignment?.assigned_to;
   const customerId = row.c1_customer_id ?? staging?.c1_customer_id ?? row.customer_id ?? staging?.customer_id ?? null;
   const c1CustomerId = row.c1_customer_id ?? staging?.c1_customer_id ?? null;
-  const customer = c1CustomerId ? customers.get(c1CustomerId) : undefined;
+  const linkedCustomer = c1CustomerId ? customers.get(c1CustomerId) : undefined;
+  const companyNameMatches = customersByName.get(normalizeCompanyName(staging?.customer_name)) ?? [];
+  const customer = linkedCustomer ?? (companyNameMatches.length === 1 ? companyNameMatches[0] : undefined);
   const customerName = customer?.customer_name?.trim()
     || (staging?.customer_name && staging.customer_name.trim().toLowerCase() !== "tidak ditemukan" ? staging.customer_name.trim() : null)
     || "Customer unavailable";
 
-  let matchedCompany = staging?.job_number ? companyContacts?.byJob.get(staging.job_number.trim().toLowerCase()) : undefined;
-  if (!matchedCompany && customerName) {
-    matchedCompany = companyContacts?.byName.get(customerName.trim().toLowerCase());
-  }
-  if (!matchedCompany && staging?.customer_name) {
-    matchedCompany = companyContacts?.byName.get(staging.customer_name.trim().toLowerCase());
-  }
-
-  const contactName = matchedCompany?.name?.trim() || "Contact not available";
-  const contactPhone = matchedCompany?.pic_phone_number?.trim() || "Contact not available";
+  const contactName = customer?.pic_name?.trim() || "Contact not available";
+  const contactPhone = customer?.pic_phone?.trim() || "Contact not available";
 
   return {
     id: row.invoice_id,
@@ -282,7 +283,7 @@ function toInvoice(
     action_type: days > 90 ? "SP-3" : days >= 60 ? "SP-2" : days >= 30 ? "SP-1" : "ASSIGN",
     contact_person: {
       name: contactName,
-      role: matchedCompany ? "Customer PIC" : "Contact not available",
+      role: customer?.pic_name || customer?.pic_phone ? "Customer PIC" : "Contact not available",
       phone: contactPhone,
     },
     last_log: { date: "-", time: "-", text: "No collection log yet.", logged_by: "-" },
@@ -312,31 +313,32 @@ export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOption
       return { data: [] as AssignmentRow[], error: null };
     }
   })();
+  const completedLogsPromise = (async () => {
+    try {
+      const res = await supabase
+        .from("c1_follow_up_logs")
+        .select("invoice_id")
+        .eq("follow_up_status", "COMPLETED");
+      return res.data ?? [];
+    } catch {
+      return [];
+    }
+  })();
 
   const [
     { data: alerts, error: alertsError },
     assignmentsResult,
+    completedLogs,
     stagingRows,
-    companyListResult,
   ] = await Promise.all([
     alertsQuery,
     assignmentsPromise,
+    completedLogsPromise,
     readValidatedOutstanding(supabase),
-    supabase.from("a1_company_list").select("company_name, name, pic_phone_number, customer_code, job_number"),
   ]);
   if (alertsError) throw alertsError;
   const assignments = assignmentsResult?.data ?? [];
-
-  const companyRows = (companyListResult?.data ?? []) as any[];
-  const companyByJob = new Map<string, any>();
-  const companyByName = new Map<string, any>();
-  const companyByCode = new Map<string, any>();
-  for (const c of companyRows) {
-    if (c.job_number) companyByJob.set(String(c.job_number).trim().toLowerCase(), c);
-    if (c.company_name) companyByName.set(String(c.company_name).trim().toLowerCase(), c);
-    if (c.customer_code) companyByCode.set(String(c.customer_code).trim().toLowerCase(), c);
-  }
-  const companyContacts = { byJob: companyByJob, byName: companyByName, byCode: companyByCode };
+  const completedInvoiceIds = new Set(completedLogs.map((log: { invoice_id: string }) => log.invoice_id.trim().toLowerCase()));
 
   const stagingByInvoice = new Map(stagingRows.map((row) => [row.invoice_number.trim().toLowerCase(), row]));
   const latestAssignments = new Map<string, AssignmentRow>();
@@ -350,35 +352,70 @@ export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOption
     return [alert.c1_customer_id, staging?.c1_customer_id].filter((id): id is string => Boolean(id));
   }))];
   const customers = new Map<string, CustomerIdentity>();
+  const readCustomerRows = async (query: any) => {
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data ?? []) as Array<{
+      id: string;
+      company_name: string | null;
+      pic_name: string | null;
+      pic_phone: string | null;
+    }>;
+  };
+  const storeCustomer = (row: { id: string; company_name: string | null; pic_name: string | null; pic_phone: string | null }) => {
+    customers.set(row.id, {
+      customer_id: row.id,
+      customer_name: row.company_name,
+      pic_name: row.pic_name,
+      pic_phone: row.pic_phone,
+      branch: null,
+      npwp: null,
+    });
+  };
   if (customerIds.length) {
     const customerChunks = chunkArray(customerIds, 50);
-    const results = await Promise.all(
-      customerChunks.map((chunk) =>
+    const results = await Promise.all(customerChunks.map((chunk) => readCustomerRows(
+      supabase
+        .from("a1_customers")
+        .select("id, company_name, pic_name, pic_phone")
+        .is("deleted_at", null)
+        .in("id", chunk)
+    )));
+    results.flat().forEach(storeCustomer);
+  }
+
+  const needsNameFallback = alertsList.some((alert) => {
+    const staging = stagingByInvoice.get(alert.invoice_id.trim().toLowerCase());
+    const customerId = alert.c1_customer_id ?? staging?.c1_customer_id;
+    return !customerId || !customers.has(customerId);
+  });
+  if (needsNameFallback) {
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const rows = await readCustomerRows(
         supabase
           .from("a1_customers")
-          .select("id, company_name, company_code")
-          .in("id", chunk)
-      )
-    );
-    const customersError = results.find((r) => r.error)?.error;
-    if (customersError) throw customersError;
-    for (const r of results) {
-      for (const customer of (r.data ?? []) as Array<{ id: string; company_name: string | null; company_code: string | null }>) {
-        customers.set(customer.id, {
-          customer_id: customer.id,
-          customer_name: customer.company_name,
-          branch: null,
-          npwp: null,
-        });
-      }
+          .select("id, company_name, pic_name, pic_phone")
+          .is("deleted_at", null)
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1)
+      );
+      rows.forEach(storeCustomer);
+      if (rows.length < pageSize) break;
     }
+  }
+  const customersByName = new Map<string, CustomerIdentity[]>();
+  for (const customer of customers.values()) {
+    const key = normalizeCompanyName(customer.customer_name);
+    if (!key) continue;
+    const matches = customersByName.get(key) ?? [];
+    matches.push(customer);
+    customersByName.set(key, matches);
   }
 
   const invoices = alertsList
     .filter((alert) => {
-      const assignment = latestAssignments.get(alert.invoice_id);
-      if (assignment?.follow_up_status === "COMPLETED") return false;
-      return true;
+      return !completedInvoiceIds.has(alert.invoice_id.trim().toLowerCase());
     })
     .map((alert) =>
       toInvoice(
@@ -386,7 +423,7 @@ export async function fetchOverdueAlertsFromSupabase(options: OverdueQueryOption
         stagingByInvoice.get(alert.invoice_id.trim().toLowerCase()),
         latestAssignments.get(alert.invoice_id),
         customers,
-        companyContacts,
+        customersByName,
       ),
     )
     .sort((a, b) => a.due_date.localeCompare(b.due_date) || a.invoice_number.localeCompare(b.invoice_number));
@@ -540,11 +577,11 @@ export async function reverseSettlementPaymentInSupabase(assignmentId: string, i
   if (invoiceId) {
     const cleanInvoiceId = invoiceId.trim();
     const { data: remainingCompleted } = await supabase
-      .from("c1_assignment")
-      .select("assignment_id")
+      .from("c1_follow_up_logs")
+      .select("log_id")
       .ilike("invoice_id", cleanInvoiceId)
       .eq("follow_up_status", "COMPLETED")
-      .neq("assignment_id", assignmentId)
+      .neq("log_id", assignmentId)
       .limit(1);
 
     if (!remainingCompleted || remainingCompleted.length === 0) {
@@ -571,9 +608,9 @@ export async function deleteFollowUpProgressInSupabase(params: {
   const supabase = getSupabaseClient();
 
   const { data: existing, error: fetchError } = await supabase
-    .from("c1_assignment")
-    .select("assignment_id, invoice_id, follow_up_status, payment_amount")
-    .eq("assignment_id", cleanAssignmentId)
+    .from("c1_follow_up_logs")
+    .select("log_id, invoice_id, follow_up_status, payment_amount")
+    .eq("log_id", cleanAssignmentId)
     .ilike("invoice_id", cleanInvoiceId)
     .single();
 
@@ -586,9 +623,9 @@ export async function deleteFollowUpProgressInSupabase(params: {
   }
 
   const { error: deleteError } = await supabase
-    .from("c1_assignment")
+    .from("c1_follow_up_logs")
     .delete()
-    .eq("assignment_id", cleanAssignmentId);
+    .eq("log_id", cleanAssignmentId);
 
   if (deleteError) throw deleteError;
 
@@ -610,17 +647,7 @@ export async function recordFollowUpProgressInSupabase(params: {
   if (!cleanInvoiceId) return { success: false, error: "Invoice ID is required." };
 
   const supabase = getSupabaseClient();
-  let assignedTo = params.assignedTo?.trim();
-  if (!assignedTo) {
-    const { data: latest } = await supabase
-      .from("c1_assignment")
-      .select("assigned_to")
-      .eq("invoice_id", cleanInvoiceId)
-      .order("assigned_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    assignedTo = latest?.assigned_to || "STAFF";
-  }
+  const assignedTo = params.assignedTo?.trim() || "STAFF";
 
   const insertData: Record<string, unknown> = {
     invoice_id: cleanInvoiceId,
@@ -636,9 +663,9 @@ export async function recordFollowUpProgressInSupabase(params: {
   };
 
   const { data, error } = await supabase
-    .from("c1_assignment")
+    .from("c1_follow_up_logs")
     .insert(insertData)
-    .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
+    .select("log_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
     .single();
 
   if (error) throw error;
@@ -647,7 +674,7 @@ export async function recordFollowUpProgressInSupabase(params: {
     try {
       await recordSettlementPaymentInSupabase({
         invoiceId: cleanInvoiceId,
-        assignmentId: data.assignment_id,
+        assignmentId: data.log_id,
         amount: Number(data.payment_amount) || 0,
         enteredBy: params.updatedBy,
       });
@@ -687,13 +714,13 @@ export async function updateFollowUpProgressInSupabase(params: {
   if (params.paymentAmount !== undefined) updateData.payment_amount = params.paymentAmount ? Number(params.paymentAmount) : 0;
   if (params.assignedTo !== undefined && params.assignedTo?.trim()) updateData.assigned_to = params.assignedTo.trim();
 
-  let query = supabase.from("c1_assignment").update(updateData).eq("assignment_id", cleanAssignmentId);
+  let query = supabase.from("c1_follow_up_logs").update(updateData).eq("log_id", cleanAssignmentId);
   if (params.invoiceId?.trim()) {
     query = query.eq("invoice_id", params.invoiceId.trim());
   }
 
   const { data, error } = await query
-    .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
+    .select("log_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
     .single();
 
   if (error) throw error;
@@ -703,7 +730,7 @@ export async function updateFollowUpProgressInSupabase(params: {
       try {
         await recordSettlementPaymentInSupabase({
           invoiceId: data.invoice_id,
-          assignmentId: data.assignment_id,
+          assignmentId: data.log_id,
           amount: Number(data.payment_amount) || 0,
           enteredBy: params.updatedBy,
         });
@@ -724,20 +751,46 @@ export async function updateFollowUpProgressInSupabase(params: {
 
 export async function fetchAssignmentHistoryInSupabase(invoiceId: string) {
   try {
-    const { data, error } = await getSupabaseClient()
+    const supabase = getSupabaseClient();
+    const [{ data: assignmentRows, error: assignmentError }, { data: logRows, error: logError }] = await Promise.all([
+      supabase
       .from("c1_assignment")
-      .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
+      .select("assignment_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, created_at")
       .eq("invoice_id", invoiceId)
-      .order("assigned_at", { ascending: false });
-    if (error) return [];
+      .order("assigned_at", { ascending: false }),
+      supabase
+        .from("c1_follow_up_logs")
+        .select("log_id, invoice_id, assigned_to, assigned_by, assigned_at, follow_up_status, notes, follow_up_action, promise_date, attachment_url, updated_by, created_at, payment_amount")
+        .eq("invoice_id", invoiceId)
+        .order("assigned_at", { ascending: false }),
+    ]);
+    if (assignmentError || logError) return [];
 
-    // Deduplicate consecutive identical entries (e.g. rapid double-assignments)
-    const rows = (data ?? []) as any[];
+    const assignmentEvents = (assignmentRows ?? []).map((row) => ({
+      ...row,
+      event_type: "ASSIGNMENT",
+      log_id: null,
+      follow_up_action: null,
+      promise_date: null,
+      attachment_url: null,
+      updated_by: null,
+      payment_amount: null,
+    }));
+    const followUpEvents = (logRows ?? []).map((row) => ({
+      ...row,
+      event_type: "FOLLOW_UP",
+      assignment_id: row.log_id,
+    }));
+    const rows = [...assignmentEvents, ...followUpEvents].sort(
+      (a, b) => new Date(b.assigned_at).getTime() - new Date(a.assigned_at).getTime(),
+    ) as any[];
     const deduplicated: any[] = [];
     for (const row of rows) {
       const prev = deduplicated[deduplicated.length - 1];
       if (
+        row.event_type === "ASSIGNMENT" &&
         prev &&
+        prev.event_type === "ASSIGNMENT" &&
         prev.assigned_to === row.assigned_to &&
         prev.follow_up_status === row.follow_up_status &&
         Math.abs(new Date(prev.assigned_at).getTime() - new Date(row.assigned_at).getTime()) < 60_000

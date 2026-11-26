@@ -9,10 +9,10 @@ import {
   Paperclip,
   Phone,
   Plus,
-  UserCheck,
+  RefreshCw,
   X,
 } from "lucide-react";
-import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
+import type { AssignmentRecord, OverdueInvoiceItem } from "@/types/overdue";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import OverdueInvoicePreviewSkeleton, { ActivityHistorySkeleton } from "./OverdueInvoicePreviewSkeleton";
 
@@ -21,13 +21,13 @@ interface OverdueInvoicePreviewModalProps {
   onClose: () => void;
   invoice: OverdueInvoiceItem | null;
   assignmentHistory: AssignmentRecord[];
-  staffOptions?: StaffOption[];
   canAssign?: boolean;
   onEdit?: (invoice: OverdueInvoiceItem) => void;
   onCreate?: (invoice: OverdueInvoiceItem) => void;
   onAssign?: (invoice: OverdueInvoiceItem) => void;
   isLoading?: boolean;
   historyLoading?: boolean;
+  onRefreshHistory?: () => void;
 }
 
 function formatRupiah(value: number) {
@@ -44,18 +44,6 @@ function formatDate(value?: string | null, language: string = "en") {
   return Number.isNaN(date.getTime())
     ? value
     : date.toLocaleDateString(language === "id" ? "id-ID" : "en-US", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function initials(name?: string) {
-  return (
-    name
-      ?.split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || "-"
-  );
 }
 
 function riskClasses(status: string) {
@@ -86,25 +74,19 @@ export default function OverdueInvoicePreviewModal({
   onClose,
   invoice,
   assignmentHistory,
-  staffOptions = [],
   canAssign = false,
   onEdit,
   onCreate,
   onAssign,
   isLoading = false,
   historyLoading = false,
+  onRefreshHistory,
 }: OverdueInvoicePreviewModalProps) {
   const { t, language } = useLanguage();
   if (!open) return null;
   if (isLoading || !invoice) {
     return <OverdueInvoicePreviewSkeleton onClose={onClose} />;
   }
-
-  const assignedStaff = invoice.pic_assigned
-    ? staffOptions.find((staff) => staff.employee_id === invoice.pic_assigned)
-    : undefined;
-  const picName = assignedStaff?.full_name || invoice.pic_assigned || "-";
-  const picInitials = invoice.pic_initials || (picName === "-" ? "-" : initials(picName));
 
   const rawPhone = invoice.contact_person?.phone && invoice.contact_person.phone !== "-" ? invoice.contact_person.phone : "";
   const cleanPhone = rawPhone.replace(/[^0-9]/g, "");
@@ -189,34 +171,8 @@ export default function OverdueInvoicePreviewModal({
             </div>
           </div>
 
-          {/* PIC and Quick Contact Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* PIC Information */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <span className="text-xs font-bold text-slate-800 font-heading flex items-center gap-1.5">
-                  <UserCheck className="size-4 text-blue-600" /> PIC
-                </span>
-              </div>
-              <div className="mt-3 flex items-center gap-3">
-                <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ${picName === "-" ? "bg-slate-100 text-slate-400" : "bg-blue-100 text-blue-700"
-                    }`}
-                >
-                  {picInitials}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-slate-900">{picName}</p>
-                  <p className="truncate text-xs text-slate-500">
-                    {picName === "-" ? t("overdue.noPicAssigned", "No PIC assigned yet") : t("overdue.registeredOfficer", "Registered Collection Officer")}
-                    {assignedStaff ? ` · ID: ${assignedStaff.employee_id}` : ""}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Contact Person & Quick Links */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          {/* Contact Person & Quick Links */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
               <div className="border-b border-slate-100 pb-2.5">
                 <span className="text-xs font-bold text-slate-800 font-heading">
                   {t("overdue.customerContactPerson", "Customer Contact Person")}
@@ -281,7 +237,6 @@ export default function OverdueInvoicePreviewModal({
                   <span>{t("common.call", "Call")}</span>
                 </button>
               </div>
-            </div>
           </div>
 
           {/* Activity & Follow-up History */}
@@ -293,6 +248,17 @@ export default function OverdueInvoicePreviewModal({
                   {t("overdue.historyTitle", "Activity & Follow-up History")} {historyLoading ? "" : `(${assignmentHistory.length})`}
                 </h3>
               </div>
+              <button
+                type="button"
+                onClick={onRefreshHistory}
+                disabled={historyLoading || !onRefreshHistory}
+                title={t("common.refresh", "Refresh")}
+                aria-label={t("common.refresh", "Refresh")}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 disabled:cursor-wait disabled:opacity-50"
+              >
+                <RefreshCw className={`size-4 ${historyLoading ? "animate-spin" : ""}`} />
+                <span>{t("common.refresh", "Refresh")}</span>
+              </button>
             </div>
 
             <div className="mt-3">

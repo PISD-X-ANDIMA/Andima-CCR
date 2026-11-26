@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   AlertTriangle,
@@ -75,6 +76,7 @@ function followUpStatusBadge(status: string) {
 
 export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEditViewProps) {
   const { t, language, setLanguage } = useLanguage();
+  const router = useRouter();
   const cleanInvoiceId = useMemo(() => {
     try {
       return decodeURIComponent(invoiceId || "").trim();
@@ -123,23 +125,6 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
       icon: isError ? "error" : "success",
     });
   }, []);
-
-  const refreshHistory = useCallback(() => {
-    fetch(`/api/v1/overdue/${encodeURIComponent(cleanInvoiceId)}/assign?refresh=${Date.now()}`, {
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache" },
-    })
-      .then(async (response) => ({
-        ok: response.ok,
-        body: await readJsonResponse<{ data?: AssignmentRecord[]; error?: { message?: string } }>(response),
-      }))
-      .then((result) => {
-        if (result.ok && result.body?.data) {
-          setAssignmentHistory(result.body.data);
-        }
-      })
-      .catch(() => { });
-  }, [cleanInvoiceId]);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -224,7 +209,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
       showToast("Management role cannot edit follow-up logs. You can change the PIC above.");
       return;
     }
-    if (record.assigned_by && currentUserId && record.assigned_by !== currentUserId) {
+    if (!currentUserId || record.assigned_by !== currentUserId) {
       showToast(t("overdue.onlyAuthorCanEdit", "Anda hanya dapat mengedit log yang Anda buat sendiri."));
       return;
     }
@@ -298,7 +283,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
       showToast("Follow-up progress updated successfully!");
       setEditingRecord(null);
-      refreshHistory();
+      router.push("/overdue-alert");
     } catch (err: unknown) {
       setEditFieldErrors((prev) => ({
         ...prev,
@@ -315,7 +300,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
       showToast("Management role cannot delete follow-up logs.");
       return;
     }
-    if (record.assigned_by && currentUserId && record.assigned_by !== currentUserId) {
+    if (!currentUserId || record.assigned_by !== currentUserId) {
       showToast(t("overdue.onlyAuthorCanDelete", "Anda hanya dapat menghapus log yang Anda buat sendiri."));
       return;
     }
@@ -334,7 +319,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
 
       showToast("Follow-up log deleted successfully.");
       setDeletingRecord(null);
-      refreshHistory();
+      router.push("/overdue-alert");
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Failed to delete log.");
     } finally {
@@ -581,7 +566,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                             </span>
                             {isManagement ? null : (
                               <div className="flex items-center gap-1.5">
-                                {(!record.assigned_by || !currentUserId || record.assigned_by === currentUserId) ? (
+                                {currentUserId && record.assigned_by === currentUserId ? (
                                   <>
                                     <button
                                       type="button"

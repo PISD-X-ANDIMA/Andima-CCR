@@ -150,23 +150,6 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
     setEvidenceFile(file);
   };
 
-  const refreshHistory = useCallback(() => {
-    fetch(`/api/v1/overdue/${encodeURIComponent(cleanInvoiceId)}/assign?refresh=${Date.now()}`, {
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache" },
-    })
-      .then(async (response) => ({
-        ok: response.ok,
-        body: await readJsonResponse<{ data?: AssignmentRecord[]; error?: { message?: string } }>(response),
-      }))
-      .then((result) => {
-        if (result.ok && result.body?.data) {
-          setAssignmentHistory(result.body.data);
-        }
-      })
-      .catch(() => { });
-  }, [cleanInvoiceId]);
-
   const loadData = useCallback(() => {
     setLoading(true);
     setErrorMessage(null);
@@ -311,18 +294,10 @@ export default function OverdueInvoiceCreateView({ invoiceId }: OverdueInvoiceCr
 
       if (followUpStatus === "COMPLETED") {
         showToast("Invoice marked as paid and settled successfully. Returning to Overdue Alerts...");
-        setTimeout(() => {
-          router.push("/overdue-alert");
-        }, 1000);
       } else {
         showToast("Follow-up progress saved successfully!");
-        setNotes("");
-        setPromiseDate("");
-        setPaymentAmount("");
-        setEvidenceFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        refreshHistory();
       }
+      router.push("/overdue-alert");
     } catch (err: unknown) {
       setFieldErrors((prev) => ({
         ...prev,

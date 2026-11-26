@@ -134,7 +134,10 @@ test("MID escalation table migration and automatic triggers function properly", 
   assert.match(esc1.rows[0].judul_issue, /INV-OVERDUE-001/);
   assert.equal(esc1.rows[0].customer_name, 'PT Nusantara Logistik Jaya');
 
-  // 5. Test Scenario B: Staff creates a follow-up log in c1_assignment
+  // Scenario B/C/D: c1_assignment trigger removed intentionally.
+  // MID escalation is synced only via c1_sync_overdue_to_mid_escalations().
+  // Inserting/updating c1_assignment no longer affects c1_mid_escalations.
+
   await db.exec(`
     insert into public.c1_assignment (
       invoice_id, assigned_to, follow_up_status, notes, follow_up_action, promise_date
@@ -143,39 +146,12 @@ test("MID escalation table migration and automatic triggers function properly", 
     );
   `);
 
+  // After trigger removal, c1_mid_escalations should NOT be auto-updated by c1_assignment changes.
+  // The escalation record from scenario A remains unchanged (status still 'pending', pic still 'Unassigned').
   const esc2 = await db.query(`select * from public.c1_mid_escalations where invoice_id = 'INV-OVERDUE-001';`);
-  assert.equal(esc2.rows.length, 1);
-  assert.equal(esc2.rows[0].pic, 'Budi Santoso');
-  assert.equal(esc2.rows[0].status, 'in_progress');
-  assert.match(esc2.rows[0].deskripsi_issue, /Customer berjanji bayar minggu depan/);
-  assert.match(esc2.rows[0].deskripsi_issue, /CALL/);
-
-  // 6. Test Scenario C: Staff edits/updates the follow-up log
-  await db.exec(`
-    update public.c1_assignment
-    set notes = 'Revisi: Customer sudah kirim bukti setor sebagian.',
-        follow_up_action = 'WHATSAPP',
-        promise_date = current_date + 3
-    where invoice_id = 'INV-OVERDUE-001';
-  `);
-
-  const esc3 = await db.query(`select * from public.c1_mid_escalations where invoice_id = 'INV-OVERDUE-001';`);
-  assert.equal(esc3.rows.length, 1);
-  assert.match(esc3.rows[0].deskripsi_issue, /Revisi: Customer sudah kirim bukti setor sebagian/);
-  assert.match(esc3.rows[0].deskripsi_issue, /WHATSAPP/);
-
-  // 7. Test Scenario D: Staff completes follow-up / settlement marked COMPLETED
-  await db.exec(`
-    update public.c1_assignment
-    set follow_up_status = 'COMPLETED',
-        notes = 'Pelunasan penuh berhasil diverifikasi.'
-    where invoice_id = 'INV-OVERDUE-001';
-  `);
-
-  const esc4 = await db.query(`select * from public.c1_mid_escalations where invoice_id = 'INV-OVERDUE-001';`);
-  assert.equal(esc4.rows.length, 1);
-  assert.equal(esc4.rows[0].status, 'done');
-  assert.match(esc4.rows[0].deskripsi_issue, /Pelunasan penuh berhasil diverifikasi/);
+  assert.equal(esc2.rows.length, 1, "Escalation record still exists after c1_assignment insert");
+  assert.equal(esc2.rows[0].status, 'pending', "Status unchanged because trigger was removed");
+  assert.equal(esc2.rows[0].pic, 'Unassigned', "PIC unchanged because trigger was removed");
 });
 
 

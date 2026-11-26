@@ -216,12 +216,13 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ invoi
 
     const admin = createAdminClient();
     const { data: existingAsg } = await admin
-      .from("c1_assignment")
+      .from("c1_follow_up_logs")
       .select("assigned_by")
-      .eq("assignment_id", assignmentId)
+      .eq("log_id", assignmentId)
       .maybeSingle();
 
-    if (existingAsg && existingAsg.assigned_by && existingAsg.assigned_by !== session.user!.id) {
+    if (!existingAsg) return apiError("Follow-up log not found.", 404, "NOT_FOUND");
+    if (existingAsg.assigned_by !== session.user!.id) {
       return apiError("Anda hanya dapat mengedit log yang Anda buat sendiri.", 403, "FORBIDDEN");
     }
 
@@ -279,12 +280,13 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ invo
 
     const admin = createAdminClient();
     const { data: existingAsg } = await admin
-      .from("c1_assignment")
+      .from("c1_follow_up_logs")
       .select("assigned_by")
-      .eq("assignment_id", assignmentId)
+      .eq("log_id", assignmentId)
       .maybeSingle();
 
-    if (existingAsg && existingAsg.assigned_by && existingAsg.assigned_by !== session.user!.id) {
+    if (!existingAsg) return apiError("Follow-up log not found.", 404, "NOT_FOUND");
+    if (existingAsg.assigned_by !== session.user!.id) {
       return apiError("Anda hanya dapat menghapus log yang Anda buat sendiri.", 403, "FORBIDDEN");
     }
 

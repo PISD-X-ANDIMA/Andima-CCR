@@ -16,9 +16,6 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ invoic
     const { invoiceId } = await context.params;
     const profile = await getCcrProfile(session.client, session.user!.id);
     const history = await fetchAssignmentHistoryInSupabase(invoiceId);
-    if (profile?.resolved_role === "STAFF" && !history.some((item) => item.assigned_to === profile.employee_id || item.assigned_to === profile.full_name)) {
-      return apiError("Assignment not found in your scope.", 404, "NOT_FOUND");
-    }
 
     // Enrich history with user full names and roles from b2_register
     const admin = createAdminClient();
