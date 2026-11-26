@@ -39,8 +39,12 @@ export default function SalesOverviewPage() {
         fetch(`/api/v1/analytics/macro?start_period=${startPeriod}&end_period=${endPeriod}&refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
         fetch(`/api/v1/documents/recent?view=overview&limit=5&refresh=${refreshToken}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }),
       ]);
-      const body = await readJsonResponse<ResponseBody & { error?: { message?: string } }>(response);
-      const documentsBody = await readJsonResponse<DocumentsBody & { error?: { message?: string } }>(documentsResponse);
+      const body = await readJsonResponse<ResponseBody & { error?: { message?: string; code?: string } }>(response);
+      const documentsBody = await readJsonResponse<DocumentsBody & { error?: { message?: string; code?: string } }>(documentsResponse);
+      if (response.status === 401 || body?.error?.code === "UNAUTHENTICATED" || documentsResponse.status === 401 || documentsBody?.error?.code === "UNAUTHENTICATED") {
+        window.location.href = "/login";
+        return;
+      }
       if (version !== requestVersion.current) return;
       if (!response.ok || !body?.data) throw new Error(responseMessage(body, t("salesOverview.loadError", "Failed to load Sales Overview data.")));
       setSummary(body.data.summary);

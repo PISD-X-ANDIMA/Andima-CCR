@@ -11,6 +11,7 @@ import CustomerPaymentTrendChart from "@/components/CustomerPaymentTrendChart";
 import Pagination from "@/components/Pagination";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { DatePicker } from "@/components/CalendarModal";
+import { showSuccess, showError } from "@/lib/swal";
 
 type CustomerInvoice = InvoiceDetail & { job_number?: string | null; mawb?: string | null; payments?: Array<{ payment_id: string; amount: number; payment_date: string; reference_no: string }> };
 type Props = { customerId: string; returnTo: string };
@@ -129,8 +130,24 @@ export default function CustomerAnalyticsDetail({ customerId, returnTo }: Props)
       const response = await fetch(`/api/v1/customers/${encodeURIComponent(customerId)}/invoices`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "RECORD_PAYMENT", invoiceNumber: invoice.invoice_number, amount: Number(amount), paymentDate, referenceNo }) });
       const body = await readJsonResponse<{ error?: { message?: string }; message?: string }>(response);
       if (!response.ok) throw new Error(responseMessage(body, "Payment failed to save."));
+      const savedAmount = Number(amount);
       setOpenInvoice(null); setAmount(""); setReferenceNo(""); await loadData();
-    } catch (saveError) { setPaymentError(saveError instanceof Error ? saveError.message : "Payment failed to save."); }
+      void showSuccess({
+        title: language === "id" ? "Pembayaran Berhasil Dicatat" : "Payment Recorded Successfully",
+        text: language === "id"
+          ? `Pembayaran untuk faktur ${invoice.invoice_number} sebesar ${formatRupiah(savedAmount)} berhasil disimpan.`
+          : `Payment for invoice ${invoice.invoice_number} of ${formatRupiah(savedAmount)} has been saved.`,
+        language,
+      });
+    } catch (saveError) {
+      const errMsg = saveError instanceof Error ? saveError.message : "Payment failed to save.";
+      setPaymentError(errMsg);
+      void showError({
+        title: language === "id" ? "Gagal Menyimpan Pembayaran" : "Failed to Save Payment",
+        text: errMsg,
+        language,
+      });
+    }
     finally { setSaving(false); }
   };
 
