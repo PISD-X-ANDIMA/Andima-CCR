@@ -427,7 +427,6 @@ export const en = {
     "customerCodes": "Customer Codes",
     "customerCodesHint": "Validated invoices and transaction history from Sales Report and Outstanding Report.",
     "searchCustomerCodes": "Search invoice number, name, or ID...",
-    "colInvoiceNumber": "Invoice Number",
     "colCustomerCode": "Customer Code",
     "colSourceName": "Source Name",
     "colCustomerId": "Customer ID",

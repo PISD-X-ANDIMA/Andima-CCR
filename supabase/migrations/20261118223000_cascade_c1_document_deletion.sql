@@ -76,18 +76,41 @@ begin
     );
 
     -- Delete assignments for invoices belonging to this document that don't exist in other documents
-    delete from public.c1_assignment a
-    where a.invoice_number in (
-      select o.invoice_number
-      from public.c1_outstanding_staging_rows o
-      where o.document_id = target.id
-    )
-    and not exists (
-      select 1
-      from public.c1_outstanding_staging_rows other_o
-      where other_o.invoice_number = a.invoice_number
-        and other_o.document_id <> target.id
-    );
+    if exists (
+      select 1 from information_schema.columns 
+      where table_schema = 'public' and table_name = 'c1_assignment' and column_name = 'invoice_id'
+    ) then
+      execute '
+        delete from public.c1_assignment a
+        where a.invoice_id in (
+          select o.invoice_number 
+          from public.c1_outstanding_staging_rows o 
+          where o.document_id = $1
+        )
+        and not exists (
+          select 1 
+          from public.c1_outstanding_staging_rows other_o
+          where other_o.invoice_number = a.invoice_id
+            and other_o.document_id <> $1
+        )' using target.id;
+    elsif exists (
+      select 1 from information_schema.columns 
+      where table_schema = 'public' and table_name = 'c1_assignment' and column_name = 'invoice_number'
+    ) then
+      execute '
+        delete from public.c1_assignment a
+        where a.invoice_number in (
+          select o.invoice_number 
+          from public.c1_outstanding_staging_rows o 
+          where o.document_id = $1
+        )
+        and not exists (
+          select 1 
+          from public.c1_outstanding_staging_rows other_o
+          where other_o.invoice_number = a.invoice_number
+            and other_o.document_id <> $1
+        )' using target.id;
+    end if;
   end if;
 
   -- Delete target document (cascades to staging rows)

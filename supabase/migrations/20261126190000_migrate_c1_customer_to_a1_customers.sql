@@ -242,20 +242,45 @@ begin
         and other_o.document_id <> target.id
     );
 
-    delete from public.c1_assignment a
-    where a.invoice_number in (
-      select o.invoice_number
-      from public.c1_outstanding_staging_rows o
-      where o.document_id = target.id
-    )
-    and not exists (
-      select 1
-      from public.c1_outstanding_staging_rows other_o
-      where other_o.invoice_number = a.invoice_number
-        and other_o.document_id <> target.id
-    );
+    if exists (
+      select 1 from information_schema.columns 
+      where table_schema = 'public' and table_name = 'c1_assignment' and column_name = 'invoice_id'
+    ) then
+      execute '
+        delete from public.c1_assignment a
+        where a.invoice_id in (
+          select o.invoice_number 
+          from public.c1_outstanding_staging_rows o 
+          where o.document_id = $1
+        )
+        and not exists (
+          select 1 
+          from public.c1_outstanding_staging_rows other_o
+          where other_o.invoice_number = a.invoice_id
+            and other_o.document_id <> $1
+        )' using target.id;
+    elsif exists (
+      select 1 from information_schema.columns 
+      where table_schema = 'public' and table_name = 'c1_assignment' and column_name = 'invoice_number'
+    ) then
+      execute '
+        delete from public.c1_assignment a
+        where a.invoice_number in (
+          select o.invoice_number 
+          from public.c1_outstanding_staging_rows o 
+          where o.document_id = $1
+        )
+        and not exists (
+          select 1 
+          from public.c1_outstanding_staging_rows other_o
+          where other_o.invoice_number = a.invoice_number
+            and other_o.document_id <> $1
+        )' using target.id;
+    end if;
   end if;
 
+  delete from public.c1_company_sales_staging_rows where document_id = target.id;
+  delete from public.c1_outstanding_staging_rows where document_id = target.id;
   delete from public.c1_document_uploads where id = target.id;
 
   if target.document_type = 'OUTSTANDING_REPORT' then
@@ -305,7 +330,9 @@ begin
     'audit_id', audit_key,
     'document_id', target.id,
     'file_name', target.file_name,
-    'document_type', target.document_type
+    'document_type', target.document_type,
+    'storage_bucket', target.storage_bucket,
+    'storage_path', target.storage_path
   );
 end;
 $function$;
@@ -502,6 +529,233 @@ select jsonb_build_object(
 );
 $function$;
 
+-- 8. Decouple c1_get_sales_overview_analytics from c1_customer, join a1_customers, and grant permissions
+drop function if exists public.c1_get_sales_overview_analytics(date, date);
+create or replace function public.c1_get_sales_overview_analytics(
+  p_start_period date,
+  p_end_period_exclusive date
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $function$
+with months as (
+  select generate_series(
+    date_trunc('month', p_start_period)::date,
+    date_trunc('month', (p_end_period_exclusive - interval '1 day'))::date,
+    interval '1 month'
+  )::date as period_month
+  where p_start_period < p_end_period_exclusive
+), sales as (
+  select date_trunc('month', r.period_month)::date as period_month,
+    sum(r.revenue)::numeric as revenue, sum(r.total_cost)::numeric as cost
+  from public.c1_company_sales_staging_rows r
+  join public.c1_document_uploads d on d.id = r.document_id
+  where d.validation_status = 'validated'
+    and r.period_month >= p_start_period and r.period_month < p_end_period_exclusive
+  group by date_trunc('month', r.period_month)::date
+), outstanding as (
+  select date_trunc('month', r.due_date)::date as period_month,
+    sum(r.outstanding_amount)::numeric as total_outstanding
+  from public.c1_outstanding_staging_rows r
+  join public.c1_document_uploads d on d.id = r.document_id
+  where d.validation_status = 'validated'
+    and r.due_date >= p_start_period and r.due_date < p_end_period_exclusive
+  group by date_trunc('month', r.due_date)::date
+), series as (
+  select m.period_month, coalesce(s.revenue, 0)::numeric as revenue,
+    coalesce(s.cost, 0)::numeric as cost,
+    (coalesce(s.revenue, 0) - coalesce(s.cost, 0))::numeric as sales_profit,
+    coalesce(o.total_outstanding, 0)::numeric as total_outstanding
+  from months m left join sales s using (period_month) left join outstanding o using (period_month)
+), alert_scope as (
+  select a.* from public.c1_overdue_alert a
+  where a.days_overdue > 30 and a.due_date >= p_start_period and a.due_date < p_end_period_exclusive
+), latest_outstanding as (
+  select distinct on (lower(trim(r.invoice_number)))
+    r.invoice_number, r.c1_customer_id, r.customer_name, r.outstanding_amount,
+    r.job_number, r.mawb
+  from public.c1_outstanding_staging_rows r
+  join public.c1_document_uploads d on d.id = r.document_id
+  join alert_scope a on lower(trim(r.invoice_number)) = lower(trim(a.invoice_id))
+  where d.validation_status = 'validated' and r.outstanding_amount > 0
+  order by lower(trim(r.invoice_number)),
+           case when r.customer_name is not null and lower(trim(r.customer_name)) <> 'tidak ditemukan' and lower(trim(r.customer_name)) <> 'pelanggan tidak tersedia' then 0 else 1 end,
+           r.created_at desc, r.id desc
+), latest_assignment as (
+  select distinct on (a.invoice_id) a.invoice_id, a.assigned_to
+  from public.c1_assignment a join alert_scope s on s.invoice_id = a.invoice_id
+  order by a.invoice_id, a.assigned_at desc, a.assignment_id desc
+), alert_rows as (
+  select a.invoice_id, a.days_overdue, a.due_date, a.alert_status,
+    coalesce(o.c1_customer_id, a.c1_customer_id) as c1_customer_id,
+    case
+      when o.customer_name is not null and lower(trim(o.customer_name)) <> 'tidak ditemukan' and lower(trim(o.customer_name)) <> 'pelanggan tidak tersedia' then o.customer_name
+      when sales_by_job.customer_name is not null then sales_by_job.customer_name
+      when sales_by_mawb.customer_name is not null then sales_by_mawb.customer_name
+      when cust.company_name is not null then cust.company_name
+      else 'Pelanggan tidak tersedia'
+    end as customer_name,
+    coalesce(o.outstanding_amount, 0)::numeric as amount_overdue, la.assigned_to
+  from alert_scope a
+  left join latest_outstanding o on lower(trim(o.invoice_number)) = lower(trim(a.invoice_id::text))
+  left join lateral (
+    select s.customer_name from public.c1_company_sales_staging_rows s
+    where o.job_number is not null and o.job_number <> '' and o.job_number <> '-'
+      and lower(trim(s.job_number)) = lower(trim(o.job_number))
+      and s.customer_name is not null and lower(trim(s.customer_name)) <> 'tidak ditemukan'
+    order by s.created_at desc limit 1
+  ) sales_by_job on true
+  left join lateral (
+    select s.customer_name from public.c1_company_sales_staging_rows s
+    where o.mawb is not null and o.mawb <> '' and o.mawb <> '-'
+      and lower(trim(s.mawb)) = lower(trim(o.mawb))
+      and s.customer_name is not null and lower(trim(s.customer_name)) <> 'tidak ditemukan'
+    order by s.created_at desc limit 1
+  ) sales_by_mawb on true
+  left join public.a1_customers cust on cust.id = coalesce(o.c1_customer_id, a.c1_customer_id)
+  left join latest_assignment la on la.invoice_id = a.invoice_id
+), has_data as (
+  select exists (select 1 from sales) or exists (select 1 from outstanding) as value
+)
+select jsonb_build_object(
+  'summary', case when (select value from has_data) then (
+    select jsonb_build_object('revenue', coalesce(sum(s.revenue), 0), 'cost', coalesce(sum(s.cost), 0),
+      'sales_profit', coalesce(sum(s.sales_profit), 0), 'total_outstanding', coalesce(sum(s.total_outstanding), 0)) from series s
+  ) else null end,
+  'series', coalesce((select jsonb_agg(to_jsonb(s) order by s.period_month) from series s), '[]'::jsonb),
+  'alerts', coalesce((select jsonb_agg(jsonb_build_object(
+    'id', a.invoice_id, 'days', a.days_overdue, 'client', a.customer_name, 'due', a.due_date,
+    'amount', a.amount_overdue, 'riskStatus', a.alert_status, 'branch', 'Tidak tersedia',
+    'branchCode', '', 'picAssigned', a.assigned_to, 'customerId', a.c1_customer_id
+  ) order by a.due_date, a.invoice_id) from alert_rows a), '[]'::jsonb)
+);
+$function$;
+
+-- 9. Decouple c1_record_payment from c1_customer, query a1_customers, and grant permissions
+drop function if exists public.c1_record_payment(uuid, text, numeric, date, text, uuid);
+create or replace function public.c1_record_payment(
+  p_customer_id uuid,
+  p_invoice_number text,
+  p_amount numeric,
+  p_payment_date date,
+  p_reference_no text,
+  p_entered_by uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  company_key text;
+  invoice_outstanding numeric;
+  paid_amount numeric;
+  payment_row public.c1_payment_transactions;
+begin
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'INVALID_AMOUNT: Payment amount must be greater than zero';
+  end if;
+  if p_payment_date is null or nullif(trim(p_reference_no), '') is null then
+    raise exception 'INVALID_PAYMENT: Payment date and reference are required';
+  end if;
+
+  select coalesce(nullif(c.company_code, ''), public.c1_normalize_company_name(c.company_name)) into company_key
+  from public.a1_customers c
+  where c.id = p_customer_id;
+
+  if company_key is null then
+    raise exception 'INVOICE_NOT_FOUND: Company is not present in customer master';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext(lower(trim(company_key || ':' || p_invoice_number))));
+
+  select x.outstanding_amount into invoice_outstanding
+  from (
+    select distinct on (lower(trim(r.invoice_number))) r.outstanding_amount
+    from public.c1_outstanding_staging_rows r
+    join public.c1_document_uploads d on d.id = r.document_id
+    left join public.a1_customers member on member.id = r.c1_customer_id
+    where d.validation_status = 'validated'
+      and d.document_type = 'OUTSTANDING_REPORT'
+      and coalesce(nullif(member.company_code, ''), public.c1_normalize_company_name(member.company_name), public.c1_normalize_company_name(r.customer_name)) = company_key
+      and lower(trim(r.invoice_number)) = lower(trim(p_invoice_number))
+    order by lower(trim(r.invoice_number)), r.created_at desc, r.id desc
+  ) x;
+
+  if invoice_outstanding is null then
+    raise exception 'INVOICE_NOT_FOUND: Invoice is not present in validated C1 data';
+  end if;
+
+  select coalesce(sum(p.amount), 0) into paid_amount
+  from public.c1_payment_transactions p
+  join public.a1_customers member on member.id = p.customer_id
+  where coalesce(nullif(member.company_code, ''), public.c1_normalize_company_name(member.company_name)) = company_key
+    and lower(trim(p.invoice_number)) = lower(trim(p_invoice_number));
+
+  if p_amount > greatest(invoice_outstanding - paid_amount, 0) then
+    raise exception 'PAYMENT_EXCEEDS_OUTSTANDING: Payment exceeds invoice outstanding';
+  end if;
+
+  insert into public.c1_payment_transactions(invoice_number, customer_id, amount, payment_date, reference_no, entered_by)
+  values (trim(p_invoice_number), p_customer_id, p_amount, p_payment_date, trim(p_reference_no), p_entered_by)
+  returning * into payment_row;
+
+  return jsonb_build_object(
+    'payment_id', payment_row.payment_id,
+    'invoice_number', payment_row.invoice_number,
+    'amount', payment_row.amount,
+    'payment_date', payment_row.payment_date,
+    'reference_no', payment_row.reference_no
+  );
+end;
+$function$;
+
+-- 10. Decouple reset_c1_sales_overview_data from c1_customer
+create or replace function public.reset_c1_sales_overview_data()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  deleted_documents integer;
+  deleted_customers integer := 0;
+  deleted_board_rows integer;
+begin
+  set local session_replication_role = replica;
+  if to_regclass('public.b1_salesperform_board') is not null then
+    delete from public.b1_salesperform_board;
+    get diagnostics deleted_board_rows = row_count;
+  else
+    deleted_board_rows := 0;
+  end if;
+  delete from public.c1_document_validation_errors;
+  delete from public.c1_company_sales_staging_rows;
+  delete from public.c1_outstanding_staging_rows;
+  delete from public.c1_assignment;
+  if to_regclass('public.c1_mid_feed') is not null then
+    execute 'delete from public.c1_mid_feed';
+  end if;
+  delete from public.c1_overdue_alert;
+  delete from public.c1_macro_metric;
+  if to_regclass('public.c1_customer') is not null then
+    execute 'delete from public.c1_customer where source_type = ''UPLOAD''';
+    get diagnostics deleted_customers = row_count;
+  end if;
+  delete from public.c1_document_uploads;
+  get diagnostics deleted_documents = row_count;
+
+  return jsonb_build_object(
+    'deleted_documents', deleted_documents,
+    'deleted_uploaded_customers', deleted_customers,
+    'deleted_board_rows', deleted_board_rows
+  );
+end;
+$function$;
+
 do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'anon') then
@@ -509,5 +763,10 @@ begin
     revoke all on function public.c1_cleanup_unreferenced_upload_customers(uuid) from public, anon, authenticated;
     grant execute on function public.c1_resolve_uploaded_customers(uuid, jsonb) to service_role;
     grant execute on function public.c1_cleanup_unreferenced_upload_customers(uuid) to service_role;
+
+    grant execute on function public.c1_get_sales_overview_analytics(date, date) to service_role, authenticated, anon;
+    grant execute on function public.c1_record_payment(uuid, text, numeric, date, text, uuid) to service_role, authenticated;
+    grant execute on function public.reset_c1_sales_overview_data() to service_role;
+    grant execute on function public.c1_delete_uploaded_document(uuid, uuid) to service_role, authenticated;
   end if;
 end $$;

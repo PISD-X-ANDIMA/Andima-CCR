@@ -202,31 +202,82 @@ test("migrate_c1_customer_to_a1_customers migration drops only c1_customer and l
       period_month date,
       revenue numeric default 0,
       total_cost numeric default 0,
-      c1_customer_id uuid references public.c1_customer(customer_id)
+      customer_id uuid,
+      customer_name text,
+      job_number text,
+      mawb text,
+      c1_customer_id uuid references public.c1_customer(customer_id),
+      created_at timestamptz default now()
     );
 
     create table public.c1_outstanding_staging_rows (
       id uuid primary key default gen_random_uuid(),
       document_id uuid,
+      invoice_number text,
       due_date date,
       create_date date,
       bulk_close_status text,
       outstanding_amount numeric default 0,
-      c1_customer_id uuid references public.c1_customer(customer_id)
+      customer_id uuid,
+      customer_name text,
+      job_number text,
+      mawb text,
+      c1_customer_id uuid references public.c1_customer(customer_id),
+      created_at timestamptz default now()
     );
 
     create table public.c1_overdue_alert (
       alert_id uuid primary key default gen_random_uuid(),
       invoice_id text not null,
+      days_overdue integer default 35,
+      due_date date default current_date - 35,
+      alert_status text default 'critical',
       c1_customer_id uuid references public.c1_customer(customer_id)
+    );
+
+    create table public.c1_assignment (
+      assignment_id uuid primary key default gen_random_uuid(),
+      invoice_id text not null,
+      assigned_to text,
+      assigned_at timestamptz default now()
     );
 
     create table public.c1_payment_transactions (
       payment_id uuid primary key default gen_random_uuid(),
       customer_id uuid references public.c1_customer(customer_id),
+      invoice_number text,
       source_document_id uuid,
       amount numeric default 0,
-      payment_date date default current_date
+      payment_date date default current_date,
+      reference_no text,
+      entered_by uuid
+    );
+
+    create table public.c1_macro_metric (
+      period_month date primary key,
+      revenue numeric default 0,
+      cost numeric default 0,
+      total_outstanding numeric default 0,
+      validation_status text default 'validated',
+      updated_at timestamptz default now()
+    );
+
+    create table public.c1_document_validation_errors (
+      error_id uuid primary key default gen_random_uuid(),
+      document_id uuid
+    );
+
+    create table public.c1_document_deletion_audit (
+      audit_id uuid primary key default gen_random_uuid(),
+      document_id uuid,
+      file_name text,
+      document_type text,
+      validation_status text,
+      uploader_user_id uuid,
+      deleted_by uuid,
+      storage_bucket text,
+      storage_path text,
+      deleted_at timestamptz default now()
     );
 
     create table public.c1_document_uploads (
@@ -234,8 +285,14 @@ test("migrate_c1_customer_to_a1_customers migration drops only c1_customer and l
       file_name text not null,
       document_type text not null,
       validation_status text default 'validated',
-      processing_status text default 'completed'
+      processing_status text default 'completed',
+      storage_bucket text default 'c1-document-uploads',
+      storage_path text default 'test/path',
+      uploader_user_id uuid
     );
+
+    create or replace function public.c1_refresh_overdue_alerts(p_eval_date date)
+    returns void language plpgsql as $$ begin end; $$;
 
     create or replace function public.c1_normalize_company_name(p_name text)
     returns text language sql immutable as $$
@@ -277,4 +334,77 @@ test("migrate_c1_customer_to_a1_customers migration drops only c1_customer and l
   const resolved = resolveRes.rows[0].result.items[0];
   assert.equal(resolved.customer_name, 'PT DSV TRANSPORT INDONESIA');
   assert.equal(resolved.c1_customer_id, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+
+  // Verify c1_get_sales_overview_analytics executes without c1_customer
+  const salesOverviewRes = await db.query(`
+    select public.c1_get_sales_overview_analytics('2026-05-01'::date, '2026-11-01'::date) as result;
+  `);
+  assert.ok(salesOverviewRes.rows[0].result);
+  assert.ok(Array.isArray(salesOverviewRes.rows[0].result.series));
+
+  // Verify reset_c1_sales_overview_data executes cleanly when c1_customer is dropped
+  const resetRes = await db.query(`
+    select public.reset_c1_sales_overview_data() as result;
+  `);
+  assert.ok(resetRes.rows[0].result);
+  assert.equal(resetRes.rows[0].result.deleted_uploaded_customers, 0);
+
+  // Verify c1_record_payment executes cleanly against a1_customers
+  await db.exec(`
+    insert into public.c1_document_uploads (id, file_name, document_type, validation_status, storage_bucket, storage_path)
+    values ('11111111-1111-1111-1111-111111111111', 'outstanding.xlsx', 'OUTSTANDING_REPORT', 'validated', 'c1-document-uploads', 'test/outstanding.xlsx');
+
+    insert into public.c1_outstanding_staging_rows (
+      document_id, invoice_number, outstanding_amount, due_date, c1_customer_id, customer_name
+    ) values (
+      '11111111-1111-1111-1111-111111111111', 'INV-TEST-001', 5000000, current_date,
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'PT DSV TRANSPORT INDONESIA'
+    );
+  `);
+
+  const paymentRes = await db.query(`
+    select public.c1_record_payment(
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
+      'INV-TEST-001',
+      2000000,
+      current_date,
+      'REF-001',
+      '00000000-0000-0000-0000-000000000001'::uuid
+    ) as result;
+  `);
+  assert.ok(paymentRes.rows[0].result);
+  assert.equal(paymentRes.rows[0].result.invoice_number, 'INV-TEST-001');
+  assert.equal(paymentRes.rows[0].result.amount, 2000000);
+
+  // Verify c1_delete_uploaded_document cascades cleanly and returns storage metadata
+  // Add c1_assignment row linked by invoice_id (matching production schema)
+  await db.exec(`
+    insert into public.c1_assignment (invoice_id, assigned_to)
+    values ('INV-TEST-001', 'Test Staff');
+  `);
+
+  const deleteRes = await db.query(`
+    select public.c1_delete_uploaded_document('11111111-1111-1111-1111-111111111111'::uuid, '00000000-0000-0000-0000-000000000001'::uuid) as result;
+  `);
+  assert.ok(deleteRes.rows[0].result);
+  assert.equal(deleteRes.rows[0].result.document_id, '11111111-1111-1111-1111-111111111111');
+  assert.equal(deleteRes.rows[0].result.file_name, 'outstanding.xlsx');
+  assert.equal(deleteRes.rows[0].result.storage_bucket, 'c1-document-uploads');
+  assert.equal(deleteRes.rows[0].result.storage_path, 'test/outstanding.xlsx');
+
+  // Verify document is deleted
+  const docCount = await db.query(`select count(*)::int as count from public.c1_document_uploads where id = '11111111-1111-1111-1111-111111111111';`);
+  assert.equal(docCount.rows[0].count, 0);
+
+  // Verify staging rows are deleted
+  const stagingCount = await db.query(`select count(*)::int as count from public.c1_outstanding_staging_rows where document_id = '11111111-1111-1111-1111-111111111111';`);
+  assert.equal(stagingCount.rows[0].count, 0);
+
+  // Verify assignment is deleted
+  const asgCount = await db.query(`select count(*)::int as count from public.c1_assignment where invoice_id = 'INV-TEST-001';`);
+  assert.equal(asgCount.rows[0].count, 0);
+
+  // Verify payment transaction is deleted
+  const payCount = await db.query(`select count(*)::int as count from public.c1_payment_transactions where invoice_number = 'INV-TEST-001';`);
+  assert.equal(payCount.rows[0].count, 0);
 });

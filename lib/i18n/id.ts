@@ -427,7 +427,6 @@ export const id = {
     "customerCodes": "Kode Pelanggan",
     "customerCodesHint": "Daftar invoice dan riwayat transaksi tervalidasi dari Sales Report dan Outstanding Report.",
     "searchCustomerCodes": "Cari nomor faktur, nama, atau ID...",
-    "colInvoiceNumber": "Nomor Faktur",
     "colCustomerCode": "Kode / Nomor Faktur",
     "colSourceName": "Nama Sumber",
     "colCustomerId": "ID Pelanggan",
