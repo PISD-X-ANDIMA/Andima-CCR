@@ -8,10 +8,14 @@ export const en = {
     "notifications": "Notifications",
     "filters": "Filters",
     "profile": "Profile",
-    "logout": "Sign Out",
+    "logout": "Logout",
     "switchToEnglish": "Switch language to English",
     "switchToIndonesian": "Switch language to Indonesian",
     "selectLanguage": "Select language"
+  },
+  "auth": {
+    "confirmLogoutTitle": "Confirm Logout?",
+    "confirmLogoutMessage": "Are you sure you want to log out from Andima CCR?"
   },
   "common": {
     "refresh": "Refresh",
@@ -80,7 +84,10 @@ export const en = {
     "active": "Active",
     "options": "Options",
     "selectOption": "Select Option",
-    "overdueInvoices": "overdue invoices"
+    "overdueInvoices": "overdue invoices",
+    "yes": "Yes",
+    "no": "No",
+    "custom": "Custom"
   },
   "salesOverview": {
     "title": "Sales Overview",
@@ -440,6 +447,7 @@ export const en = {
     "savePayment": "Save Payment",
     "paymentAmountPlaceholder": "Payment amount",
     "amountIdrPlaceholder": "Amount (IDR)",
+    "paymentDatePlaceholder": "Payment date",
     "referencePlaceholder": "Reference number",
     "referenceShortPlaceholder": "Reference No.",
     "paymentTrend": "Payment Trend",
