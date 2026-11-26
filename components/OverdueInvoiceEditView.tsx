@@ -88,6 +88,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
   const [assignmentHistory, setAssignmentHistory] = useState<AssignmentRecord[]>([]);
   const [canAssign, setCanAssign] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -166,7 +167,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
         headers: { "Cache-Control": "no-cache" },
       }).then(async (res) => ({
         ok: res.ok,
-        body: await readJsonResponse<{ data?: { app_role?: string | null } }>(res),
+        body: await readJsonResponse<{ data?: { id?: string; app_role?: string | null } }>(res),
       })),
     ])
       .then(([invoiceRes, staffRes, historyRes, accountRes]) => {
@@ -175,6 +176,9 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
         }
         if (accountRes?.body?.data?.app_role) {
           setUserRole(accountRes.body.data.app_role);
+        }
+        if (accountRes?.body?.data?.id) {
+          setCurrentUserId(accountRes.body.data.id);
         }
 
         const normalizedTarget = cleanInvoiceId.toLowerCase();
@@ -213,6 +217,10 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
   const openEditModal = (record: AssignmentRecord) => {
     if (isManagement) {
       showToast("Management role cannot edit follow-up logs. You can change the PIC above.");
+      return;
+    }
+    if (record.assigned_by && currentUserId && record.assigned_by !== currentUserId) {
+      showToast(t("overdue.onlyAuthorCanEdit", "Anda hanya dapat mengedit log yang Anda buat sendiri."));
       return;
     }
     setEditingRecord(record);
@@ -287,6 +295,10 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
     if (!invoice || isDeleting) return;
     if (isManagement) {
       showToast("Management role cannot delete follow-up logs.");
+      return;
+    }
+    if (record.assigned_by && currentUserId && record.assigned_by !== currentUserId) {
+      showToast(t("overdue.onlyAuthorCanDelete", "Anda hanya dapat menghapus log yang Anda buat sendiri."));
       return;
     }
     setIsDeleting(true);
@@ -516,28 +528,34 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                             </span>
                             {isManagement ? null : (
                               <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => openEditModal(record)}
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition cursor-pointer shadow-xs"
-                                >
-                                  <Pencil className="size-3 text-blue-600" />
-                                  <span>{t("overdue.editLog", "Edit Log")}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (!UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS) {
-                                      void executeDeleteLog(record);
-                                    } else {
-                                      setDeletingRecord(record);
-                                    }
-                                  }}
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 transition cursor-pointer shadow-xs"
-                                >
-                                  <Trash2 className="size-3 text-red-600" />
-                                  <span>{t("overdue.deleteLog", "Delete Log")}</span>
-                                </button>
+                                {(!record.assigned_by || !currentUserId || record.assigned_by === currentUserId) ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditModal(record)}
+                                      className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition cursor-pointer shadow-xs"
+                                    >
+                                      <Pencil className="size-3 text-blue-600" />
+                                      <span>{t("overdue.editLog", "Edit Log")}</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS) {
+                                          void executeDeleteLog(record);
+                                        } else {
+                                          setDeletingRecord(record);
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 transition cursor-pointer shadow-xs"
+                                    >
+                                      <Trash2 className="size-3 text-red-600" />
+                                      <span>{t("overdue.deleteLog", "Delete Log")}</span>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic">Author only</span>
+                                )}
                               </div>
                             )}
                           </div>

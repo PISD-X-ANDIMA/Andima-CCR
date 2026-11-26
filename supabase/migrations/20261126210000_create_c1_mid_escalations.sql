@@ -130,6 +130,7 @@ declare
   calc_status text;
   calc_priority text;
   formatted_desc text;
+  staff_pic text;
   active_asg record;
 begin
   if tg_op = 'DELETE' then
@@ -183,6 +184,15 @@ begin
 
     formatted_desc := coalesce('[' || active_asg.follow_up_action || '] ', '') || coalesce(active_asg.notes, 'Follow up tercatat.');
 
+    -- Resolve the staff author who added the log
+    staff_pic := active_asg.assigned_to;
+    if to_regclass('public.b2_register') is not null and active_asg.assigned_by is not null then
+      execute 'select full_name from public.b2_register where auth_user_id = $1 limit 1'
+        into staff_pic using active_asg.assigned_by;
+      staff_pic := coalesce(staff_pic, active_asg.assigned_to);
+    end if;
+    staff_pic := coalesce(staff_pic, 'Unassigned');
+
     insert into public.c1_mid_escalations (
       invoice_id,
       pic,
@@ -203,7 +213,7 @@ begin
       updated_at
     ) values (
       target_invoice_id,
-      coalesce(active_asg.assigned_to, 'Unassigned'),
+      staff_pic,
       'Follow-Up: Overdue Invoice ' || target_invoice_id || coalesce(' - ' || cust_name, ''),
       formatted_desc,
       coalesce(active_asg.assigned_at, now()),

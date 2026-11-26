@@ -96,7 +96,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ invoic
       }
     }
 
-    const assignedTo = profile?.employee_id || profile?.full_name || "STAFF";
+    const assignedTo = profile?.full_name || profile?.employee_id || "STAFF";
 
     const result = await recordFollowUpProgressInSupabase({
       invoiceId: cleanInvoiceId,
@@ -214,6 +214,17 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ invoi
       return apiError("Assignment ID wajib disertakan untuk update.", 400, "MISSING_ASSIGNMENT_ID");
     }
 
+    const admin = createAdminClient();
+    const { data: existingAsg } = await admin
+      .from("c1_assignment")
+      .select("assigned_by")
+      .eq("assignment_id", assignmentId)
+      .maybeSingle();
+
+    if (existingAsg && existingAsg.assigned_by && existingAsg.assigned_by !== session.user!.id) {
+      return apiError("Anda hanya dapat mengedit log yang Anda buat sendiri.", 403, "FORBIDDEN");
+    }
+
     const result = await updateFollowUpProgressInSupabase({
       assignmentId,
       invoiceId: cleanInvoiceId,
@@ -264,6 +275,17 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ invo
 
     if (!assignmentId) {
       return apiError("Assignment ID is required to delete.", 400, "MISSING_ASSIGNMENT_ID");
+    }
+
+    const admin = createAdminClient();
+    const { data: existingAsg } = await admin
+      .from("c1_assignment")
+      .select("assigned_by")
+      .eq("assignment_id", assignmentId)
+      .maybeSingle();
+
+    if (existingAsg && existingAsg.assigned_by && existingAsg.assigned_by !== session.user!.id) {
+      return apiError("Anda hanya dapat menghapus log yang Anda buat sendiri.", 403, "FORBIDDEN");
     }
 
     const result = await deleteFollowUpProgressInSupabase({

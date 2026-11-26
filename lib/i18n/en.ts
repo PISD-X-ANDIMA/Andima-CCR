@@ -228,6 +228,8 @@ export const en = {
     "collectionPicAssignment": "Collection PIC Assignment",
     "assignedTo": "Assigned to:",
     "assignedBy": "Assigned by:",
+    "onlyAuthorCanEdit": "You can only edit follow-up logs that you added.",
+    "onlyAuthorCanDelete": "You can only delete follow-up logs that you added.",
     "viaChannel": "Via",
     "paidBadge": "Paid:",
     "promiseToPayLabel": "Promise to Pay:",

@@ -228,6 +228,8 @@ export const id = {
     "collectionPicAssignment": "Penugasan PIC Penagihan",
     "assignedTo": "Ditugaskan kepada:",
     "assignedBy": "Ditugaskan oleh:",
+    "onlyAuthorCanEdit": "Anda hanya dapat mengedit log yang Anda buat sendiri.",
+    "onlyAuthorCanDelete": "Anda hanya dapat menghapus log yang Anda buat sendiri.",
     "viaChannel": "Melalui",
     "paidBadge": "Dibayar:",
     "promiseToPayLabel": "Janji Bayar:",

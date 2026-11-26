@@ -8,5 +8,5 @@ export async function GET() {
   if (!access) return apiError("CCR account profile is not provisioned.", 403, "CCR_ACCESS_DENIED");
   const metadataName = user.user_metadata?.full_name;
   const name = access.full_name?.trim() || (typeof metadataName === "string" && metadataName.trim()) || user.email?.split("@")[0] || "Andima User";
-  return NextResponse.json({ data: { full_name: name, app_role: access.resolved_role, employee_id: access.employee_id, position: access.position_title, department: access.department_name, initials: name.split(/\s+/).map(p => p[0]).join("").slice(0,2).toUpperCase() } }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ data: { id: user.id, full_name: name, app_role: access.resolved_role, employee_id: access.employee_id, position: access.position_title, department: access.department_name, initials: name.split(/\s+/).map(p => p[0]).join("").slice(0,2).toUpperCase() } }, { headers: { "Cache-Control": "no-store" } });
 }
