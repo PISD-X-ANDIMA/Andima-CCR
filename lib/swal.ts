@@ -3,6 +3,7 @@
 import Swal, { SweetAlertOptions, SweetAlertResult, SweetAlertIcon } from "sweetalert2";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { useMemo } from "react";
+import { UI_FEEDBACK_CONFIG } from "@/lib/uiFeedbackConfig";
 
 export type LanguageCode = "id" | "en";
 
@@ -76,6 +77,9 @@ export const CcrSwal = Swal.mixin({
  * Menampilkan modal sukses untuk konfirmasi aksi berhasil (simpan data, unggah dokumen, pembaruan status).
  */
 export async function showSuccess(options: SwalAlertOptions): Promise<SweetAlertResult> {
+  if (!UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS) {
+    return Promise.resolve({ isConfirmed: true, isDenied: false, isDismissed: false } as SweetAlertResult);
+  }
   const lang = options.language ?? getCurrentLanguage();
   const defaultConfirmText = lang === "id" ? "Selesai" : "Done";
 
@@ -99,6 +103,9 @@ export async function showSuccess(options: SwalAlertOptions): Promise<SweetAlert
  * Menampilkan modal peringatan terkait tenggat waktu, overdue invoice, atau validasi penting.
  */
 export async function showWarning(options: SwalAlertOptions): Promise<SweetAlertResult> {
+  if (!UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS) {
+    return Promise.resolve({ isConfirmed: true, isDenied: false, isDismissed: false } as SweetAlertResult);
+  }
   const lang = options.language ?? getCurrentLanguage();
   const defaultConfirmText = lang === "id" ? "Mengerti" : "Understood";
 
@@ -122,6 +129,9 @@ export async function showWarning(options: SwalAlertOptions): Promise<SweetAlert
  * Mengembalikan Promise<boolean> (true jika dikonfirmasi, false jika dibatalkan).
  */
 export async function showConfirm(options: SwalConfirmOptions): Promise<boolean> {
+  if (!UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS) {
+    return Promise.resolve(true);
+  }
   const lang = options.language ?? getCurrentLanguage();
   const isDanger = options.isDanger ?? false;
 
@@ -157,6 +167,10 @@ export async function showConfirm(options: SwalConfirmOptions): Promise<boolean>
  * Menampilkan pesan galat terstruktur saat proses API atau validasi gagal.
  */
 export async function showError(options: SwalAlertOptions): Promise<SweetAlertResult> {
+  if (!UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS) {
+    console.error("[showError suppressed]", options.title, options.text);
+    return Promise.resolve({ isConfirmed: true, isDenied: false, isDismissed: false } as SweetAlertResult);
+  }
   const lang = options.language ?? getCurrentLanguage();
   const defaultConfirmText = lang === "id" ? "Tutup" : "Close";
 
@@ -179,6 +193,9 @@ export async function showError(options: SwalAlertOptions): Promise<SweetAlertRe
  * Notifikasi ringan non-blocking di pojok kanan atas dengan timer progres.
  */
 export function showToast(options: SwalToastOptions) {
+  if (!UI_FEEDBACK_CONFIG.ENABLE_NOTIFICATIONS) {
+    return Promise.resolve({ isConfirmed: false, isDenied: false, isDismissed: true } as SweetAlertResult);
+  }
   return Swal.fire({
     toast: true,
     position: options.position ?? "top-end",

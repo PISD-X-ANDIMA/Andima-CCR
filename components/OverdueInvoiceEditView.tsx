@@ -24,6 +24,7 @@ import HeaderAccount from "@/components/headeraccount";
 import FollowUpFormSkeleton from "@/components/FollowUpFormSkeleton";
 import { DatePicker } from "@/components/CalendarModal";
 import { ConfirmDeleteModal } from "@/components/AlertModal";
+import { UI_FEEDBACK_CONFIG } from "@/lib/uiFeedbackConfig";
 import type { AssignmentRecord, OverdueInvoiceItem, StaffOption } from "@/types/overdue";
 import { readJsonResponse, responseMessage } from "@/lib/clientHttp";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
@@ -282,8 +283,8 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
     }
   };
 
-  const handleDeleteLog = async () => {
-    if (!deletingRecord || !invoice || isDeleting) return;
+  const executeDeleteLog = async (record: OverdueHistoryRecord) => {
+    if (!invoice || isDeleting) return;
     if (isManagement) {
       showToast("Management role cannot delete follow-up logs.");
       return;
@@ -292,7 +293,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
     try {
       const response = await fetch(
         `/api/v1/overdue/${encodeURIComponent(invoice.id || cleanInvoiceId)}/progress?assignmentId=${encodeURIComponent(
-          deletingRecord.assignment_id
+          record.assignment_id
         )}`,
         {
           method: "DELETE",
@@ -309,6 +310,11 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleDeleteLog = async () => {
+    if (!deletingRecord) return;
+    await executeDeleteLog(deletingRecord);
   };
 
   return (
@@ -520,7 +526,13 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setDeletingRecord(record)}
+                                  onClick={() => {
+                                    if (!UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS) {
+                                      void executeDeleteLog(record);
+                                    } else {
+                                      setDeletingRecord(record);
+                                    }
+                                  }}
                                   className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 transition cursor-pointer shadow-xs"
                                 >
                                   <Trash2 className="size-3 text-red-600" />
@@ -731,7 +743,7 @@ export default function OverdueInvoiceEditView({ invoiceId }: OverdueInvoiceEdit
       )}
 
       {/* Delete Follow-up Progress Confirmation Modal */}
-      {deletingRecord && (
+      {deletingRecord && UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS && (
         <ConfirmDeleteModal
           isOpen={Boolean(deletingRecord)}
           onClose={() => setDeletingRecord(null)}

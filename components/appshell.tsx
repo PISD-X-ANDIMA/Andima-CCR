@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AccountProvider, useAccount } from "@/components/account-provider";
 import { LanguageProvider, useLanguage } from "@/lib/i18n/LanguageContext";
 import { SidebarProvider, useSidebar } from "@/components/sidebar-context";
 import Sidebar from "@/components/sidebar";
 import { ConfirmDeleteModal } from "@/components/AlertModal";
+import { UI_FEEDBACK_CONFIG } from "@/lib/uiFeedbackConfig";
 
 function AppShellInner({ children }: { children: ReactNode }) {
   const { isCollapsed, isMobileOpen, closeMobileSidebar, isLogoutConfirmOpen, closeLogoutConfirm } = useSidebar();
@@ -14,6 +15,12 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const { t } = useLanguage();
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
+
+  useEffect(() => {
+    if (isLogoutConfirmOpen && !UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS) {
+      void handleSignOut();
+    }
+  }, [isLogoutConfirmOpen]);
 
   async function handleSignOut() {
     setIsSigningOut(true);

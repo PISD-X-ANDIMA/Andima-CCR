@@ -2,6 +2,7 @@
 
 import React, { useEffect } from "react";
 import { Check, Loader2 } from "lucide-react";
+import { UI_FEEDBACK_CONFIG } from "@/lib/uiFeedbackConfig";
 
 export interface SuccessAlertModalProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ export const SuccessAlertModal: React.FC<SuccessAlertModalProps> = ({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS) return null;
 
   return (
     <div
@@ -94,7 +95,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose, loading]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !UI_FEEDBACK_CONFIG.ENABLE_POPUP_ALERTS) return null;
 
   return (
     <div
